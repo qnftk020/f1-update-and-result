@@ -100,6 +100,7 @@ class PoliteClient:
         *,
         params: dict | None = None,
         force: bool = False,
+        empty_on_404: bytes | None = None,
     ) -> FetchResult:
         """url을 받아 data/raw/<source>/<cache_path>에 저장한다. 캐시가 있으면 그대로 쓴다."""
         path = self.raw_dir / cache_path
@@ -127,10 +128,12 @@ class PoliteClient:
                     f"{resp.status_code} for {url}", request=resp.request, response=resp
                 )
                 continue
-            resp.raise_for_status()
+            if resp.status_code == 404 and empty_on_404 is not None:
+                content = empty_on_404  # "결과 없음"을 404로 알리는 API용
+            else:
+                resp.raise_for_status()
+                content = resp.content
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(resp.content)
-            return FetchResult(
-                url, path, resp.content, sha256_bytes(resp.content), False, utc_now_iso()
-            )
+            path.write_bytes(content)
+            return FetchResult(url, path, content, sha256_bytes(content), False, utc_now_iso())
         raise RuntimeError(f"요청 실패({self.source}): {url}") from last_error

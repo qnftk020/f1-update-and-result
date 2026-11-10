@@ -1,0 +1,40 @@
+lineage_id,constructor_id,season_from,season_to,f1db_constructor_id,team_name,link_type,note
+maranello,ferrari,1950,2025,ferrari,Ferrari,origin,
+woking,mclaren-ford,1966,1970,mclaren,McLaren,origin,Jolpica는 초기 McLaren을 섀시-엔진 조합 ID로 나눈다
+woking,mclaren-seren,1966,1966,mclaren,McLaren,origin,Jolpica는 초기 McLaren을 섀시-엔진 조합 ID로 나눈다
+woking,mclaren-brm,1967,1968,mclaren,McLaren,origin,Jolpica는 초기 McLaren을 섀시-엔진 조합 ID로 나눈다
+woking,mclaren-alfa_romeo,1970,1970,mclaren,McLaren,origin,Jolpica는 초기 McLaren을 섀시-엔진 조합 ID로 나눈다
+woking,mclaren,1968,2025,mclaren,McLaren,origin,
+grove,williams,1978,2025,williams,Williams,origin,1975-1976년 williams는 Frank Williams Racing Cars(이후 Wolf)라 제외한다. 1977년은 고객용 March로 출전해 constructor_id가 march라서 연결하지 않는다
+brackley,tyrrell,1970,1998,tyrrell,Tyrrell,origin,
+brackley,bar,1999,2005,bar,BAR,entry_purchase,Tyrrell의 참가권을 인수해 브래클리에 새 조직을 세웠다
+brackley,honda,2006,2008,honda,Honda,acquired,1964-1968년 honda는 별도의 Honda 워크스라 제외한다
+brackley,brawn,2009,2009,brawn,Brawn,acquired,
+brackley,mercedes,2010,2025,mercedes,Mercedes,acquired,1954-1955년 mercedes는 별도의 Daimler-Benz 워크스라 제외한다
+enstone,toleman,1981,1985,toleman,Toleman,origin,
+enstone,benetton,1986,2001,benetton,Benetton,acquired,
+enstone,renault,2002,2011,renault,Renault,acquired,1977-1985년 renault는 별도의 Renault 워크스라 제외한다
+enstone,lotus_f1,2012,2015,lotus-f1,Lotus F1,renamed,
+enstone,renault,2016,2020,renault,Renault,acquired,
+enstone,alpine,2021,2025,alpine,Alpine,renamed,
+silverstone,jordan,1991,2005,jordan,Jordan,origin,
+silverstone,mf1,2006,2006,midland,Midland,acquired,
+silverstone,spyker_mf1,2006,2006,midland,Spyker MF1,acquired,2006년 시즌 막바지에 Spyker가 인수해 이름을 바꿨다
+silverstone,spyker,2007,2007,spyker,Spyker,renamed,
+silverstone,force_india,2008,2018,force-india,Force India,acquired,2018년 중반 이후의 Racing Point Force India도 Jolpica에서는 force_india다
+silverstone,racing_point,2019,2020,racing-point,Racing Point,acquired,
+silverstone,aston_martin,2021,2025,aston-martin,Aston Martin,renamed,1959-1960년 aston_martin은 별도 조직이라 제외한다
+milton_keynes,stewart,1997,1999,stewart,Stewart,origin,
+milton_keynes,jaguar,2000,2004,jaguar,Jaguar,acquired,
+milton_keynes,red_bull,2005,2025,red-bull,Red Bull,acquired,
+faenza,minardi,1985,2005,minardi,Minardi,origin,
+faenza,toro_rosso,2006,2019,toro-rosso,Toro Rosso,acquired,
+faenza,alphatauri,2020,2023,alphatauri,AlphaTauri,renamed,
+faenza,rb,2024,2024,rb,RB,renamed,
+faenza,rb,2025,2025,racing-bulls,Racing Bulls,renamed,Jolpica는 2025년에도 rb를 쓴다
+hinwil,sauber,1993,2005,sauber,Sauber,origin,
+hinwil,bmw_sauber,2006,2009,bmw-sauber,BMW Sauber,acquired,
+hinwil,sauber,2010,2018,sauber,Sauber,acquired,2010년 참가 명칭은 BMW Sauber F1 Team이었다. F1DB chronology는 bmw-sauber를 2010년까지로 적지만 시즌 엔트런트 표는 2010년을 sauber로 적는다
+hinwil,alfa,2019,2023,alfa-romeo,Alfa Romeo,renamed,1950-1985년 alfa는 별도의 Alfa Romeo 워크스라 제외한다
+hinwil,sauber,2024,2025,kick-sauber,Kick Sauber,renamed,
+kannapolis,haas,2016,2025,haas,Haas,origin,
