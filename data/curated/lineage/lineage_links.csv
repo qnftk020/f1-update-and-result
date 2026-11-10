@@ -9,7 +9,7 @@ grove,williams,1978,2025,williams,Williams,origin,1975-1976년 williams는 Frank
 brackley,tyrrell,1970,1998,tyrrell,Tyrrell,origin,
 brackley,bar,1999,2005,bar,BAR,entry_purchase,Tyrrell의 참가권을 인수해 브래클리에 새 조직을 세웠다
 brackley,honda,2006,2008,honda,Honda,acquired,1964-1968년 honda는 별도의 Honda 워크스라 제외한다
-brackley,brawn,2009,2009,brawn,Brawn,acquired,
+brackley,brawn,2009,2009,brawn,Brawn,acquired,Ross Brawn이 이끈 경영진 인수다
 brackley,mercedes,2010,2025,mercedes,Mercedes,acquired,1954-1955년 mercedes는 별도의 Daimler-Benz 워크스라 제외한다
 enstone,toleman,1981,1985,toleman,Toleman,origin,
 enstone,benetton,1986,2001,benetton,Benetton,acquired,
@@ -22,7 +22,7 @@ silverstone,mf1,2006,2006,midland,Midland,acquired,
 silverstone,spyker_mf1,2006,2006,midland,Spyker MF1,acquired,2006년 시즌 막바지에 Spyker가 인수해 이름을 바꿨다
 silverstone,spyker,2007,2007,spyker,Spyker,renamed,
 silverstone,force_india,2008,2018,force-india,Force India,acquired,2018년 중반 이후의 Racing Point Force India도 Jolpica에서는 force_india다
-silverstone,racing_point,2019,2020,racing-point,Racing Point,acquired,
+silverstone,racing_point,2019,2020,racing-point,Racing Point,acquired,2018년 8월 Racing Point UK가 자산을 인수했고 FIA는 기존 참가권을 제외한 뒤 새 참가권을 승인했다. 조직과 공장은 이어졌다
 silverstone,aston_martin,2021,2025,aston-martin,Aston Martin,renamed,1959-1960년 aston_martin은 별도 조직이라 제외한다
 milton_keynes,stewart,1997,1999,stewart,Stewart,origin,
 milton_keynes,jaguar,2000,2004,jaguar,Jaguar,acquired,

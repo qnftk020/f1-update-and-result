@@ -105,3 +105,16 @@ def test_links_agree_with_f1db_chronology(con):
             c for c in chrono if c[0] == r["f1db_constructor_id"] and c[1] <= hi and c[2] >= lo
         ]
         assert overlaps, r
+
+
+def test_every_link_has_verified_evidence():
+    """모든 연결 행에 근거 URL과 확인일이 있어야 한다."""
+    evidence = {
+        (r["lineage_id"], r["constructor_id"], r["season_from"]): r
+        for r in read_csv(LINKS.parent / "lineage_evidence.csv")
+        if r["evidence_kind"] == "link"
+    }
+    for r in read_csv(LINKS):
+        e = evidence.get((r["lineage_id"], r["constructor_id"], r["season_from"]))
+        assert e is not None, r
+        assert e["evidence_url"].startswith("https://") and e["quote"] and e["verified_on"], e

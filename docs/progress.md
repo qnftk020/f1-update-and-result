@@ -36,11 +36,12 @@
 - 완료 기준 확인: 범위 조정에 따라 2024–2025년을 확인했다. 2025년은 24개 대회 전부, 2024년은 바레인을 뺀 23개 대회의 Car Presentation URL을 확보했다.
 - 완료 기준에 못 미친 부분: 2024년 바레인 문서는 fia.com에서 찾지 못했다. 2023년은 뉴스 첨부 경로로 7개 대회만 확인됐다(`docs/sources.md`).
 
-## T3 계보 테이블 (진행 중)
+## T3 계보 테이블
 
-- 상태: 초안과 테스트까지 끝났고 근거 URL 검증이 남았다.
-- 결과: `data/curated/lineage/`에 계보 10개(`lineages.csv`), 연결 39행(`lineage_links.csv`), 시즌별 연결 결과(`constructor_seasons.parquet`), F1DB와 Jolpica의 팀 ID 대응표(`constructor_crosswalk.csv`). `renault`, `mercedes`, `honda`, `alfa`, `aston_martin`, `williams` ID 분리 사례 테스트가 통과한다.
-- 남은 일: 연결 행마다 근거 URL과 확인일을 붙이고 `docs/lineage.md`를 쓴다.
+- 완료일: 2026-11-11
+- 결과: `data/curated/lineage/`에 계보 10개(`lineages.csv`), 연결 40행(`lineage_links.csv`), 근거 45행(`lineage_evidence.csv`), 시즌별 연결 결과와 PU 공급사(`constructor_seasons.parquet`), F1DB와 Jolpica의 팀 ID 대응표(`constructor_crosswalk.csv`). 근거와 판단이 갈리는 지점은 `docs/lineage.md`에 적었다.
+- 완료 기준 확인: 범위 조정에 따라 2025 그리드 10개 팀 모두 연결 행마다 근거 URL과 확인일이 있다. 근거 인용문 41건을 실제 페이지와 대조해 모두 통과했다. `renault`, `mercedes` ID 분리 테스트와 `honda`, `alfa`, `aston_martin`, `williams` 분리 테스트가 통과한다.
+- 메모: 제외 구간(예: 1954–1955년 `mercedes`)의 근거는 간접 근거다. Tyrrell 포함 여부, 2018년 Force India 참가권 단절, Williams의 시작 연도는 판단이 갈릴 수 있어 문서에 따로 적었다.
 
 ## T9 OpenF1 수집 (진행 중)
 

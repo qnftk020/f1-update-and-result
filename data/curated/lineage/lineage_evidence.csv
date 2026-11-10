@@ -1,0 +1,46 @@
+lineage_id,constructor_id,season_from,evidence_kind,evidence_url,quote,verified_on
+maranello,ferrari,1950,link,https://www.formula1.com/en/teams/ferrari,competed in every season since the world championship began,2026-11-11
+woking,mclaren-ford,1966,link,https://www.mclaren.com/racing/heritage/bruce-mclaren/,took the marque into grand prix racing in 1966,2026-11-11
+woking,mclaren-seren,1966,link,https://www.mclaren.com/racing/heritage/bruce-mclaren/,took the marque into grand prix racing in 1966,2026-11-11
+woking,mclaren-brm,1967,link,https://www.mclaren.com/racing/heritage/bruce-mclaren/,took the marque into grand prix racing in 1966,2026-11-11
+woking,mclaren,1968,link,https://www.mclaren.com/racing/heritage/bruce-mclaren/,took the marque into grand prix racing in 1966,2026-11-11
+woking,mclaren-alfa_romeo,1970,link,https://www.mclaren.com/racing/heritage/bruce-mclaren/,took the marque into grand prix racing in 1966,2026-11-11
+grove,williams,1978,link,https://www.williamsf1.com/articles/d807f8a4-e045-4277-994e-f9a872101cfe/atlassian-williams-f1-team-our-journey,"debuted their first in-house car, the FW06, in 1978",2026-11-11
+grove,williams,1978,exclusion,https://en.wikipedia.org/wiki/Frank_Williams_Racing_Cars,to set up Williams Grand Prix Engineering with Patrick Head in 1977,2026-11-11
+brackley,tyrrell,1970,link,https://en.wikipedia.org/wiki/Tyrrell_Racing,While BAR bought the Tyrrell F1 team and entry,2026-11-11
+brackley,bar,1999,link,https://en.wikipedia.org/wiki/Tyrrell_Racing,"they used a different factory, chassis builder and engine",2026-11-11
+brackley,honda,2006,link,https://en.wikipedia.org/wiki/British_American_Racing,BAR Honda became Honda Racing F1 Team for the 2006 Formula One season,2026-11-11
+brackley,honda,2006,exclusion,https://en.wikipedia.org/wiki/Honda_in_Formula_One,Honda purchased the remaining 55% share of BAR,2026-11-11
+brackley,brawn,2009,link,https://en.wikipedia.org/wiki/Brawn_GP,management buyout led by Ross Brawn,2026-11-11
+brackley,mercedes,2010,link,https://www.mercedesamgf1.com/news/growing-from-our-roots-how-mercedes-made-its-mark-on-f1,"gone from BAR, BAR Honda, Honda, then Brawn",2026-11-11
+brackley,mercedes,2010,exclusion,https://www.mercedesamgf1.com/news/celebrating-the-first-decade-of-the-mercedes-f1-works-team,"For the first time since 1955, a Mercedes works team was competing in Formula One again",2026-11-11
+enstone,toleman,1981,link,https://en.wikipedia.org/wiki/Toleman,It participated in Formula One between 1981 and 1985,2026-11-11
+enstone,benetton,1986,link,https://en.wikipedia.org/wiki/Benetton_Formula,when the Toleman team was sold to the Benetton family,2026-11-11
+enstone,renault,2002,link,https://en.wikipedia.org/wiki/Benetton_Formula,the team was fully re-branded as the Renault F1 Team for the 2002 season,2026-11-11
+enstone,renault,2002,exclusion,https://en.wikipedia.org/wiki/Renault_in_Formula_One,it withdrew at the end of 1985,2026-11-11
+enstone,lotus_f1,2012,link,https://en.wikipedia.org/wiki/Lotus_F1_Team,The team competed under the Lotus name from 2012 until 2015,2026-11-11
+enstone,renault,2016,link,https://en.wikipedia.org/wiki/Renault_in_Formula_One,Renault announced that they had purchased the Lotus F1 Team,2026-11-11
+enstone,alpine,2021,link,https://en.wikipedia.org/wiki/Team_Enstone,Renault renamed the team to the Alpine F1 Team,2026-11-11
+milton_keynes,stewart,1997,link,https://en.wikipedia.org/wiki/Red_Bull_Racing,traces its origins back to the Stewart Grand Prix outfit that made its debut in 1997,2026-11-11
+milton_keynes,jaguar,2000,link,https://en.wikipedia.org/wiki/Jaguar_Racing_(Formula_One),"The team operated for five seasons, from 2000 to 2004",2026-11-11
+milton_keynes,red_bull,2005,link,https://en.wikipedia.org/wiki/Red_Bull_Racing,agreed its purchase of Jaguar Racing,2026-11-11
+faenza,minardi,1985,link,https://en.wikipedia.org/wiki/Minardi,It competed in the Formula One World Championship from 1985 until 2005,2026-11-11
+faenza,toro_rosso,2006,link,https://en.wikipedia.org/wiki/Minardi,the team was renamed Scuderia Toro Rosso for the 2006 season,2026-11-11
+faenza,alphatauri,2020,link,https://en.wikipedia.org/wiki/Racing_Bulls,Scuderia AlphaTauri from 2020 to 2023,2026-11-11
+faenza,rb,2024,link,https://en.wikipedia.org/wiki/Racing_Bulls,Visa Cash App RB F1 Team for the 2024 season,2026-11-11
+faenza,rb,2025,link,https://en.wikipedia.org/wiki/Racing_Bulls,Racing Bulls in 2025,2026-11-11
+hinwil,sauber,1993,link,https://www.formula1.com/en/teams/kick-sauber,into F1 in 1993,2026-11-11
+hinwil,bmw_sauber,2006,link,https://en.wikipedia.org/wiki/Sauber_Motorsport,raced as BMW Sauber F1 Team from 2006 to 2009,2026-11-11
+hinwil,sauber,2010,link,https://en.wikipedia.org/wiki/Sauber_Motorsport,BMW sold its part back to Peter Sauber after the end of the 2009 season,2026-11-11
+hinwil,alfa,2019,link,https://en.wikipedia.org/wiki/Sauber_Motorsport,until 2023,2026-11-11
+hinwil,alfa,2019,exclusion,https://en.wikipedia.org/wiki/Alfa_Romeo_in_Formula_One,Alfa Romeo itself had no technical involvement with the team,2026-11-11
+hinwil,sauber,2024,link,https://www.formula1.com/en/latest/article/sauber-new-team-name-stake-f1-team-kick-alfa-romeo.3ExVqWTCT8pd7MEd71V5DK,rebranding as Audi in 2026,2026-11-11
+silverstone,jordan,1991,link,https://en.wikipedia.org/wiki/Jordan_Grand_Prix,Jordan Grand Prix was a Formula One constructor that competed from 1991 to 2005,2026-11-11
+silverstone,mf1,2006,link,https://en.wikipedia.org/wiki/Jordan_Grand_Prix,before renaming the team as Midland F1 Racing for the 2006 season,2026-11-11
+silverstone,spyker_mf1,2006,link,https://en.wikipedia.org/wiki/Spyker_F1,before being sold to Spyker Cars towards the end of the 2006 season,2026-11-11
+silverstone,spyker,2007,link,https://en.wikipedia.org/wiki/Spyker_F1,before being sold to Spyker Cars towards the end of the 2006 season,2026-11-11
+silverstone,force_india,2008,link,https://en.wikipedia.org/wiki/Spyker_F1,The team was renamed Force India for the 2008 season,2026-11-11
+silverstone,racing_point,2019,link,https://www.fia.com/news/fia-approves-mid-season-entry-racing-point-force-india,mid-season entry of Racing Point Force India,2026-11-11
+silverstone,aston_martin,2021,link,https://en.wikipedia.org/wiki/Racing_Point_F1_Team,The team rebranded to Aston Martin for the 2021 Formula One season,2026-11-11
+silverstone,aston_martin,2021,exclusion,https://www.astonmartinf1.com/en-GB/heritage,leading Aston Martin to exit Formula One in 1960,2026-11-11
+kannapolis,haas,2016,link,https://www.haasf1team.com/season/team/gene-haas,was granted a license by the,2026-11-11
