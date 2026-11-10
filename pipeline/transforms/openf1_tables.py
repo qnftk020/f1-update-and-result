@@ -109,13 +109,32 @@ def build_meeting_map(sessions: pd.DataFrame) -> pd.DataFrame:
     of_race = sessions[sessions["session_name"] == "Race"].copy()
     of_race["race_date_utc"] = pd.to_datetime(of_race["date_start"], utc=True).dt.date
     of_quali = sessions[sessions["session_name"] == "Qualifying"][["meeting_key", "session_key"]]
-    merged = races.merge(
+    # 같은 UTC 날짜로 먼저 맞추고, 남은 대회는 하루 차이까지 허용한다.
+    # (Jolpica의 날짜는 현지 날짜라 라스베이거스처럼 UTC 날짜와 하루 어긋나는 대회가 있다)
+    exact = races.merge(
         of_race, how="left", left_on=["season", "race_date_utc"], right_on=["year", "race_date_utc"]
-    ).merge(of_quali, how="left", on="meeting_key", suffixes=("_race", "_qualifying"))
+    )
+    exact["match_rule"] = exact["meeting_key"].notna().map({True: "same_utc_date", False: ""})
+    used = set(exact["meeting_key"].dropna())
+    for idx in exact.index[exact["meeting_key"].isna()]:
+        day = exact.at[idx, "race_date_utc"]
+        near = of_race[
+            (of_race["year"] == exact.at[idx, "season"])
+            & ~of_race["meeting_key"].isin(used)
+            & of_race["race_date_utc"].map(lambda d, day=day: abs((d - day).days) <= 1)
+        ]
+        if len(near) == 1:
+            for col in of_race.columns:
+                if col != "race_date_utc":
+                    exact.at[idx, col] = near.iloc[0][col]
+            exact.at[idx, "match_rule"] = "within_one_day"
+            used.add(near.iloc[0]["meeting_key"])
+    merged = exact.merge(of_quali, how="left", on="meeting_key", suffixes=("_race", "_qualifying"))
     out = merged[
         [
             "season", "round", "race_name", "date", "circuit_id", "meeting_key", "location",
             "circuit_short_name", "circuit_key", "session_key_qualifying", "session_key_race",
+            "match_rule",
         ]
     ].rename(
         columns={

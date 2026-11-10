@@ -282,6 +282,34 @@ def build_race() -> int:
     return len(out)
 
 
+def add_qualifying_wet_flags() -> dict[str, int]:
+    """퀄리파잉 지수에 우천 플래그를 붙인다.
+
+    2023년 이후는 OpenF1 예선 세션에서 인터미디어트·웨트 스틴트가 있거나 강우 표본이 있으면
+    wet, 아니면 dry다. 2022년 이전은 판정 자료가 없어 unclassified로 둔다.
+    """
+    import pandas as pd
+
+    of = CURATED_DIR / "openf1"
+    path = PACE / "qualifying_index.parquet"
+    index = pd.read_parquet(path).drop(columns=["wet_flag"], errors="ignore")
+    meeting_map = pd.read_csv(of / "meeting_map.csv")
+    stints = pd.read_parquet(of / "stints.parquet")
+    weather = pd.read_parquet(of / "weather.parquet")
+    wet_tyres = set(stints[stints["compound"].isin(WET_COMPOUNDS)]["session_key"])
+    rain = set(weather[weather["rainfall"] > 0]["session_key"])
+    flags = meeting_map[["season", "round", "qualifying_session_key"]].copy()
+    flags["wet_flag"] = flags["qualifying_session_key"].map(
+        lambda k: "wet" if k in wet_tyres or k in rain else "dry"
+    )
+    index = index.merge(flags[["season", "round", "wet_flag"]], how="left", on=["season", "round"])
+    index["wet_flag"] = index["wet_flag"].fillna("unclassified")
+    index.to_parquet(path, index=False, compression="zstd")
+    per_race = index.drop_duplicates(["season", "round"])["wet_flag"].value_counts()
+    return {k: int(v) for k, v in per_race.items()}
+
+
 if __name__ == "__main__":
     print(f"pace/qualifying_index: {build_qualifying()} rows")
     print(f"pace/race_index: {build_race()} rows")
+    print(f"qualifying wet flags by race: {add_qualifying_wet_flags()}")

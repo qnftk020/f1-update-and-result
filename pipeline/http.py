@@ -84,14 +84,14 @@ class PoliteClient:
         if wait > 0:
             time.sleep(wait)
 
-    def _log(self, url: str, status: int, size: int) -> None:
+    def _log(self, url: str, status: int, size: int, started: str) -> None:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         new = not self.log_path.exists()
         with self.log_path.open("a", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             if new:
                 w.writerow(["requested_at", "url", "status", "bytes"])
-            w.writerow([utc_now_iso(), url, status, size])
+            w.writerow([started, url, status, size])
 
     def get(
         self,
@@ -113,13 +113,14 @@ class PoliteClient:
             self._wait_turn()
             self._last_request = time.monotonic()
             self._recent.append(self._last_request)
+            started = utc_now_iso()  # 로그에는 요청을 보낸 시각을 남긴다
             try:
                 resp = self._client.get(url, params=params)
             except httpx.HTTPError as exc:  # 네트워크 오류는 간격을 늘려 재시도
                 last_error = exc
                 time.sleep(self.min_interval * (2**attempt))
                 continue
-            self._log(str(resp.request.url), resp.status_code, len(resp.content))
+            self._log(str(resp.request.url), resp.status_code, len(resp.content), started)
             if resp.status_code in (429, 500, 502, 503, 504):
                 retry_after = resp.headers.get("Retry-After")
                 delay = float(retry_after) if retry_after and retry_after.isdigit() else 0.0

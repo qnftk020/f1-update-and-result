@@ -1,0 +1,71 @@
+season,round,race_name,jolpica_date,circuit_id,meeting_key,openf1_location,openf1_circuit,openf1_circuit_key,qualifying_session_key,race_session_key,match_rule
+2023,1,Bahrain Grand Prix,2023-03-05,bahrain,1141,Sakhir,Sakhir,63,7768,7953,same_utc_date
+2023,2,Saudi Arabian Grand Prix,2023-03-19,jeddah,1142,Jeddah,Jeddah,149,7775,7779,same_utc_date
+2023,3,Australian Grand Prix,2023-04-02,albert_park,1143,Melbourne,Melbourne,10,7783,7787,same_utc_date
+2023,4,Azerbaijan Grand Prix,2023-04-30,baku,1207,Baku,Baku,144,9064,9070,same_utc_date
+2023,5,Miami Grand Prix,2023-05-07,miami,1208,Miami,Miami,151,9074,9078,same_utc_date
+2023,6,Monaco Grand Prix,2023-05-28,monaco,1210,Monaco,Monte Carlo,22,9090,9094,same_utc_date
+2023,7,Spanish Grand Prix,2023-06-04,catalunya,1211,Barcelona,Catalunya,15,9098,9102,same_utc_date
+2023,8,Canadian Grand Prix,2023-06-18,villeneuve,1212,Montréal,Montreal,23,9106,9110,same_utc_date
+2023,9,Austrian Grand Prix,2023-07-02,red_bull_ring,1213,Spielberg,Spielberg,19,9112,9118,same_utc_date
+2023,10,British Grand Prix,2023-07-09,silverstone,1214,Silverstone,Silverstone,2,9122,9126,same_utc_date
+2023,11,Hungarian Grand Prix,2023-07-23,hungaroring,1215,Budapest,Hungaroring,4,9129,9133,same_utc_date
+2023,12,Belgian Grand Prix,2023-07-30,spa,1216,Spa-Francorchamps,Spa-Francorchamps,7,9135,9141,same_utc_date
+2023,13,Dutch Grand Prix,2023-08-27,zandvoort,1217,Zandvoort,Zandvoort,55,9145,9149,same_utc_date
+2023,14,Italian Grand Prix,2023-09-03,monza,1218,Monza,Monza,39,9153,9157,same_utc_date
+2023,15,Singapore Grand Prix,2023-09-17,marina_bay,1219,Marina Bay,Singapore,61,9161,9165,same_utc_date
+2023,16,Japanese Grand Prix,2023-09-24,suzuka,1220,Suzuka,Suzuka,46,9169,9173,same_utc_date
+2023,17,Qatar Grand Prix,2023-10-08,losail,1221,Lusail,Lusail,150,9215,9221,same_utc_date
+2023,18,United States Grand Prix,2023-10-22,americas,1222,Austin,Austin,9,9207,9213,same_utc_date
+2023,19,Mexico City Grand Prix,2023-10-29,rodriguez,1223,Mexico City,Mexico City,65,9177,9181,same_utc_date
+2023,20,São Paulo Grand Prix,2023-11-05,interlagos,1224,São Paulo,Interlagos,14,9304,9205,same_utc_date
+2023,21,Las Vegas Grand Prix,2023-11-19,vegas,1225,Las Vegas,Las Vegas,152,9314,9189,same_utc_date
+2023,22,Abu Dhabi Grand Prix,2023-11-26,yas_marina,1226,Yas Island,Yas Marina Circuit,70,9193,9197,same_utc_date
+2024,1,Bahrain Grand Prix,2024-03-02,bahrain,1229,Sakhir,Sakhir,63,9468,9472,same_utc_date
+2024,2,Saudi Arabian Grand Prix,2024-03-09,jeddah,1230,Jeddah,Jeddah,149,9476,9480,same_utc_date
+2024,3,Australian Grand Prix,2024-03-24,albert_park,1231,Melbourne,Melbourne,10,9484,9488,same_utc_date
+2024,4,Japanese Grand Prix,2024-04-07,suzuka,1232,Suzuka,Suzuka,46,9492,9496,same_utc_date
+2024,5,Chinese Grand Prix,2024-04-21,shanghai,1233,Shanghai,Shanghai,49,9664,9673,same_utc_date
+2024,6,Miami Grand Prix,2024-05-05,miami,1234,Miami,Miami,151,9498,9507,same_utc_date
+2024,7,Emilia Romagna Grand Prix,2024-05-19,imola,1235,Imola,Imola,6,9511,9515,same_utc_date
+2024,8,Monaco Grand Prix,2024-05-26,monaco,1236,Monaco,Monte Carlo,22,9519,9523,same_utc_date
+2024,9,Canadian Grand Prix,2024-06-09,villeneuve,1237,Montréal,Montreal,23,9527,9531,same_utc_date
+2024,10,Spanish Grand Prix,2024-06-23,catalunya,1238,Barcelona,Catalunya,15,9535,9539,same_utc_date
+2024,11,Austrian Grand Prix,2024-06-30,red_bull_ring,1239,Spielberg,Spielberg,19,9541,9550,same_utc_date
+2024,12,British Grand Prix,2024-07-07,silverstone,1240,Silverstone,Silverstone,2,9554,9558,same_utc_date
+2024,13,Hungarian Grand Prix,2024-07-21,hungaroring,1241,Budapest,Hungaroring,4,9562,9566,same_utc_date
+2024,14,Belgian Grand Prix,2024-07-28,spa,1242,Spa-Francorchamps,Spa-Francorchamps,7,9570,9574,same_utc_date
+2024,15,Dutch Grand Prix,2024-08-25,zandvoort,1243,Zandvoort,Zandvoort,55,9578,9582,same_utc_date
+2024,16,Italian Grand Prix,2024-09-01,monza,1244,Monza,Monza,39,9586,9590,same_utc_date
+2024,17,Azerbaijan Grand Prix,2024-09-15,baku,1245,Baku,Baku,144,9594,9598,same_utc_date
+2024,18,Singapore Grand Prix,2024-09-22,marina_bay,1246,Marina Bay,Singapore,61,9602,9606,same_utc_date
+2024,19,United States Grand Prix,2024-10-20,americas,1247,Austin,Austin,9,9608,9617,same_utc_date
+2024,20,Mexico City Grand Prix,2024-10-27,rodriguez,1248,Mexico City,Mexico City,65,9621,9625,same_utc_date
+2024,21,São Paulo Grand Prix,2024-11-03,interlagos,1249,São Paulo,Interlagos,14,9627,9636,same_utc_date
+2024,22,Las Vegas Grand Prix,2024-11-23,vegas,1250,Las Vegas,Las Vegas,152,9640,9644,within_one_day
+2024,23,Qatar Grand Prix,2024-12-01,losail,1251,Lusail,Lusail,150,9646,9655,same_utc_date
+2024,24,Abu Dhabi Grand Prix,2024-12-08,yas_marina,1252,Yas Island,Yas Marina Circuit,70,9658,9662,same_utc_date
+2025,1,Australian Grand Prix,2025-03-16,albert_park,1254,Melbourne,Melbourne,10,9689,9693,same_utc_date
+2025,2,Chinese Grand Prix,2025-03-23,shanghai,1255,Shanghai,Shanghai,49,9994,9998,same_utc_date
+2025,3,Japanese Grand Prix,2025-04-06,suzuka,1256,Suzuka,Suzuka,46,10002,10006,same_utc_date
+2025,4,Bahrain Grand Prix,2025-04-13,bahrain,1257,Sakhir,Sakhir,63,10010,10014,same_utc_date
+2025,5,Saudi Arabian Grand Prix,2025-04-20,jeddah,1258,Jeddah,Jeddah,149,10018,10022,same_utc_date
+2025,6,Miami Grand Prix,2025-05-04,miami,1259,Miami Gardens,Miami,151,10029,10033,same_utc_date
+2025,7,Emilia Romagna Grand Prix,2025-05-18,imola,1260,Imola,Imola,6,9983,9987,same_utc_date
+2025,8,Monaco Grand Prix,2025-05-25,monaco,1261,Monaco,Monte Carlo,22,9975,9979,same_utc_date
+2025,9,Spanish Grand Prix,2025-06-01,catalunya,1262,Barcelona,Catalunya,15,9967,9971,same_utc_date
+2025,10,Canadian Grand Prix,2025-06-15,villeneuve,1263,Montréal,Montreal,23,9959,9963,same_utc_date
+2025,11,Austrian Grand Prix,2025-06-29,red_bull_ring,1264,Spielberg,Spielberg,19,9951,9955,same_utc_date
+2025,12,British Grand Prix,2025-07-06,silverstone,1277,Silverstone,Silverstone,2,9943,9947,same_utc_date
+2025,13,Belgian Grand Prix,2025-07-27,spa,1265,Spa-Francorchamps,Spa-Francorchamps,7,9935,9939,same_utc_date
+2025,14,Hungarian Grand Prix,2025-08-03,hungaroring,1266,Budapest,Hungaroring,4,9924,9928,same_utc_date
+2025,15,Dutch Grand Prix,2025-08-31,zandvoort,1267,Zandvoort,Zandvoort,55,9916,9920,same_utc_date
+2025,16,Italian Grand Prix,2025-09-07,monza,1268,Monza,Monza,39,9908,9912,same_utc_date
+2025,17,Azerbaijan Grand Prix,2025-09-21,baku,1269,Baku,Baku,144,9900,9904,same_utc_date
+2025,18,Singapore Grand Prix,2025-10-05,marina_bay,1270,Marina Bay,Singapore,61,9892,9896,same_utc_date
+2025,19,United States Grand Prix,2025-10-19,americas,1271,Austin,Austin,9,9884,9888,same_utc_date
+2025,20,Mexico City Grand Prix,2025-10-26,rodriguez,1272,Mexico City,Mexico City,65,9873,9877,same_utc_date
+2025,21,São Paulo Grand Prix,2025-11-09,interlagos,1273,São Paulo,Interlagos,14,9865,9869,same_utc_date
+2025,22,Las Vegas Grand Prix,2025-11-22,vegas,1274,Las Vegas,Las Vegas,152,9854,9858,same_utc_date
+2025,23,Qatar Grand Prix,2025-11-30,losail,1275,Lusail,Lusail,150,9846,9850,same_utc_date
+2025,24,Abu Dhabi Grand Prix,2025-12-07,yas_marina,1276,Yas Island,Yas Marina Circuit,70,9835,9839,same_utc_date
