@@ -1,0 +1,23 @@
+# 원문 캐시: 커밋 금지 (FIA PDF, API 응답, 덤프)
+data/raw/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+site/dist/
+site/.astro/
+
+# 사이트 빌드용 생성 JSON (build_site_data.py가 생성)
+site/src/data/generated/
+
+# OS, 편집기
+.DS_Store
+.idea/
+.vscode/
+.env

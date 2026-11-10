@@ -1,0 +1,36 @@
+[project]
+name = "f1-update-and-result"
+version = "0.1.0"
+description = "F1 팀별 업그레이드와 성능 추이를 보여 주는 비영리 오픈 데이터 파이프라인과 정적 사이트"
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb>=2.0.0",
+    "httpx>=0.28.1",
+    "pandas>=3.1.1",
+    "pdfplumber>=0.11.10",
+    "pyarrow>=26.0.1",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.7.0",
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["pipeline"]
+markers = [
+    "network: 원문을 내려받아야 하는 테스트 (CI에서는 캐시된 data/raw 를 쓴다)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

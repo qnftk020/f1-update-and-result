@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      # 원문(FIA PDF 등)은 저장소에 없으므로 테스트가 manifest를 보고 다시 받는다.
+      # 같은 manifest라면 캐시를 재사용해 fia.com 요청을 줄인다.
+      - uses: actions/cache@v6
+        with:
+          path: data/raw
+          key: raw-${{ hashFiles('data/manifests/**') }}
+          restore-keys: raw-
+      - run: uv run pytest
+
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: uv sync --frozen
+      - run: uv run python -m pipeline.build_site_data
+      - run: npm ci
+        working-directory: site
+      - run: npm run build
+        working-directory: site
