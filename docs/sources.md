@@ -76,13 +76,18 @@
 
 | 문서 | 확인한 범위 | 경로 |
 |---|---|---|
-| Car Presentation Submissions | 2025 바레인, 2024 사우디아라비아 | 대회별 결정 문서 목록 |
-| Car Presentation Submissions | 2023 카타르(2023-10-06 게시) | FIA 뉴스 "F1 – Tech updates at the ... Grand Prix"의 첨부 PDF. 예: https://www.fia.com/news/f1-tech-updates-qatar-grand-prix |
-| Car Presentation Submissions | 2024 바레인 | 결정 문서 목록에 없다. 뉴스 첨부 경로인지 T4에서 확인한다 |
-| New PU elements for this Event/Competition | 2022–2025 바레인 | 대회별 결정 문서 목록 |
-| PU elements used per driver up to now | 2023 아부다비, 2024 사우디아라비아, 2025 바레인 | 대회별 결정 문서 목록 |
-| Car Display Procedure | 2023–2025 (2022년 명칭은 Automobile Display Procedure) | 대회별 결정 문서 목록 |
+| Car Presentation Submissions | 2025년 24개 대회 전부, 2024년 23개 대회 | 대회별 결정 문서 목록 |
+| Car Presentation Submissions | 2023년 7개 대회(오스트리아, 벨기에, 네덜란드, 이탈리아, 싱가포르, 카타르, 멕시코시티) | FIA 뉴스 "F1 – Tech updates at the ... Grand Prix"의 첨부 PDF. 예: https://www.fia.com/news/f1-tech-updates-qatar-grand-prix |
+| New PU elements for this Event/Competition | 2020–2025년 | 대회별 결정 문서 목록 |
+| PU elements used per driver up to now | 2020–2025년(시즌 첫 대회에는 없는 해가 많다) | 대회별 결정 문서 목록 |
+| Car Display Procedure | 2022–2025년(2022년 명칭은 Automobile Display Procedure) | 대회별 결정 문서 목록 |
 
+- 문서 목록 전체는 `data/manifests/fia_documents.csv`에 있다(2020–2025년 135개 대회 페이지, 7,129건).
+- Car Presentation을 찾지 못한 대회:
+  - 2024년 바레인: 결정 문서 목록에 없고 뉴스 주소(`/news/f1-tech-updates-bahrain-grand-prix`)도 없다.
+  - 2023년 15개 대회: 바레인부터 캐나다까지 여덟 대회와 일본, 라스베이거스, 상파울루, 아부다비는 뉴스 주소가 없다. 영국, 헝가리, 미국은 뉴스 글은 있으나 첨부 PDF가 없다. 첨부 파일명 규칙(`<번호>_<국가 코드>_car_presentation_submissions.pdf`)으로도 확인했지만 없었다.
+  - 따라서 fia.com에서 받을 수 있는 업그레이드 목록은 2023년 오스트리아 대회부터이고, 2023년은 일부만 있다.
+- 대회 페이지의 문서 행 마크업은 두 가지다(제목에 필드 래퍼가 있는 것과 없는 것). 인덱서는 둘 다 읽고, 문서 행이 있는데 하나도 읽지 못하면 실패로 처리한다.
 - 2022년 업그레이드 목록은 결정 문서 목록에서 찾지 못했다. 경로 조사는 T18이다.
 
 ## 쓰지 않는 데이터

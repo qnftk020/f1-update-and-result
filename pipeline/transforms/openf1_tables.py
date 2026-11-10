@@ -57,13 +57,21 @@ SORT = {
 }
 
 
-def load_sessions() -> pd.DataFrame:
+def load_sessions(*, allow_partial: bool = False) -> pd.DataFrame:
     rows = []
     for year in range(OPENF1_FIRST_SEASON, LAST_SEASON + 1):
         path = RAW / str(year) / "sessions.json"
+        if allow_partial and not path.exists():
+            continue
         rows.extend(json.loads(path.read_text(encoding="utf-8")))
     df = pd.DataFrame(rows)
     df = df[df["session_name"].isin(SESSION_NAMES) & ~df["is_cancelled"].fillna(False)]
+    if allow_partial:  # 수집이 끝나지 않았을 때 개발용으로만 쓴다
+        done = [
+            all((RAW / str(s.year) / str(s.session_key) / f"{e}.json").exists() for e in ENDPOINTS)
+            for s in df.itertuples()
+        ]
+        df = df[done]
     cols = [
         "session_key", "meeting_key", "year", "session_name", "date_start", "date_end",
         "location", "country_name", "circuit_short_name", "circuit_key",
@@ -133,9 +141,11 @@ def build_driver_map(meeting_map: pd.DataFrame, drivers: pd.DataFrame) -> pd.Dat
     names = pd.read_parquet(CURATED_DIR / "jolpica" / "drivers.parquet")[
         ["driver_id", "abbreviation", "forename", "surname"]
     ]
-    race_drivers = meeting_map[["season", "round", "race_session_key"]].merge(
-        drivers, left_on="race_session_key", right_on="session_key"
-    )
+    covered = meeting_map.dropna(subset=["race_session_key"])[
+        ["season", "round", "race_session_key"]
+    ]
+    results = results.merge(covered[["season", "round"]], on=["season", "round"])
+    race_drivers = covered.merge(drivers, left_on="race_session_key", right_on="session_key")
     pairs = race_drivers.merge(
         results, how="outer", left_on=["season", "round", "driver_number"],
         right_on=["season", "round", "car_number"], indicator=True,
@@ -169,8 +179,8 @@ def write_parquet(df: pd.DataFrame, name: str) -> Path:
     return path
 
 
-def build() -> dict[str, int]:
-    sessions = load_sessions()
+def build(*, allow_partial: bool = False) -> dict[str, int]:
+    sessions = load_sessions(allow_partial=allow_partial)
     counts = {"sessions": len(sessions)}
     write_parquet(sessions, "sessions")
     tables = {}
@@ -191,5 +201,7 @@ def build() -> dict[str, int]:
 
 
 if __name__ == "__main__":
-    for name, n in build().items():
+    import sys
+
+    for name, n in build(allow_partial="--partial" in sys.argv).items():
         print(f"openf1/{name}: {n} rows")

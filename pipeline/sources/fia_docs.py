@@ -45,7 +45,8 @@ SEASON_OPTION = re.compile(
 EVENT_OPTION = re.compile(r'<option[^>]*value="([^"]*/event/[^"]*)"[^>]*>([^<]*)</option>')
 DOC_ROW = re.compile(r'<li class="document-row[^"]*">(.*?)</li>', re.S)
 ROW_HREF = re.compile(r'href="([^"]+)"')
-ROW_TITLE = re.compile(r'field-name-title-field.*?field-item even">(.*?)</div>', re.S)
+# 제목 칸의 마크업은 대회 페이지마다 두 가지다(필드 래퍼가 있는 것과 없는 것). 둘 다 받는다.
+ROW_TITLE = re.compile(r'<div class="title">(.*?)<div class="(?:published|panel-separator)"', re.S)
 ROW_DATE = re.compile(r'date-display-single">([^<]+)<')
 DOC_NUMBER = re.compile(r"^\s*Doc(?:ument)?\s*(\d+)\s*[-:]?\s*", re.I)
 
@@ -91,7 +92,8 @@ def parse_document_rows(page: str) -> list[dict[str, str]]:
         date = ROW_DATE.search(block)
         if not href or not title:
             continue
-        full_title = html.unescape(re.sub(r"<[^>]+>", "", title.group(1))).strip()
+        full_title = html.unescape(re.sub(r"<[^>]+>", "", title.group(1)))
+        full_title = re.sub(r"\s+", " ", full_title).strip()
         number = DOC_NUMBER.match(full_title)
         rows.append(
             {
@@ -128,6 +130,8 @@ def index_seasons(seasons: list[int], *, force: bool = False) -> list[dict]:
                     url, f"index/{season}/{slug(event)}.html", force=force
                 ).content.decode("utf-8")
                 docs = parse_document_rows(page)
+                if not docs and page.count("document-row") > 1:
+                    raise RuntimeError(f"{season} {event}: 문서 행을 읽지 못했다(마크업 변경)")
                 print(f"{season} {event}: {len(docs)} docs", flush=True)
                 for doc in docs:
                     all_rows.append(
@@ -153,6 +157,64 @@ def index_seasons(seasons: list[int], *, force: bool = False) -> list[dict]:
     manifest.upsert_rows(INDEX_MANIFEST, all_rows, key=["season", "event", "url"],
                          fieldnames=INDEX_FIELDS)  # fmt: skip
     return all_rows
+
+
+NEWS_TITLE = re.compile(r"<title>(.*?)</title>", re.S)
+NEWS_PDF = re.compile(r'href="([^"]+car[_ -]presentation[^"]*\.pdf)"', re.I)
+
+
+def index_news_car_presentations(season: int, *, force: bool = False) -> list[dict]:
+    """FIA 뉴스 "F1 - Tech updates at the ... Grand Prix"에 첨부된 Car Presentation을 찾는다.
+
+    2023년에는 이 문서가 결정 문서 목록이 아니라 뉴스 첨부로만 공개됐다. 대회명으로 주소를 만들어
+    확인하고, 없는 주소는 뉴스 목록으로 넘어가므로 제목으로 구분한다.
+    """
+    rows = manifest.read_rows(INDEX_MANIFEST)
+    events = sorted({r["event"] for r in rows if int(r["season"]) == season})
+    found: list[dict] = []
+    with PoliteClient("fia") as client:
+        for event in events:
+            if "grand prix" not in event.lower() or " - " in event:
+                continue
+            url = f"{BASE}/news/f1-tech-updates-{slug(event)}"
+            page = client.get(url, f"news/{season}/{slug(event)}.html", force=force).content.decode(
+                "utf-8", "ignore"
+            )
+            title = NEWS_TITLE.search(page)
+            title_text = html.unescape(title.group(1)).strip() if title else ""
+            pdf = NEWS_PDF.search(page)
+            date = ROW_DATE.search(page)
+            published = parse_news_date(date.group(1)) if date else ""
+            ok = "tech updates" in title_text.lower() and pdf and published.startswith(str(season))
+            print(f"{season} {event}: {'found ' + published if ok else 'not found'}", flush=True)
+            if not ok:
+                continue
+            found.append(
+                {
+                    "season": season, "event": event, "doc_type": "car_presentation",
+                    "doc_number": "", "title": "Car Presentation Submissions",
+                    "url": absolute_url(pdf.group(1)), "published_at": published,
+                    "route": f"news_attachment {url}", "indexed_at": utc_now_iso(),
+                    "sha256": "", "bytes": "", "fetched_at": "",
+                }
+            )  # fmt: skip
+    known = {r["url"]: r for r in rows}
+    for row in found:
+        old = known.get(row["url"])
+        if old:
+            for k in ("sha256", "bytes", "fetched_at"):
+                row[k] = old.get(k, "")
+    manifest.upsert_rows(INDEX_MANIFEST, found, key=["season", "event", "url"],
+                         fieldnames=INDEX_FIELDS)  # fmt: skip
+    return found
+
+
+def parse_news_date(text: str) -> str:
+    """뉴스 날짜 '06.10.23' 을 'YYYY-MM-DD' 로 바꾼다."""
+    try:
+        return datetime.strptime(text.strip(), "%d.%m.%y").strftime("%Y-%m-%d")
+    except ValueError:
+        return text.strip()
 
 
 def pdf_cache_path(row: dict) -> str:
@@ -189,6 +251,8 @@ if __name__ == "__main__":
     command, *args = sys.argv[1:]
     if command == "index":
         index_seasons([int(a) for a in args])
+    elif command == "news":
+        index_news_car_presentations(int(args[0]))
     elif command == "download":
         got = download_documents(args[0].split(","), [int(a) for a in args[1:]] or None)
         print(f"{len(got)} files")
