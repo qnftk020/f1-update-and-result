@@ -1,0 +1,541 @@
+season,round,event,constructor_id,team_name,status,rows,page
+2023,9,Austrian Grand Prix,alfa,Alfa Romeo,no_updates,0,9
+2023,9,Austrian Grand Prix,alphatauri,SCUDERIA ALPHATAURI,updates,3,13
+2023,9,Austrian Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,6
+2023,9,Austrian Grand Prix,aston_martin,Aston Martin Aramco Cognizant Formula One Team,no_updates,0,10
+2023,9,Austrian Grand Prix,ferrari,Scuderia Ferrari,updates,2,3
+2023,9,Austrian Grand Prix,haas,MoneyGram Haas F1 Team,updates,1,11
+2023,9,Austrian Grand Prix,mclaren,McLaren F1 Team,updates,5,7
+2023,9,Austrian Grand Prix,mercedes,Mercedes-AMG Petronas F1 Team,no_updates,0,5
+2023,9,Austrian Grand Prix,red_bull,ORACLE RED BULL RACING,updates,1,1
+2023,9,Austrian Grand Prix,williams,Williams,updates,2,15
+2023,12,Belgian Grand Prix,alfa,Alfa Romeo,updates,3,11
+2023,12,Belgian Grand Prix,alphatauri,SCUDERIA ALPHATAURI,updates,1,16
+2023,12,Belgian Grand Prix,alpine,BWT Alpine F1 Team,updates,2,7
+2023,12,Belgian Grand Prix,aston_martin,Aston Martin Aramco Cognizant Formula One Team,updates,3,13
+2023,12,Belgian Grand Prix,ferrari,Scuderia Ferrari,updates,1,3
+2023,12,Belgian Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,15
+2023,12,Belgian Grand Prix,mclaren,McLaren F1 Team,updates,3,9
+2023,12,Belgian Grand Prix,mercedes,Mercedes-AMG Petronas F1 Team,updates,4,5
+2023,12,Belgian Grand Prix,red_bull,ORACLE RED BULL RACING,updates,1,1
+2023,12,Belgian Grand Prix,williams,Williams,updates,2,18
+2023,13,Dutch Grand Prix,alfa,Alfa Romeo F1 Team Stake,no_updates,0,9
+2023,13,Dutch Grand Prix,alphatauri,SCUDERIA ALPHATAURI,updates,1,14
+2023,13,Dutch Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,6
+2023,13,Dutch Grand Prix,aston_martin,Aston Martin Aramco Cognizant Formula One Team,updates,4,10
+2023,13,Dutch Grand Prix,ferrari,Scuderia Ferrari,no_updates,0,3
+2023,13,Dutch Grand Prix,haas,MoneyGram Haas F1 Team,updates,3,12
+2023,13,Dutch Grand Prix,mclaren,McLaren F1 Team,updates,2,7
+2023,13,Dutch Grand Prix,mercedes,Mercedes-AMG Petronas F1 Team,updates,3,4
+2023,13,Dutch Grand Prix,red_bull,ORACLE RED BULL RACING,updates,1,1
+2023,13,Dutch Grand Prix,williams,Williams,no_updates,0,16
+2023,14,Italian Grand Prix,alfa,Alfa Romeo F1 Team Stake,updates,2,11
+2023,14,Italian Grand Prix,alphatauri,SCUDERIA ALPHATAURI,updates,4,16
+2023,14,Italian Grand Prix,alpine,BWT Alpine F1 Team,updates,1,7
+2023,14,Italian Grand Prix,aston_martin,Aston Martin Aramco Cognizant Formula One Team,updates,1,13
+2023,14,Italian Grand Prix,ferrari,Scuderia Ferrari,updates,2,3
+2023,14,Italian Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,15
+2023,14,Italian Grand Prix,mclaren,McLaren F1 Team,updates,6,9
+2023,14,Italian Grand Prix,mercedes,Mercedes-AMG Petronas F1 Team,updates,2,5
+2023,14,Italian Grand Prix,red_bull,ORACLE RED BULL RACING,updates,2,1
+2023,14,Italian Grand Prix,williams,Williams,updates,1,18
+2023,15,Singapore Grand Prix,alfa,Alfa Romeo F1 Team Stake,updates,4,11
+2023,15,Singapore Grand Prix,alphatauri,SCUDERIA ALPHATAURI,updates,8,16
+2023,15,Singapore Grand Prix,alpine,BWT Alpine F1 Team,updates,3,7
+2023,15,Singapore Grand Prix,aston_martin,Aston Martin Aramco Cognizant Formula One Team,updates,1,13
+2023,15,Singapore Grand Prix,ferrari,Scuderia Ferrari,updates,1,3
+2023,15,Singapore Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,15
+2023,15,Singapore Grand Prix,mclaren,McLaren F1 Team,updates,9,9
+2023,15,Singapore Grand Prix,mercedes,Mercedes-AMG Petronas F1 Team,updates,1,5
+2023,15,Singapore Grand Prix,red_bull,ORACLE RED BULL RACING,updates,2,1
+2023,15,Singapore Grand Prix,williams,Williams,updates,1,18
+2023,17,Qatar Grand Prix,alfa,Alfa Romeo F1 Team Kick,updates,1,7
+2023,17,Qatar Grand Prix,alphatauri,SCUDERIA ALPHATAURI,updates,1,11
+2023,17,Qatar Grand Prix,alpine,BWT Alpine F1 Team,updates,3,4
+2023,17,Qatar Grand Prix,aston_martin,Aston Martin Aramco Cognizant Formula One Team,no_updates,0,9
+2023,17,Qatar Grand Prix,ferrari,Scuderia Ferrari,no_updates,0,2
+2023,17,Qatar Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,10
+2023,17,Qatar Grand Prix,mclaren,McLaren F1 Team,no_updates,0,6
+2023,17,Qatar Grand Prix,mercedes,Mercedes-AMG Petronas F1 Team,no_updates,0,3
+2023,17,Qatar Grand Prix,red_bull,ORACLE RED BULL RACING,no_updates,0,1
+2023,17,Qatar Grand Prix,williams,Williams,no_updates,0,13
+2023,19,Mexico City Grand Prix,alfa,Alfa Romeo F1 Team Stake,updates,1,10
+2023,19,Mexico City Grand Prix,alphatauri,SCUDERIA ALPHATAURI,updates,2,15
+2023,19,Mexico City Grand Prix,alpine,BWT Alpine F1 Team,updates,2,6
+2023,19,Mexico City Grand Prix,aston_martin,Aston Martin Aramco Cognizant Formula One Team,no_updates,0,12
+2023,19,Mexico City Grand Prix,ferrari,Scuderia Ferrari,updates,1,3
+2023,19,Mexico City Grand Prix,haas,MoneyGram Haas F1 Team,updates,2,13
+2023,19,Mexico City Grand Prix,mclaren,McLaren F1 Team,updates,2,8
+2023,19,Mexico City Grand Prix,mercedes,Mercedes-AMG Petronas F1 Team,no_updates,0,5
+2023,19,Mexico City Grand Prix,red_bull,ORACLE RED BULL RACING,updates,1,1
+2023,19,Mexico City Grand Prix,williams,Williams,updates,2,17
+2024,2,Saudi Arabian Grand Prix,alpine,BWT ALPINE F1 TEAM,no_updates,0,12
+2024,2,Saudi Arabian Grand Prix,aston_martin,ASTON MARTIN ARAMCO COGNIZANT F1 TEAM,updates,2,10
+2024,2,Saudi Arabian Grand Prix,ferrari,SCUDERIA FERRARI,updates,2,6
+2024,2,Saudi Arabian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,18
+2024,2,Saudi Arabian Grand Prix,mclaren,MCLAREN F1 TEAM,updates,2,8
+2024,2,Saudi Arabian Grand Prix,mercedes,MERCEDES-AMG PETRONAS F1 TEAM,updates,1,4
+2024,2,Saudi Arabian Grand Prix,rb,VISA CASH APP RB F1 TEAM,updates,4,15
+2024,2,Saudi Arabian Grand Prix,red_bull,ORACLE RED BULL RACING,updates,3,2
+2024,2,Saudi Arabian Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,no_updates,0,17
+2024,2,Saudi Arabian Grand Prix,williams,WILLIAMS RACING,updates,2,13
+2024,3,Australian Grand Prix,alpine,BWT ALPINE F1 TEAM,updates,1,9
+2024,3,Australian Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,1,7
+2024,3,Australian Grand Prix,ferrari,SCUDERIA FERRARI,updates,1,4
+2024,3,Australian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,17
+2024,3,Australian Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,no_updates,0,6
+2024,3,Australian Grand Prix,mercedes,MERCEDES-AMG PETRONAS FORMULA ONE TEAM,no_updates,0,3
+2024,3,Australian Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,1,13
+2024,3,Australian Grand Prix,red_bull,ORACLE RED BULL RACING,no_updates,0,2
+2024,3,Australian Grand Prix,sauber,KICK SAUBER F1 TEAM,updates,2,15
+2024,3,Australian Grand Prix,williams,WILLIAMS RACING,updates,1,11
+2024,4,Japanese Grand Prix,alpine,BWT ALPINE F1 TEAM,updates,3,11
+2024,4,Japanese Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,4,9
+2024,4,Japanese Grand Prix,ferrari,SCUDERIA FERRARI,updates,2,5
+2024,4,Japanese Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,19
+2024,4,Japanese Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,updates,1,7
+2024,4,Japanese Grand Prix,mercedes,MERCEDES-AMG PETRONAS F1 TEAM,no_updates,0,4
+2024,4,Japanese Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,2,15
+2024,4,Japanese Grand Prix,red_bull,ORACLE RED BULL RACING,updates,4,2
+2024,4,Japanese Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,1,17
+2024,4,Japanese Grand Prix,williams,WILLIAMS RACING,updates,3,13
+2024,5,Chinese Grand Prix,alpine,BWT ALPINE F1 TEAM,updates,3,8
+2024,5,Chinese Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,no_updates,0,7
+2024,5,Chinese Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,5
+2024,5,Chinese Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,5,15
+2024,5,Chinese Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,no_updates,0,6
+2024,5,Chinese Grand Prix,mercedes,MERCEDES-AMG PETRONAS F1 TEAM,updates,1,3
+2024,5,Chinese Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,1,12
+2024,5,Chinese Grand Prix,red_bull,ORACLE RED BULL RACING,no_updates,0,2
+2024,5,Chinese Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,no_updates,0,14
+2024,5,Chinese Grand Prix,williams,WILLIAMS RACING,updates,1,10
+2024,6,Miami Grand Prix,alpine,BWT ALPINE F1 TEAM,no_updates,0,12
+2024,6,Miami Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,5,10
+2024,6,Miami Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,6
+2024,6,Miami Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,1,19
+2024,6,Miami Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,updates,10,7
+2024,6,Miami Grand Prix,mercedes,MERCEDES-AMG PETRONAS F1 TEAM,updates,4,4
+2024,6,Miami Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,2,15
+2024,6,Miami Grand Prix,red_bull,ORACLE RED BULL RACING,updates,1,2
+2024,6,Miami Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,2,17
+2024,6,Miami Grand Prix,williams,WILLIAMS RACING,updates,1,13
+2024,7,Emilia Romagna Grand Prix,alpine,BWT ALPINE F1 TEAM,updates,1,12
+2024,7,Emilia Romagna Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,9,10
+2024,7,Emilia Romagna Grand Prix,ferrari,SCUDERIA FERRARI,updates,7,6
+2024,7,Emilia Romagna Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,3,16
+2024,7,Emilia Romagna Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,updates,2,8
+2024,7,Emilia Romagna Grand Prix,mercedes,MERCEDES-AMG PETRONAS F1 TEAM,updates,5,4
+2024,7,Emilia Romagna Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,no_updates,0,14
+2024,7,Emilia Romagna Grand Prix,red_bull,ORACLE RED BULL RACING,updates,5,2
+2024,7,Emilia Romagna Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,1,15
+2024,7,Emilia Romagna Grand Prix,williams,WILLIAMS RACING,updates,1,13
+2024,8,Monaco Grand Prix,alpine,BWT ALPINE F1 TEAM,updates,5,11
+2024,8,Monaco Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,2,9
+2024,8,Monaco Grand Prix,ferrari,SCUDERIA FERRARI,updates,1,6
+2024,8,Monaco Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,5,19
+2024,8,Monaco Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,updates,2,7
+2024,8,Monaco Grand Prix,mercedes,MERCEDES-AMG PETRONAS FORMULA ONE TEAM,updates,4,4
+2024,8,Monaco Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,4,15
+2024,8,Monaco Grand Prix,red_bull,ORACLE RED BULL RACING,updates,4,2
+2024,8,Monaco Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,5,17
+2024,8,Monaco Grand Prix,williams,WILLIAMS RACING,updates,3,13
+2024,9,Canadian Grand Prix,alpine,BWT ALPINE F1 TEAM,no_updates,0,9
+2024,9,Canadian Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,1,8
+2024,9,Canadian Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,6
+2024,9,Canadian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,1,16
+2024,9,Canadian Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,no_updates,0,7
+2024,9,Canadian Grand Prix,mercedes,MERCEDES-AMG PETRONAS FORMULA ONE TEAM,updates,2,4
+2024,9,Canadian Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,2,12
+2024,9,Canadian Grand Prix,red_bull,ORACLE RED BULL RACING,updates,2,2
+2024,9,Canadian Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,2,14
+2024,9,Canadian Grand Prix,williams,WILLIAMS RACING,updates,2,10
+2024,10,Spanish Grand Prix,alpine,BWT ALPINE F1 TEAM,no_updates,0,10
+2024,10,Spanish Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,3,8
+2024,10,Spanish Grand Prix,ferrari,SCUDERIA FERRARI,updates,7,5
+2024,10,Spanish Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,1,16
+2024,10,Spanish Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,no_updates,0,7
+2024,10,Spanish Grand Prix,mercedes,MERCEDES-AMG PETRONAS FORMULA ONE TEAM,no_updates,0,4
+2024,10,Spanish Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,6,12
+2024,10,Spanish Grand Prix,red_bull,ORACLE RED BULL RACING,updates,5,2
+2024,10,Spanish Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,2,14
+2024,10,Spanish Grand Prix,williams,WILLIAMS RACING,no_updates,0,11
+2024,11,Austrian Grand Prix,alpine,BWT ALPINE F1 TEAM,no_updates,0,8
+2024,11,Austrian Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,no_updates,0,7
+2024,11,Austrian Grand Prix,ferrari,SCUDERIA FERRARI,updates,1,4
+2024,11,Austrian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,12
+2024,11,Austrian Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,updates,2,5
+2024,11,Austrian Grand Prix,mercedes,MERCEDES-AMG PETRONAS FORMULA ONE TEAM,updates,1,3
+2024,11,Austrian Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,1,10
+2024,11,Austrian Grand Prix,red_bull,ORACLE RED BULL RACING,no_updates,0,2
+2024,11,Austrian Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,1,11
+2024,11,Austrian Grand Prix,williams,WILLIAMS RACING,no_updates,0,9
+2024,12,British Grand Prix,alpine,BWT ALPINE F1 TEAM,no_updates,0,11
+2024,12,British Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,2,9
+2024,12,British Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,6
+2024,12,British Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,7,15
+2024,12,British Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,updates,5,7
+2024,12,British Grand Prix,mercedes,MERCEDES-AMG PETRONAS FORMULA ONE TEAM,updates,4,4
+2024,12,British Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,1,13
+2024,12,British Grand Prix,red_bull,ORACLE RED BULL RACING,updates,2,2
+2024,12,British Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,1,14
+2024,12,British Grand Prix,williams,WILLIAMS RACING,no_updates,0,12
+2024,13,Hungarian Grand Prix,alpine,BWT ALPINE F1 TEAM,updates,1,9
+2024,13,Hungarian Grand Prix,aston_martin,ASTON MARTIN ARAMCO FORMULA ONE TEAM,updates,7,7
+2024,13,Hungarian Grand Prix,ferrari,SCUDERIA FERRARI,updates,1,5
+2024,13,Hungarian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,2,15
+2024,13,Hungarian Grand Prix,mclaren,MCLAREN FORMULA 1 TEAM,no_updates,0,6
+2024,13,Hungarian Grand Prix,mercedes,MERCEDES-AMG PETRONAS FORMULA ONE TEAM,updates,1,4
+2024,13,Hungarian Grand Prix,rb,VISA CASH APP RB FORMULA ONE TEAM,updates,2,11
+2024,13,Hungarian Grand Prix,red_bull,ORACLE RED BULL RACING,updates,5,2
+2024,13,Hungarian Grand Prix,sauber,STAKE F1 TEAM KICK SAUBER,updates,9,13
+2024,13,Hungarian Grand Prix,williams,WILLIAMS RACING,updates,1,10
+2024,14,Belgian Grand Prix,alpine,BWT Alpine F1 Team,updates,6,10
+2024,14,Belgian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,9
+2024,14,Belgian Grand Prix,ferrari,SCUDERIA FERRARI,updates,2,5
+2024,14,Belgian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,2,17
+2024,14,Belgian Grand Prix,mclaren,McLaren Racing,updates,3,7
+2024,14,Belgian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,5,3
+2024,14,Belgian Grand Prix,rb,Visa Cash App RB,updates,3,13
+2024,14,Belgian Grand Prix,red_bull,Red Bull Racing,no_updates,0,2
+2024,14,Belgian Grand Prix,sauber,KICK F1 Team Sauber,updates,5,15
+2024,14,Belgian Grand Prix,williams,WILLIAMS RACING,no_updates,0,12
+2024,15,Dutch Grand Prix,alpine,BWT Alpine F1 Team,updates,2,9
+2024,15,Dutch Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,8
+2024,15,Dutch Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,5
+2024,15,Dutch Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,4,16
+2024,15,Dutch Grand Prix,mclaren,McLaren Formula 1 Team,updates,6,6
+2024,15,Dutch Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,4
+2024,15,Dutch Grand Prix,rb,Visa Cash App RB,updates,1,13
+2024,15,Dutch Grand Prix,red_bull,ORACLE RED BULL RACING,updates,3,2
+2024,15,Dutch Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,15
+2024,15,Dutch Grand Prix,williams,Williams Racing,updates,5,11
+2024,16,Italian Grand Prix,alpine,BWT Alpine F1 Team,updates,1,13
+2024,16,Italian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,3,11
+2024,16,Italian Grand Prix,ferrari,SCUDERIA FERRARI,updates,9,6
+2024,16,Italian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,2,21
+2024,16,Italian Grand Prix,mclaren,McLaren Formula 1 Team,updates,3,9
+2024,16,Italian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,2,4
+2024,16,Italian Grand Prix,rb,Visa Cash App RB,updates,6,17
+2024,16,Italian Grand Prix,red_bull,Red Bull Racing,updates,2,2
+2024,16,Italian Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,4,19
+2024,16,Italian Grand Prix,williams,Williams Racing,updates,3,15
+2024,17,Azerbaijan Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,9
+2024,17,Azerbaijan Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,1,7
+2024,17,Azerbaijan Grand Prix,ferrari,Scuderia Ferrari,no_updates,0,5
+2024,17,Azerbaijan Grand Prix,haas,Moneygram Haas F1 Team,no_updates,0,14
+2024,17,Azerbaijan Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,6
+2024,17,Azerbaijan Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,4
+2024,17,Azerbaijan Grand Prix,rb,Visa Cash App RB,updates,1,11
+2024,17,Azerbaijan Grand Prix,red_bull,Red Bull Racing,updates,1,2
+2024,17,Azerbaijan Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,13
+2024,17,Azerbaijan Grand Prix,williams,Williams Racing,no_updates,0,10
+2024,18,Singapore Grand Prix,alpine,BWT Alpine F1 Team,updates,1,11
+2024,18,Singapore Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,1,9
+2024,18,Singapore Grand Prix,ferrari,SCUDERIA FERRARI,updates,1,5
+2024,18,Singapore Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,18
+2024,18,Singapore Grand Prix,mclaren,McLaren Formula 1 Team,updates,1,7
+2024,18,Singapore Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,4
+2024,18,Singapore Grand Prix,rb,Visa Cash App RB,updates,1,15
+2024,18,Singapore Grand Prix,red_bull,Red Bull Racing,updates,1,2
+2024,18,Singapore Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,17
+2024,18,Singapore Grand Prix,williams,Williams Racing,updates,1,13
+2024,19,United States Grand Prix,alpine,BWT Alpine F1 Team,updates,4,11
+2024,19,United States Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,6,9
+2024,19,United States Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,6
+2024,19,United States Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,7,18
+2024,19,United States Grand Prix,mclaren,McLaren Formula 1 Team,updates,7,7
+2024,19,United States Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,6,4
+2024,19,United States Grand Prix,rb,Visa Cash App RB,updates,1,14
+2024,19,United States Grand Prix,red_bull,Red Bull Racing,updates,2,2
+2024,19,United States Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,4,16
+2024,19,United States Grand Prix,williams,WILLIAMS,no_updates,0,13
+2024,20,Mexico City Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,10
+2024,20,Mexico City Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,9
+2024,20,Mexico City Grand Prix,ferrari,SCUDERIA FERRARI,updates,1,5
+2024,20,Mexico City Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,16
+2024,20,Mexico City Grand Prix,mclaren,McLaren Formula 1 Team,updates,3,7
+2024,20,Mexico City Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,4
+2024,20,Mexico City Grand Prix,rb,Visa Cash App RB,updates,4,13
+2024,20,Mexico City Grand Prix,red_bull,Red Bull Racing,updates,2,2
+2024,20,Mexico City Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,15
+2024,20,Mexico City Grand Prix,williams,Williams Racing,updates,2,11
+2024,21,São Paulo Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,8
+2024,21,São Paulo Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,7
+2024,21,São Paulo Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,4
+2024,21,São Paulo Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,13
+2024,21,São Paulo Grand Prix,mclaren,McLaren Formula 1 Team,updates,3,5
+2024,21,São Paulo Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,3
+2024,21,São Paulo Grand Prix,rb,Visa Cash App RB,no_updates,0,10
+2024,21,São Paulo Grand Prix,red_bull,Red Bull Racing,no_updates,0,2
+2024,21,São Paulo Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,2,11
+2024,21,São Paulo Grand Prix,williams,Williams Racing,no_updates,0,9
+2024,22,Las Vegas Grand Prix,alpine,BWT Alpine F1 Team,updates,1,12
+2024,22,Las Vegas Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,1,10
+2024,22,Las Vegas Grand Prix,ferrari,SCUDERIA FERRARI,updates,4,6
+2024,22,Las Vegas Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,1,19
+2024,22,Las Vegas Grand Prix,mclaren,McLaren Formula 1 Team,updates,1,8
+2024,22,Las Vegas Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,1,4
+2024,22,Las Vegas Grand Prix,rb,Visa Cash App RB,updates,4,15
+2024,22,Las Vegas Grand Prix,red_bull,Red Bull Racing,updates,2,2
+2024,22,Las Vegas Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,4,17
+2024,22,Las Vegas Grand Prix,williams,Williams Racing,needs_review,0,14
+2024,23,Qatar Grand Prix,alpine,BWT Alpine F1 Team,updates,2,7
+2024,23,Qatar Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,6
+2024,23,Qatar Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,4
+2024,23,Qatar Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,13
+2024,23,Qatar Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,5
+2024,23,Qatar Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,3
+2024,23,Qatar Grand Prix,rb,Visa Cash App RB,no_updates,0,10
+2024,23,Qatar Grand Prix,red_bull,Red Bull Racing,no_updates,0,2
+2024,23,Qatar Grand Prix,sauber,KICK Sauber F1 Team,updates,1,11
+2024,23,Qatar Grand Prix,williams,Williams Racing,no_updates,0,9
+2024,24,Abu Dhabi Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,7
+2024,24,Abu Dhabi Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,6
+2024,24,Abu Dhabi Grand Prix,ferrari,SCUDERIA FERRARI,no_updates,0,4
+2024,24,Abu Dhabi Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,no_updates,0,13
+2024,24,Abu Dhabi Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,5
+2024,24,Abu Dhabi Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,3
+2024,24,Abu Dhabi Grand Prix,rb,Visa Cash App RB,updates,1,9
+2024,24,Abu Dhabi Grand Prix,red_bull,Red Bull Racing,no_updates,0,2
+2024,24,Abu Dhabi Grand Prix,sauber,KICK Sauber F1 Team,updates,2,11
+2024,24,Abu Dhabi Grand Prix,williams,Williams Racing,no_updates,0,8
+2025,1,Australian Grand Prix,alpine,BWT Alpine F1 Team,updates,6,14
+2025,1,Australian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,12,11
+2025,1,Australian Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,3,4
+2025,1,Australian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,13,16
+2025,1,Australian Grand Prix,mclaren,McLaren Formula 1 Team,updates,4,2
+2025,1,Australian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,6,9
+2025,1,Australian Grand Prix,rb,Visa Cash App RB,updates,3,19
+2025,1,Australian Grand Prix,red_bull,Red Bull Racing,updates,12,6
+2025,1,Australian Grand Prix,sauber,KICK Sauber F1 Team,updates,6,23
+2025,1,Australian Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,5,21
+2025,2,Chinese Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,8
+2025,2,Chinese Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,7
+2025,2,Chinese Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,4
+2025,2,Chinese Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,9
+2025,2,Chinese Grand Prix,mclaren,McLaren Formula 1 Team,updates,1,2
+2025,2,Chinese Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,6
+2025,2,Chinese Grand Prix,rb,Visa Cash App RB,updates,2,10
+2025,2,Chinese Grand Prix,red_bull,Red Bull Racing,no_updates,0,5
+2025,2,Chinese Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,1,14
+2025,2,Chinese Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,1,12
+2025,3,Japanese Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,8
+2025,3,Japanese Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,7
+2025,3,Japanese Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,3,Japanese Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,1,9
+2025,3,Japanese Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,3,Japanese Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,6
+2025,3,Japanese Grand Prix,rb,Visa Cash App Racing Bulls,updates,1,11
+2025,3,Japanese Grand Prix,red_bull,Red Bull Racing,updates,3,4
+2025,3,Japanese Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,3,15
+2025,3,Japanese Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,2,13
+2025,4,Bahrain Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,10
+2025,4,Bahrain Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,9
+2025,4,Bahrain Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,5,4
+2025,4,Bahrain Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,1,11
+2025,4,Bahrain Grand Prix,mclaren,McLaren Formula 1 Team,updates,1,2
+2025,4,Bahrain Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,8
+2025,4,Bahrain Grand Prix,rb,Visa Cash App Racing Bulls,no_updates,0,13
+2025,4,Bahrain Grand Prix,red_bull,Red Bull Racing,updates,2,6
+2025,4,Bahrain Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,15
+2025,4,Bahrain Grand Prix,williams,Atlassian Williams Racing,no_updates,0,14
+2025,5,Saudi Arabian Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,11
+2025,5,Saudi Arabian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,1,9
+2025,5,Saudi Arabian Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,3,4
+2025,5,Saudi Arabian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,2,12
+2025,5,Saudi Arabian Grand Prix,mclaren,McLaren Formula 1 Team,updates,2,2
+2025,5,Saudi Arabian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,8
+2025,5,Saudi Arabian Grand Prix,rb,Visa Cash App Racing Bulls,updates,3,14
+2025,5,Saudi Arabian Grand Prix,red_bull,Red Bull Racing,updates,2,6
+2025,5,Saudi Arabian Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,5,17
+2025,5,Saudi Arabian Grand Prix,williams,Atlassian Williams Racing,no_updates,0,16
+2025,6,Miami Grand Prix,alpine,BWT Alpine F1 Team,updates,2,10
+2025,6,Miami Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,3,8
+2025,6,Miami Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,6,Miami Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,12
+2025,6,Miami Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,6,Miami Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,1,6
+2025,6,Miami Grand Prix,rb,Visa Cash App Racing Bulls,no_updates,0,13
+2025,6,Miami Grand Prix,red_bull,Red Bull Racing,updates,2,4
+2025,6,Miami Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,1,16
+2025,6,Miami Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,1,14
+2025,7,Emilia Romagna Grand Prix,alpine,BWT Alpine F1 Team,updates,2,12
+2025,7,Emilia Romagna Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,7,10
+2025,7,Emilia Romagna Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,3,4
+2025,7,Emilia Romagna Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,5,14
+2025,7,Emilia Romagna Grand Prix,mclaren,McLaren Formula 1 Team,updates,4,2
+2025,7,Emilia Romagna Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,3,8
+2025,7,Emilia Romagna Grand Prix,rb,Visa Cash App Racing Bulls,updates,2,16
+2025,7,Emilia Romagna Grand Prix,red_bull,Red Bull Racing,updates,3,6
+2025,7,Emilia Romagna Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,19
+2025,7,Emilia Romagna Grand Prix,williams,Atlassian Williams Racing,no_updates,0,18
+2025,8,Monaco Grand Prix,alpine,BWT Alpine F1 Team,updates,3,11
+2025,8,Monaco Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,3,9
+2025,8,Monaco Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,4,4
+2025,8,Monaco Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,3,13
+2025,8,Monaco Grand Prix,mclaren,McLaren Formula 1 Team,updates,5,2
+2025,8,Monaco Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,8
+2025,8,Monaco Grand Prix,rb,Visa Cash App Racing Bulls,updates,3,15
+2025,8,Monaco Grand Prix,red_bull,Red Bull Racing,updates,3,6
+2025,8,Monaco Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,2,19
+2025,8,Monaco Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,4,17
+2025,9,Spanish Grand Prix,alpine,BWT Alpine F1 Team,updates,2,11
+2025,9,Spanish Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,1,9
+2025,9,Spanish Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,2,3
+2025,9,Spanish Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,1,13
+2025,9,Spanish Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,9,Spanish Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,3,7
+2025,9,Spanish Grand Prix,rb,Visa Cash App Racing Bulls,updates,3,15
+2025,9,Spanish Grand Prix,red_bull,Red Bull Racing,updates,1,5
+2025,9,Spanish Grand Prix,sauber,KICK Sauber F1 Team,updates,3,19
+2025,9,Spanish Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,3,17
+2025,10,Canadian Grand Prix,alpine,BWT Alpine F1 Team,updates,1,10
+2025,10,Canadian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,1,8
+2025,10,Canadian Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,4
+2025,10,Canadian Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,12
+2025,10,Canadian Grand Prix,mclaren,McLaren Formula 1 Team,updates,3,2
+2025,10,Canadian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,2,6
+2025,10,Canadian Grand Prix,rb,Visa Cash App Racing Bulls,updates,2,13
+2025,10,Canadian Grand Prix,red_bull,Red Bull Racing,no_updates,0,5
+2025,10,Canadian Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,16
+2025,10,Canadian Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,15
+2025,11,Austrian Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,11
+2025,11,Austrian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,10
+2025,11,Austrian Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,4,4
+2025,11,Austrian Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,12
+2025,11,Austrian Grand Prix,mclaren,McLaren Formula 1 Team,updates,3,2
+2025,11,Austrian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,2,8
+2025,11,Austrian Grand Prix,rb,Visa Cash App Racing Bulls,updates,2,13
+2025,11,Austrian Grand Prix,red_bull,Red Bull Racing,updates,1,6
+2025,11,Austrian Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,2,16
+2025,11,Austrian Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,15
+2025,12,British Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,10
+2025,12,British Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,4,8
+2025,12,British Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,4
+2025,12,British Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,4,11
+2025,12,British Grand Prix,mclaren,McLaren Formula 1 Team,updates,2,2
+2025,12,British Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,7
+2025,12,British Grand Prix,rb,Visa Cash App Racing Bulls,updates,1,13
+2025,12,British Grand Prix,red_bull,Red Bull Racing,updates,2,5
+2025,12,British Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,2,17
+2025,12,British Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,1,15
+2025,13,Belgian Grand Prix,alpine,BWT Alpine F1 Team,updates,2,12
+2025,13,Belgian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,5,10
+2025,13,Belgian Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,3,4
+2025,13,Belgian Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,14
+2025,13,Belgian Grand Prix,mclaren,McLaren Formula 1 Team,updates,1,2
+2025,13,Belgian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,2,8
+2025,13,Belgian Grand Prix,rb,Visa Cash App Racing Bulls,updates,3,15
+2025,13,Belgian Grand Prix,red_bull,Red Bull Racing,updates,5,6
+2025,13,Belgian Grand Prix,sauber,KICK Sauber F1 Team,no_updates,0,19
+2025,13,Belgian Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,4,17
+2025,14,Hungarian Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,9
+2025,14,Hungarian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,1,7
+2025,14,Hungarian Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,14,Hungarian Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,10
+2025,14,Hungarian Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,14,Hungarian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,6
+2025,14,Hungarian Grand Prix,rb,Visa Cash App Racing Bulls,updates,2,11
+2025,14,Hungarian Grand Prix,red_bull,Red Bull Racing,updates,2,4
+2025,14,Hungarian Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,14
+2025,14,Hungarian Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,13
+2025,15,Dutch Grand Prix,alpine,BWT Alpine F1 Team,updates,1,8
+2025,15,Dutch Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,7
+2025,15,Dutch Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,15,Dutch Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,10
+2025,15,Dutch Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,15,Dutch Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,6
+2025,15,Dutch Grand Prix,rb,Visa Cash App Racing Bulls,no_updates,0,11
+2025,15,Dutch Grand Prix,red_bull,Red Bull Racing,updates,1,4
+2025,15,Dutch Grand Prix,sauber,KICK Sauber F1 Team,updates,1,13
+2025,15,Dutch Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,12
+2025,16,Italian Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,12
+2025,16,Italian Grand Prix,aston_martin,Aston Martin Aramco F1 Team,updates,1,10
+2025,16,Italian Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,3,4
+2025,16,Italian Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,1,13
+2025,16,Italian Grand Prix,mclaren,McLaren Formula 1 Team,updates,5,2
+2025,16,Italian Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,3,8
+2025,16,Italian Grand Prix,rb,Visa Cash App Racing Bulls,updates,4,15
+2025,16,Italian Grand Prix,red_bull,Red Bull Racing,updates,4,6
+2025,16,Italian Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,19
+2025,16,Italian Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,2,17
+2025,17,Azerbaijan Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,10
+2025,17,Azerbaijan Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,9
+2025,17,Azerbaijan Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,1,3
+2025,17,Azerbaijan Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,11
+2025,17,Azerbaijan Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,17,Azerbaijan Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,1,7
+2025,17,Azerbaijan Grand Prix,rb,Visa Cash App Racing Bulls,updates,2,12
+2025,17,Azerbaijan Grand Prix,red_bull,Red Bull Racing,updates,1,5
+2025,17,Azerbaijan Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,15
+2025,17,Azerbaijan Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,14
+2025,18,Singapore Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,9
+2025,18,Singapore Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,8
+2025,18,Singapore Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,18,Singapore Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,10
+2025,18,Singapore Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,18,Singapore Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,1,6
+2025,18,Singapore Grand Prix,rb,Visa Cash App Racing Bulls,no_updates,0,11
+2025,18,Singapore Grand Prix,red_bull,Red Bull Racing,updates,2,4
+2025,18,Singapore Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,13
+2025,18,Singapore Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,12
+2025,19,United States Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,8
+2025,19,United States Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,7
+2025,19,United States Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,19,United States Grand Prix,haas,MONEYGRAM HAAS F1 TEAM,updates,5,9
+2025,19,United States Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,19,United States Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,updates,1,5
+2025,19,United States Grand Prix,rb,Visa Cash App Racing Bulls,no_updates,0,11
+2025,19,United States Grand Prix,red_bull,Red Bull Racing,no_updates,0,4
+2025,19,United States Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,13
+2025,19,United States Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,12
+2025,20,Mexico City Grand Prix,alpine,BWT Alpine F1 Team,updates,1,9
+2025,20,Mexico City Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,8
+2025,20,Mexico City Grand Prix,ferrari,SCUDERIA FERRARI HP,updates,2,3
+2025,20,Mexico City Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,11
+2025,20,Mexico City Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,20,Mexico City Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,7
+2025,20,Mexico City Grand Prix,rb,Visa Cash App Racing Bulls,updates,2,12
+2025,20,Mexico City Grand Prix,red_bull,Red Bull Racing,updates,4,5
+2025,20,Mexico City Grand Prix,sauber,Stake F1 Team KICK Sauber,updates,1,16
+2025,20,Mexico City Grand Prix,williams,ATLASSIAN WILLIAMS RACING,updates,1,14
+2025,21,São Paulo Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,7
+2025,21,São Paulo Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,6
+2025,21,São Paulo Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,21,São Paulo Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,8
+2025,21,São Paulo Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,21,São Paulo Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,5
+2025,21,São Paulo Grand Prix,rb,Visa Cash App Racing Bulls,no_updates,0,9
+2025,21,São Paulo Grand Prix,red_bull,Red Bull Racing,no_updates,0,4
+2025,21,São Paulo Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,11
+2025,21,São Paulo Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,10
+2025,22,Las Vegas Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,9
+2025,22,Las Vegas Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,8
+2025,22,Las Vegas Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,4
+2025,22,Las Vegas Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,10
+2025,22,Las Vegas Grand Prix,mclaren,McLaren Formula 1 Team,updates,2,2
+2025,22,Las Vegas Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,7
+2025,22,Las Vegas Grand Prix,rb,Visa Cash App Racing Bulls,updates,1,11
+2025,22,Las Vegas Grand Prix,red_bull,Red Bull Racing,updates,1,5
+2025,22,Las Vegas Grand Prix,sauber,Stake F1 Team KICK Sauber,no_updates,0,14
+2025,22,Las Vegas Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,13
+2025,23,Qatar Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,7
+2025,23,Qatar Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,6
+2025,23,Qatar Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,23,Qatar Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,8
+2025,23,Qatar Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,23,Qatar Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,5
+2025,23,Qatar Grand Prix,rb,Visa Cash App Racing Bulls,updates,1,9
+2025,23,Qatar Grand Prix,red_bull,Red Bull Racing,no_updates,0,4
+2025,23,Qatar Grand Prix,sauber,KICK Sauber F1 Team,no_updates,0,12
+2025,23,Qatar Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,11
+2025,24,Abu Dhabi Grand Prix,alpine,BWT Alpine F1 Team,no_updates,0,7
+2025,24,Abu Dhabi Grand Prix,aston_martin,Aston Martin Aramco F1 Team,no_updates,0,6
+2025,24,Abu Dhabi Grand Prix,ferrari,SCUDERIA FERRARI HP,no_updates,0,3
+2025,24,Abu Dhabi Grand Prix,haas,MoneyGram Haas F1 Team,no_updates,0,8
+2025,24,Abu Dhabi Grand Prix,mclaren,McLaren Formula 1 Team,no_updates,0,2
+2025,24,Abu Dhabi Grand Prix,mercedes,Mercedes-AMG PETRONAS F1 Team,no_updates,0,5
+2025,24,Abu Dhabi Grand Prix,rb,Visa Cash App Racing Bulls,no_updates,0,9
+2025,24,Abu Dhabi Grand Prix,red_bull,Red Bull Racing,no_updates,0,4
+2025,24,Abu Dhabi Grand Prix,sauber,KICK Sauber F1 Team,no_updates,0,11
+2025,24,Abu Dhabi Grand Prix,williams,ATLASSIAN WILLIAMS RACING,no_updates,0,10

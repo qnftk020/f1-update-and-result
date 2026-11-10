@@ -39,9 +39,17 @@
 ## T3 계보 테이블
 
 - 완료일: 2026-11-11
-- 결과: `data/curated/lineage/`에 계보 10개(`lineages.csv`), 연결 40행(`lineage_links.csv`), 근거 45행(`lineage_evidence.csv`), 시즌별 연결 결과와 PU 공급사(`constructor_seasons.parquet`), F1DB와 Jolpica의 팀 ID 대응표(`constructor_crosswalk.csv`). 근거와 판단이 갈리는 지점은 `docs/lineage.md`에 적었다.
+- 결과: `data/curated/lineage/`에 계보 10개(`lineages.csv`), 연결 39행(`lineage_links.csv`), 근거 45행(`lineage_evidence.csv`), 시즌별 연결 결과와 PU 공급사(`constructor_seasons.parquet`), F1DB와 Jolpica의 팀 ID 대응표(`constructor_crosswalk.csv`). 근거와 판단이 갈리는 지점은 `docs/lineage.md`에 적었다.
 - 완료 기준 확인: 범위 조정에 따라 2025 그리드 10개 팀 모두 연결 행마다 근거 URL과 확인일이 있다. 근거 인용문 41건을 실제 페이지와 대조해 모두 통과했다. `renault`, `mercedes` ID 분리 테스트와 `honda`, `alfa`, `aston_martin`, `williams` 분리 테스트가 통과한다.
 - 메모: 제외 구간(예: 1954–1955년 `mercedes`)의 근거는 간접 근거다. Tyrrell 포함 여부, 2018년 Force India 참가권 단절, Williams의 시작 연도는 판단이 갈릴 수 있어 문서에 따로 적었다.
+
+## T5 Car Presentation 파서
+
+- 작업일: 2026-11-11
+- 결과: `pipeline/parsers/car_presentation.py`, `data/curated/fia/car_presentation.parquet`(855행), `car_presentation_teams.csv`(540행), `car_presentation_documents.csv`(54행), `data/manifests/parse_failures.csv`(1건).
+- 완료 기준 확인: 2023–2025년 54개 문서 모두 팀 수 검증을 통과했다. 실패 문서 1건(2024년 라스베이거스, Williams 표가 그림)을 목록에 남겼다. 수동 대조 결과를 `docs/methodology.md`에 적었다.
+- 완료 기준에 못 미친 부분: 수동 대조는 문서 10개에서 한 쪽씩만 했고 그중 무작위는 5건이다. 문서 단위 대조는 사람이 한 번 더 하는 편이 좋다.
+- 메모: CI는 표본 문서 6건을 manifest에서 다시 받아 파싱 결과가 커밋된 데이터와 같은지 본다.
 
 ## T9 OpenF1 수집 (진행 중)
 

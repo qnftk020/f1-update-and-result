@@ -222,7 +222,9 @@ def pdf_cache_path(row: dict) -> str:
     return f"pdf/{row['season']}/{slug(row['event'])}/{name}"
 
 
-def download_documents(doc_types: list[str], seasons: list[int] | None = None) -> list[Path]:
+def download_documents(
+    doc_types: list[str], seasons: list[int] | None = None, urls: set[str] | None = None
+) -> list[Path]:
     """manifest에 있는 해당 유형 문서의 PDF를 받아 sha256을 기록한다. 이미 받은 파일은 건너뛴다.
 
     manifest에 sha256이 있는데 새로 받은 파일의 값이 다르면 멈춘다(원문이 바뀐 경우).
@@ -234,6 +236,8 @@ def download_documents(doc_types: list[str], seasons: list[int] | None = None) -
             if row["doc_type"] not in doc_types:
                 continue
             if seasons and int(row["season"]) not in seasons:
+                continue
+            if urls is not None and row["url"] not in urls:
                 continue
             result = client.get(row["url"], pdf_cache_path(row))
             if row["sha256"] and row["sha256"] != result.sha256:
