@@ -89,10 +89,20 @@
 
 - 작업일: 2026-11-11
 - 결과: 깨끗한 작업 트리에서 2025년 24라운드(아부다비)를 `post-session`, `post-race`로 다시 돌렸다. 처음에는 내용이 같은데 Parquet 파일이 다시 써졌고, API에 없는 덤프 값(결과 상태 코드 20행, 기록 없는 Q3 드라이버의 세션 순위 1행)이 비었다. 기존 값을 두고 내용이 같으면 파일을 쓰지 않도록 고친 뒤에는 정제 테이블이 바뀌지 않고 `datasets.csv`의 OpenF1 수집 시각만 바뀐다. 이 동작은 `test_replaying_a_dump_round_changes_nothing`이 검사한다.
-- 완료 기준에 못 미친 부분: `fia-weekend`는 PU 파서(T6)가 끝난 뒤 재현한다. GitHub Actions에서의 수동 트리거와 실패 시 이슈 생성은 푸시 승인 뒤 확인한다.
+- `fia-weekend`도 같은 대회로 재현했다(T6 커밋 뒤). 새 문서 0건, 정제 테이블 변화 0건이다.
+- 완료 기준에 못 미친 부분: GitHub Actions에서의 수동 트리거와 실패 시 이슈 생성 확인이 남았다.
+- 스케줄을 켜기 전에 고칠 점: `fia-weekend`는 `pu_elements.build()`와 `car_presentation.build()`로 모든 시즌을 다시 만든다. 그런데 러너의 원문 캐시(`actions/cache`, 키 `raw-`)는 CI 테스트 표본만 담고 있어서, 첫 실행에서 PU 문서 297건과 Car Presentation 54건을 fia.com에서 다시 받게 된다(시간당 80건 한도로 4시간 이상). 그 대회 문서만 받아 기존 정제 테이블에 더하는 증분 빌드나, 원문 캐시를 한 번 채워 두는 별도 작업이 필요하다. 그래서 Actions 수동 재현은 `post-race`, `post-session`만 한다.
 
 ## T14 공개 준비
 
 - 작업일: 2026-11-11
 - 결과: 소개, 방법론, 출처, 라이선스 쪽과 꼬리말의 비공식 고지, 선행 작업 목록(`data/curated/references/prior_work.csv`, 13건)을 사이트에 넣었다. 방법론의 사실 근거는 `data/curated/references/methodology_evidence.csv`(51건)에 출처 문장과 확인일을 남겼다.
 - 완료 기준에 못 미친 부분: GitHub Pages 공개 URL 확인은 푸시 승인 뒤에 한다.
+
+## T6 PU 구성요소 사용 현황
+
+- 완료일: 2026-11-11
+- 결과: `pipeline/parsers/pu_elements.py`, `data/curated/fia/pu_used.parquet`(누적 문서), `pu_new.parquet`(선언 문서), `pu_usage.parquet`(대회·좌석·구성요소별 이전, 새 투입, 이후 개수), `pu_ice_events.csv`(새 ICE 투입 259건), `pu_allocations.csv`, `pu_inconsistencies.csv`(694건), `pu_documents.csv`. 2020–2025년 문서 297건(누적 127, 선언 170) 가운데 ok 284, 검수 대기 7, 대체됨 6이다.
+- 완료 기준 확인: 범위 조정에 따라 2020–2025년 대회별·드라이버별 누적 사용 개수와 새 ICE 투입 이벤트를 만들었다. 시즌마다 독립 검증자가 렌더링한 쪽과 10,603칸을 대조했고, 찾은 불일치 12건을 고쳤다. 2025년 마지막 누적 문서는 140칸 모두 일치한다.
+- 규칙: 누적 문서("up to now")는 같은 대회 선언 문서의 투입을 포함하지 않는다(같은 대회 비교 1,389행 중 1,378행 일치). 문서끼리 어긋나면 어느 쪽도 고르지 않고 값을 비운 뒤 불일치 목록에 남긴다.
+- 메모: 2025년 ICE 허용(4개)을 넘은 드라이버 11명은 FIA 누적 문서에도 빨간 글자로 인쇄되어 있다. 허용을 넘은 교체는 선언 문서가 아니라 처분 문서(Infringement)에만 나와 새 ICE 투입 목록에는 빠진다. 처분 문서를 파싱해 보충할지는 사용자 결정 사항이다.
