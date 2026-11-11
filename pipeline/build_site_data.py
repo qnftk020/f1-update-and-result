@@ -612,6 +612,7 @@ def build_home(t: Tables, seasons: dict[int, dict], upgrades: dict) -> dict:
         classification.append(
             {
                 "position": clean(r.position),
+                "classified": bool(r.is_classified),
                 **t.driver(r.driver_id),
                 "number": clean(r.car_number),
                 "constructor_id": r.constructor_id,

@@ -100,6 +100,9 @@ OUTLIER_RATIO = 1.07
 MIN_CLEAN_LAPS = 8
 BOOTSTRAP_DRAWS = 1000
 WET_COMPOUNDS = ("INTERMEDIATE", "WET")
+# 우천 세션 판정: 인터미디어트나 웨트 스틴트가 있거나, 세션 중 날씨 표본의 이 비율 이상에서
+# 강우가 기록된 경우다. 표본 한두 개짜리 가랑비나 센서 오류로 대회 전체를 빼지 않기 위한 기준이다.
+RAIN_SHARE_WET = 0.10
 
 
 def neutralised_intervals(race_control):
@@ -259,7 +262,8 @@ def build_race() -> int:
                 "season": m.season, "round": m.round, "constructor_id": team,
                 "total_laps": int(total),
                 "clean_laps": int((clean["constructor_id"] == team).sum()),
-                "is_wet": wet_stint or (rain_share > 0), "rain_sample_share": round(rain_share, 4),
+                "is_wet": wet_stint or (rain_share >= RAIN_SHARE_WET),
+                "wet_tyres": wet_stint, "rain_sample_share": round(rain_share, 4),
                 "race_laps": total_laps,
             }  # fmt: skip
             if values is not None:
@@ -285,24 +289,33 @@ def build_race() -> int:
 def add_qualifying_wet_flags() -> dict[str, int]:
     """퀄리파잉 지수에 우천 플래그를 붙인다.
 
-    2023년 이후는 OpenF1 예선 세션에서 인터미디어트·웨트 스틴트가 있거나 강우 표본이 있으면
-    wet, 아니면 dry다. 2022년 이전은 판정 자료가 없어 unclassified로 둔다.
+    2023년 이후는 OpenF1 예선 세션에서 인터미디어트·웨트 스틴트가 있거나 날씨 표본의
+    RAIN_SHARE_WET 이상에서 강우가 기록되면 wet, 아니면 dry다. 2022년 이전은 판정 자료가 없어
+    unclassified로 둔다.
     """
     import pandas as pd
 
     of = CURATED_DIR / "openf1"
     path = PACE / "qualifying_index.parquet"
-    index = pd.read_parquet(path).drop(columns=["wet_flag"], errors="ignore")
+    index = pd.read_parquet(path).drop(
+        columns=["wet_flag", "wet_tyres", "rain_sample_share"], errors="ignore"
+    )
     meeting_map = pd.read_csv(of / "meeting_map.csv")
     stints = pd.read_parquet(of / "stints.parquet")
     weather = pd.read_parquet(of / "weather.parquet")
     wet_tyres = set(stints[stints["compound"].isin(WET_COMPOUNDS)]["session_key"])
-    rain = set(weather[weather["rainfall"] > 0]["session_key"])
+    rain_share = (weather["rainfall"] > 0).groupby(weather["session_key"]).mean()
     flags = meeting_map[["season", "round", "qualifying_session_key"]].copy()
-    flags["wet_flag"] = flags["qualifying_session_key"].map(
-        lambda k: "wet" if k in wet_tyres or k in rain else "dry"
+    flags["wet_tyres"] = flags["qualifying_session_key"].isin(wet_tyres)
+    flags["rain_sample_share"] = flags["qualifying_session_key"].map(rain_share).round(4)
+    flags["wet_flag"] = "dry"
+    flags.loc[flags["wet_tyres"] | (flags["rain_sample_share"] >= RAIN_SHARE_WET), "wet_flag"] = (
+        "wet"
     )
-    index = index.merge(flags[["season", "round", "wet_flag"]], how="left", on=["season", "round"])
+    index = index.merge(
+        flags[["season", "round", "wet_flag", "wet_tyres", "rain_sample_share"]],
+        how="left", on=["season", "round"],
+    )  # fmt: skip
     index["wet_flag"] = index["wet_flag"].fillna("unclassified")
     index.to_parquet(path, index=False, compression="zstd")
     per_race = index.drop_duplicates(["season", "round"])["wet_flag"].value_counts()

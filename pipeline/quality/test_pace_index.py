@@ -144,3 +144,31 @@ def test_wet_flags(con):
         select bool_and(is_wet), count(index_pct) from '{R}' where season = 2024 and round = 21
     """).fetchone()
     assert wet and teams == 0
+
+
+def test_wet_rule_is_tyres_or_rain_share(con):
+    """우천은 웨트 계열 타이어를 쓴 세션이거나 강우 표본이 10% 이상인 세션이다."""
+    bad = con.execute(f"""
+        select count(*) from '{R}'
+        where is_wet <> (wet_tyres or coalesce(rain_sample_share, 0) >= 0.10)
+    """).fetchone()[0]
+    assert bad == 0
+    bad = con.execute(f"""
+        select count(*) from '{Q}' where season >= 2023
+          and (wet_flag = 'wet') <> (wet_tyres or coalesce(rain_sample_share, 0) >= 0.10)
+    """).fetchone()[0]
+    assert bad == 0
+    race = dict(
+        con.execute(f"""
+            select round, bool_or(is_wet) from '{R}' where season = 2024 and round in (10, 12)
+            group by 1
+        """).fetchall()
+    )
+    assert race == {10: False, 12: True}  # 스페인은 가랑비 표본 1%, 영국은 인터미디어트 사용
+    quali = dict(
+        con.execute(f"""
+            select round, any_value(wet_flag) from '{Q}' where season = 2024 and round in (3, 13)
+            group by 1
+        """).fetchall()
+    )
+    assert quali == {3: "dry", 13: "wet"}  # 헝가리 예선은 슬릭이었지만 표본의 76%가 강우
