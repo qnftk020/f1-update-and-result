@@ -1,0 +1,106 @@
+name: update-run
+
+# 갱신 명령 하나를 실행하는 공용 워크플로다. 원문을 받아 정제 테이블을 다시 만들고, 품질 테스트를
+# 통과하면 데이터를 커밋한 뒤 사이트를 다시 배포한다. 실패하면 이슈를 연다.
+on:
+  workflow_call:
+    inputs:
+      command:
+        description: pipeline.update 의 하위 명령
+        type: string
+        required: true
+      season:
+        type: string
+        default: ''
+      round:
+        type: string
+        default: ''
+      issue_on_new_documents:
+        description: 새 문서를 찾으면 이슈를 연다 (규정 감시용)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    env:
+      COMMAND: ${{ inputs.command }}
+      SEASON: ${{ inputs.season }}
+      ROUND: ${{ inputs.round }}
+      GH_TOKEN: ${{ github.token }}
+      # 원문 서버가 요청을 막으면 오래 기다리지 않고 실패로 끝낸다. 실패는 이슈로 남는다.
+      PIPELINE_BLOCK_COOLDOWNS: ''
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      # 원문(FIA PDF, API 응답)은 저장소에 없다. 캐시가 있으면 이어 쓰고 없으면 manifest를 보고 받는다.
+      - uses: actions/cache@v6
+        with:
+          path: data/raw
+          key: raw-${{ hashFiles('data/manifests/**') }}
+          restore-keys: raw-
+      - name: 갱신 실행
+        id: run
+        run: |
+          args=()
+          if [ -n "$SEASON" ]; then args+=(--season "$SEASON" --round "$ROUND"); fi
+          uv run python -m pipeline.update "$COMMAND" "${args[@]}" | tee update-result.json
+      - name: 품질 테스트
+        run: uv run pytest pipeline/quality -q
+      - name: 데이터 커밋
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/curated data/manifests
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "T13: ${COMMAND} ${SEASON} ${ROUND} 자동 갱신"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 새 문서 이슈
+        if: inputs.issue_on_new_documents && steps.run.outputs.new_documents != '0'
+        run: |
+          {
+            echo "fia.com 규정 페이지에서 새 문서를 찾았다. 조항 파싱과 비교 데이터를 갱신해야 한다."
+            echo
+            echo '```json'
+            cat update-result.json
+            echo '```'
+          } > issue.md
+          gh issue create --title "새 규정 문서 감지 ($(date -u +%F))" --body-file issue.md
+      - name: 실패 이슈
+        if: failure()
+        run: |
+          title="자동 갱신 실패: ${COMMAND} ${SEASON} ${ROUND}"
+          body="실행 기록: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          number=$(gh issue list --state open --search "in:title \"${title}\"" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+
+  deploy:
+    needs: update
+    if: needs.update.outputs.changed == 'true'
+    uses: ./.github/workflows/deploy.yml

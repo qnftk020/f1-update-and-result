@@ -25,6 +25,8 @@ from pipeline.http import PoliteClient, utc_now_iso
 BASE = "https://www.fia.com"
 F1_DOCUMENTS = f"{BASE}/documents/championships/fia-formula-one-world-championship-14"
 INDEX_MANIFEST = "fia_documents.csv"
+EVENT_MANIFEST = "fia_event_pages.csv"  # 대회별 문서 목록 페이지 주소
+EVENT_FIELDS = ["season", "event", "url"]
 INDEX_FIELDS = [
     "season", "event", "doc_type", "doc_number", "title", "url", "published_at", "route",
     "indexed_at", "sha256", "bytes", "fetched_at",
@@ -125,6 +127,12 @@ def index_seasons(seasons: list[int], *, force: bool = False) -> list[dict]:
             events = parse_event_links(season_page)
             if not events:
                 raise RuntimeError(f"{season}년 대회 목록을 찾지 못했다")
+            manifest.upsert_rows(
+                EVENT_MANIFEST,
+                [{"season": season, "event": event, "url": url} for event, url in events],
+                key=["season", "event"],
+                fieldnames=EVENT_FIELDS,
+            )
             for event, url in events:
                 page = client.get(
                     url, f"index/{season}/{slug(event)}.html", force=force
@@ -157,6 +165,80 @@ def index_seasons(seasons: list[int], *, force: bool = False) -> list[dict]:
     manifest.upsert_rows(INDEX_MANIFEST, all_rows, key=["season", "event", "url"],
                          fieldnames=INDEX_FIELDS)  # fmt: skip
     return all_rows
+
+
+def event_page(season: int, race_name: str, *, refresh: bool = False) -> tuple[str, str]:
+    """(FIA 대회명, 대회 문서 페이지 주소)를 돌려준다.
+
+    manifest에 없거나 refresh가 참이면 시즌 페이지를 다시 읽는다.
+    """
+
+    from pipeline import events
+
+    wanted = {events.plain(name) for name in events.fia_names_for(season, race_name)}
+
+    def lookup() -> tuple[str, str] | None:
+        for row in manifest.read_rows(EVENT_MANIFEST):
+            if int(row["season"]) == season and events.plain(row["event"]) in wanted:
+                return row["event"], row["url"]
+        return None
+
+    found = None if refresh else lookup()
+    if found:
+        return found
+    with PoliteClient("fia") as client:
+        root = client.get(F1_DOCUMENTS, "index/root.html", force=True).content.decode("utf-8")
+        season_links = parse_season_links(root)
+        if season not in season_links:
+            raise RuntimeError(f"fia.com 시즌 목록에 {season}년이 없다")
+        page = client.get(
+            season_links[season], f"index/{season}/_season.html", force=True
+        ).content.decode("utf-8")
+    events = parse_event_links(page)
+    manifest.upsert_rows(
+        EVENT_MANIFEST,
+        [{"season": season, "event": event, "url": url} for event, url in events],
+        key=["season", "event"],
+        fieldnames=EVENT_FIELDS,
+    )
+    found = lookup()
+    if not found:
+        raise RuntimeError(f"fia.com {season}년 대회 목록에 {race_name}이 없다")
+    return found
+
+
+def index_event(season: int, race_name: str) -> list[dict]:
+    """대회 하나의 문서 목록을 다시 읽어 manifest에 합친다. 새로 생긴 문서 행을 돌려준다."""
+    event, url = event_page(season, race_name)
+    with PoliteClient("fia") as client:
+        page = client.get(url, f"index/{season}/{slug(event)}.html", force=True).content.decode(
+            "utf-8"
+        )
+    docs = parse_document_rows(page)
+    if not docs and page.count("document-row") > 1:
+        raise RuntimeError(f"{season} {event}: 문서 행을 읽지 못했다(마크업 변경)")
+    known = {r["url"]: r for r in manifest.read_rows(INDEX_MANIFEST)}
+    now = utc_now_iso()
+    rows, added = [], []
+    for doc in docs:
+        old = known.get(doc["url"])
+        row = {
+            "season": season,
+            "event": event,
+            "doc_type": classify(doc["title"]),
+            "route": "decision_document",
+            "indexed_at": old["indexed_at"] if old else now,
+            "sha256": old.get("sha256", "") if old else "",
+            "bytes": old.get("bytes", "") if old else "",
+            "fetched_at": old.get("fetched_at", "") if old else "",
+            **doc,
+        }
+        rows.append(row)
+        if not old:
+            added.append(row)
+    manifest.upsert_rows(INDEX_MANIFEST, rows, key=["season", "event", "url"],
+                         fieldnames=INDEX_FIELDS)  # fmt: skip
+    return added
 
 
 NEWS_TITLE = re.compile(r"<title>(.*?)</title>", re.S)
@@ -287,6 +369,9 @@ if __name__ == "__main__":
         index_seasons([int(a) for a in args])
     elif command == "news":
         index_news_car_presentations(int(args[0]))
+    elif command == "event":
+        new_docs = index_event(int(args[0]), " ".join(args[1:]))
+        print(f"{len(new_docs)} new documents")
     elif command == "record-cached":
         print(f"{record_cached(args[0].split(','))} rows recorded")
     elif command == "download":

@@ -50,5 +50,43 @@ def collect(years: list[int], *, force: bool = False) -> int:
     return n
 
 
+def collect_round(year: int, race_date: str, *, force: bool = False) -> list[int]:
+    """대회 하나의 본 예선과 결승만 받는다. 받은(또는 캐시된) 세션 키를 돌려준다.
+
+    결승 날짜(현지 날짜)와 하루 이내로 시작한 Race 세션의 미팅을 그 대회로 본다. 세션 목록은
+    매번 새로 받는다(새 대회가 목록에 들어왔는지 봐야 하므로).
+    """
+    from datetime import date
+
+    target = date.fromisoformat(race_date[:10])
+    keys: list[int] = []
+    with PoliteClient("openf1") as client:
+        sessions = [
+            s for s in fetch_sessions(client, year, force=True) if not s.get("is_cancelled")
+        ]
+        meetings = {
+            s["meeting_key"]
+            for s in sessions
+            if s["session_name"] == "Race"
+            and abs((date.fromisoformat(s["date_start"][:10]) - target).days) <= 1
+        }
+        if len(meetings) != 1:
+            raise RuntimeError(f"OpenF1에서 {race_date} 대회를 하나로 정하지 못했다: {meetings}")
+        for s in sessions:
+            if s["meeting_key"] not in meetings or s["session_name"] not in SESSION_NAMES:
+                continue
+            key = s["session_key"]
+            for endpoint in ENDPOINTS:
+                client.get(
+                    f"{API_BASE}/{endpoint}",
+                    f"{year}/{key}/{endpoint}.json",
+                    params={"session_key": key},
+                    force=force,
+                    empty_on_404=b"[]",
+                )
+            keys.append(key)
+    return keys
+
+
 if __name__ == "__main__":
     print(f"{collect([int(a) for a in sys.argv[1:]])} sessions")

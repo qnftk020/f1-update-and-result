@@ -1,0 +1,21 @@
+name: regulations-daily
+
+# fia.com 규정 페이지에 새 문서(새 Issue)가 올라왔는지 살피고, 있으면 이슈를 연다.
+# 스케줄 실행은 2026 시즌으로 범위를 넓힐 때 켠다(CLAUDE.md "범위 조정").
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '20 5 * * *'
+
+permissions:
+  contents: write
+  issues: write
+  pages: write
+  id-token: write
+
+jobs:
+  update:
+    uses: ./.github/workflows/update-run.yml
+    with:
+      command: regulations
+      issue_on_new_documents: true

@@ -374,7 +374,7 @@ def build() -> dict[str, int]:
     """
     import pandas as pd
 
-    from pipeline import manifest
+    from pipeline import events, manifest
     from pipeline.config import CURATED_DIR, RAW_DIR
     from pipeline.http import utc_now_iso
     from pipeline.sources import fia_docs
@@ -385,13 +385,11 @@ def build() -> dict[str, int]:
         for r in manifest.read_rows(fia_docs.INDEX_MANIFEST)
         if r["doc_type"] == "car_presentation"
     ]
-    races = pd.read_parquet(CURATED_DIR / "jolpica" / "races.parquet")
-    rounds = {(int(r.season), r.race_name.casefold()): int(r.round) for r in races.itertuples()}
 
     item_rows, team_rows, doc_rows, failures = [], [], [], []
     for doc in docs:
         season = int(doc["season"])
-        round_no = rounds.get((season, doc["event"].casefold()))
+        round_no = events.round_for(season, doc["event"])
         parsed = parse_document(RAW_DIR / "fia" / fia_docs.pdf_cache_path(doc))
         problems = list(parsed.problems)
         if round_no is None:

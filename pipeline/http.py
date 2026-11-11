@@ -12,6 +12,7 @@ import csv
 import fcntl
 import hashlib
 import json
+import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -22,7 +23,13 @@ import httpx
 from pipeline.config import MAX_REQUESTS_PER_HOUR, MIN_INTERVAL_SECONDS, RAW_DIR, USER_AGENT
 
 # 서버가 요청을 막았을 때(429, Cloudflare 확인 화면) 쉬는 시간(초). 우회하지 않고 기다린다.
-BLOCK_COOLDOWNS = (1800.0, 3600.0, 7200.0)
+# 환경 변수 PIPELINE_BLOCK_COOLDOWNS("600,1200" 꼴)로 바꿀 수 있다. 빈 값이면 기다리지 않고
+# 바로 실패한다(CI처럼 오래 기다릴 수 없는 곳에서 쓴다).
+BLOCK_COOLDOWNS = tuple(
+    float(x)
+    for x in os.environ.get("PIPELINE_BLOCK_COOLDOWNS", "1800,3600,7200").split(",")
+    if x.strip()
+)
 
 
 class SourceBlocked(RuntimeError):

@@ -1,0 +1,21 @@
+name: heartbeat
+
+# 상태 점검 결과를 커밋한다. 공개 저장소의 스케줄 워크플로는 60일 동안 저장소 활동이 없으면 꺼지므로
+# 비시즌에도 이 커밋으로 활동을 유지한다.
+# 스케줄 실행은 2026 시즌으로 범위를 넓힐 때 켠다(CLAUDE.md "범위 조정").
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '10 3 1 * *'
+
+permissions:
+  contents: write
+  issues: write
+  pages: write
+  id-token: write
+
+jobs:
+  update:
+    uses: ./.github/workflows/update-run.yml
+    with:
+      command: heartbeat

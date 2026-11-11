@@ -1,0 +1,59 @@
+name: deploy
+
+# 사이트를 빌드해 GitHub Pages에 올린다. main에 데이터나 사이트 코드가 들어오면 돈다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'data/curated/**'
+      - 'data/manifests/**'
+      - 'pipeline/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: uv sync --frozen
+      - run: uv run python -m pipeline.build_site_data
+      - run: npm ci
+        working-directory: site
+      - run: npm run build
+        working-directory: site
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
