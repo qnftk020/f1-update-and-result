@@ -629,6 +629,9 @@ def build_regulations() -> dict | None:
                     (changes["section"] == c.section)
                     & (changes["from_version"] == c.from_version)
                     & (changes["to_version"] == c.to_version)
+                    # 판 키는 날짜라 두 시즌 규정이 같은 날 나오면 겹친다(2020-05-27).
+                    & (changes["from_season"] == c.from_season)
+                    & (changes["to_season"] == c.to_season)
                 ]
                 for r in sel.itertuples():
                     rows.append(
