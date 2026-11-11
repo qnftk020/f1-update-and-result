@@ -103,6 +103,39 @@ WET_COMPOUNDS = ("INTERMEDIATE", "WET")
 # 우천 세션 판정: 인터미디어트나 웨트 스틴트가 있거나, 세션 중 날씨 표본의 이 비율 이상에서
 # 강우가 기록된 경우다. 표본 한두 개짜리 가랑비나 센서 오류로 대회 전체를 빼지 않기 위한 기준이다.
 RAIN_SHARE_WET = 0.10
+RACE_COLUMNS = [
+    "season", "round", "constructor_id", "total_laps", "clean_laps", "wet_flag", "is_wet",
+    "wet_tyres", "rain_sample_share", "race_laps", "team_median_s", "field_median_s",
+    "index_pct", "ci_low_pct", "ci_high_pct",
+]  # fmt: skip
+
+
+def wet_flag(wet_tyres: bool, rain_share: float, has_weather: bool, has_stints: bool) -> str:
+    """세션 하나의 우천 판정을 돌려준다(wet, dry, unclassified).
+
+    웨트 계열 스틴트나 강우 표본 비율로 우천이 확인되면 다른 자료가 없어도 wet이다. dry는 날씨
+    표본과 스틴트가 모두 있고 둘 다 우천을 가리키지 않을 때만 준다. 어느 하나라도 없으면 마른
+    세션이라고 볼 근거가 없으므로 unclassified로 두고 기본 분석에 넣지 않는다.
+    """
+    if wet_tyres or rain_share >= RAIN_SHARE_WET:
+        return "wet"
+    return "dry" if has_weather and has_stints else "unclassified"
+
+
+def race_window_start(laps_start, race_control):
+    """결승 강우 표본을 세기 시작하는 시각. 첫 SESSION STARTED와 첫 랩 출발 중 이른 쪽이다.
+
+    OpenF1 랩 자료에 앞쪽 랩이 빠지면(예: 2025년 6라운드 마이애미의 2-24랩, 1랩 출발 시각 없음)
+    첫 랩 출발 시각이 실제 출발보다 늦어지므로 레이스 컨트롤의 세션 시작 메시지로 보완한다.
+    """
+    import pandas as pd
+
+    msg = race_control["message"].fillna("").str.upper()
+    started = pd.to_datetime(
+        race_control.loc[msg == "SESSION STARTED", "date"], utc=True, format="ISO8601"
+    )
+    candidates = [t for t in (started.min(), laps_start.min()) if pd.notna(t)]
+    return min(candidates) if candidates else pd.NaT
 
 
 def neutralised_intervals(race_control):
@@ -243,12 +276,15 @@ def build_race() -> int:
         wet_stint = bool(part["stints"]["compound"].isin(WET_COMPOUNDS).any())
         weather = part["weather"].copy()
         weather["date"] = pd.to_datetime(weather["date"], utc=True, format="ISO8601")
-        during = weather[weather["date"].between(laps["start"].min(), laps["end"].max())]
+        win_start = race_window_start(laps["start"], part["race_control"])
+        during = weather[weather["date"].between(win_start, laps["end"].max())]
         rain_share = float((during["rainfall"] > 0).mean()) if len(during) else float("nan")
+        flag = wet_flag(wet_stint, rain_share, len(during) > 0, not part["stints"].empty)
 
         team_values = {}
         for team, g in clean.groupby("constructor_id"):
-            if len(g) >= MIN_CLEAN_LAPS:
+            # 우천 여부를 판정하지 못한 대회는 지수를 내지 않는다
+            if flag != "unclassified" and len(g) >= MIN_CLEAN_LAPS:
                 team_values[team] = g["corrected"].to_numpy()
         if not team_values:  # 클린 랩이 충분한 팀이 하나도 없는 대회
             field = float("nan")
@@ -262,7 +298,8 @@ def build_race() -> int:
                 "season": m.season, "round": m.round, "constructor_id": team,
                 "total_laps": int(total),
                 "clean_laps": int((clean["constructor_id"] == team).sum()),
-                "is_wet": wet_stint or (rain_share >= RAIN_SHARE_WET),
+                "wet_flag": flag,
+                "is_wet": pd.NA if flag == "unclassified" else flag == "wet",
                 "wet_tyres": wet_stint, "rain_sample_share": round(rain_share, 4),
                 "race_laps": total_laps,
             }  # fmt: skip
@@ -280,7 +317,10 @@ def build_race() -> int:
                     "ci_high_pct": round((high / field - 1) * 100, 4),
                 }
             rows.append(row)
-    out = pd.DataFrame(rows).sort_values(["season", "round", "index_pct", "constructor_id"])
+    # 지수를 낸 팀이 하나도 없어도 열 구성이 같게 한다
+    out = pd.DataFrame(rows).reindex(columns=RACE_COLUMNS)
+    out = out.sort_values(["season", "round", "index_pct", "constructor_id"])
+    out["is_wet"] = out["is_wet"].astype("boolean")  # 판정하지 못한 대회는 NULL
     PACE.mkdir(parents=True, exist_ok=True)
     out.to_parquet(PACE / "race_index.parquet", index=False, compression="zstd")
     return len(out)
@@ -290,8 +330,9 @@ def add_qualifying_wet_flags() -> dict[str, int]:
     """퀄리파잉 지수에 우천 플래그를 붙인다.
 
     2023년 이후는 OpenF1 예선 세션에서 인터미디어트·웨트 스틴트가 있거나 날씨 표본의
-    RAIN_SHARE_WET 이상에서 강우가 기록되면 wet, 아니면 dry다. 2022년 이전은 판정 자료가 없어
-    unclassified로 둔다.
+    RAIN_SHARE_WET 이상에서 강우가 기록되면 wet이다. 날씨 표본과 스틴트가 모두 있고 둘 다
+    우천을 가리키지 않으면 dry, 어느 하나라도 없으면 unclassified다(wet_flag 참고). 2022년
+    이전은 판정 자료가 없어 unclassified로 둔다.
     """
     import pandas as pd
 
@@ -308,10 +349,14 @@ def add_qualifying_wet_flags() -> dict[str, int]:
     flags = meeting_map[["season", "round", "qualifying_session_key"]].copy()
     flags["wet_tyres"] = flags["qualifying_session_key"].isin(wet_tyres)
     flags["rain_sample_share"] = flags["qualifying_session_key"].map(rain_share).round(4)
-    flags["wet_flag"] = "dry"
-    flags.loc[flags["wet_tyres"] | (flags["rain_sample_share"] >= RAIN_SHARE_WET), "wet_flag"] = (
-        "wet"
-    )
+    has_weather = flags["qualifying_session_key"].isin(rain_share.index)
+    has_stints = flags["qualifying_session_key"].isin(set(stints["session_key"]))
+    flags["wet_flag"] = [
+        wet_flag(t, r, w, st)
+        for t, r, w, st in zip(
+            flags["wet_tyres"], flags["rain_sample_share"], has_weather, has_stints, strict=True
+        )
+    ]
     index = index.merge(
         flags[["season", "round", "wet_flag", "wet_tyres", "rain_sample_share"]],
         how="left", on=["season", "round"],

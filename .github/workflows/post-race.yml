@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       season:
-        description: 시즌 (비우면 오늘 날짜의 레이스 주간을 찾는다)
+        description: 시즌 (라운드와 함께 채운다. 둘 다 비우면 오늘 날짜의 레이스 주간을 찾는다)
         required: false
         default: ''
       round:
-        description: 라운드
+        description: 라운드 (시즌과 함께 채운다)
         required: false
         default: ''
   # schedule:
@@ -33,15 +33,21 @@ jobs:
     env:
       INPUT_SEASON: ${{ inputs.season }}
       INPUT_ROUND: ${{ inputs.round }}
+      # Jolpica가 요청을 막으면 몇 시간씩 기다리지 않고 바로 실패한다. 실패는 plan-failure가 이슈로 남긴다.
+      PIPELINE_BLOCK_COOLDOWNS: ''
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
       - run: uv sync --frozen
       - name: 대상 라운드 정하기
         id: pick
         run: |
+          if { [ -n "$INPUT_SEASON" ] && [ -z "$INPUT_ROUND" ]; } || { [ -z "$INPUT_SEASON" ] && [ -n "$INPUT_ROUND" ]; }; then
+            echo "::error::season과 round는 둘 다 채우거나 둘 다 비워야 한다 (season='$INPUT_SEASON', round='$INPUT_ROUND')"
+            exit 1
+          fi
           if [ -n "$INPUT_SEASON" ] && [ -n "$INPUT_ROUND" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "season=$INPUT_SEASON" >> "$GITHUB_OUTPUT"
@@ -67,3 +73,25 @@ jobs:
       command: post-race
       season: ${{ needs.plan.outputs.season }}
       round: ${{ needs.plan.outputs.round }}
+
+  # 대상 라운드를 정하지 못하면 update-run이 돌지 않으므로 여기서 이슈를 연다.
+  # update-run 안의 실패는 update-run이 이슈로 남기므로 plan만 본다.
+  plan-failure:
+    needs: plan
+    if: failure()
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      WORKFLOW: ${{ github.workflow }}
+    steps:
+      - name: 실패 이슈
+        run: |
+          title="자동 갱신 실패: ${WORKFLOW} plan"
+          body="실행 기록: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          number=$(gh issue list --state open --search "in:title \"${title}\"" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

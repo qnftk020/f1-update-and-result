@@ -61,7 +61,7 @@ LINK_TYPES_KO = {
     "origin": "출발",
     "acquired": "인수",
     "renamed": "명칭 변경",
-    "continued": "계속",
+    "entry_purchase": "참가권 인수",
 }
 QUALI_FORMATS_KO = {
     "ONE_SESSION": "단일 세션",
@@ -138,6 +138,12 @@ class Tables:
         self.lineage_links = pd.read_csv(CURATED_DIR / "lineage" / "lineage_links.csv")
         self.lineage_evidence = pd.read_csv(CURATED_DIR / "lineage" / "lineage_evidence.csv")
         self.gp_ko = pd.read_csv(CURATED_DIR / "labels" / "grand_prix_ko.csv")
+        # 차량 공유로 결승 1번 그리드 드라이버가 여럿인 대회의 폴 시터(f1db 예선 1위 근거)
+        shared_poles = pd.read_csv(CURATED_DIR / "labels" / "pole_shared_cars.csv")
+        self.shared_poles = {
+            (int(r.season), int(r.round)): (r.driver_id, r.constructor_id)
+            for r in shared_poles.itertuples()
+        }
 
         self.driver_names = {
             r.driver_id: f"{r.forename} {r.surname}".strip() for r in self.drivers.itertuples()
@@ -170,7 +176,9 @@ class Tables:
         if row is None or not isinstance(row.pu_manufacturer_id, str):
             return None
         pu = row.pu_manufacturer_id
-        return {"id": pu, "name": self.engine_names.get(pu, pu)}
+        # 한 시즌에 엔진 제조사가 여럿이면 ID가 '|'로 이어져 있으므로 각각 이름을 찾는다.
+        name = ", ".join(self.engine_names.get(p, p) for p in pu.split("|"))
+        return {"id": pu, "name": name}
 
     def driver(self, driver_id: str) -> dict:
         return {
@@ -190,6 +198,46 @@ class Tables:
 # --- 시즌 ------------------------------------------------------------------------------
 
 
+def raced_rounds(t: Tables, season: int) -> set[int]:
+    """결승 결과가 들어온 라운드 번호. 진행 중인 시즌에는 일정상 라운드보다 적다."""
+    results = t.results[(t.results["season"] == season) & (t.results["session_type"] == "R")]
+    return {int(r) for r in results["round"].unique()}
+
+
+def pole_sitter(
+    t: Tables, season: int, rnd: int, res: pd.DataFrame, fmt: str | None
+) -> tuple[str, str] | None:
+    """폴 시터 한 명을 (driver_id, constructor_id)로 고른다.
+
+    기본은 결승 1번 그리드다. 벌칙으로 1번 그리드가 바뀐 대회도 공식 기록은 그리드를 따른다.
+    2022년 스프린트 주말(f1db SPRINT_RACE)은 결승 1번 그리드가 스프린트 우승자이므로 예선 1위를
+    쓴다. 2021년은 스프린트 우승자가 폴 기록을 받았으므로 그리드를 그대로 쓴다. 차량 공유로
+    1번 그리드 드라이버가 여럿이면 큐레이션 표(data/curated/labels/pole_shared_cars.csv)를 따르고,
+    표에 없으면 빌드를 멈춘다.
+    """
+    if fmt == "SPRINT_RACE" and season >= 2022:
+        quali = t.qualifying[
+            (t.qualifying["season"] == season)
+            & (t.qualifying["round"] == rnd)
+            & (t.qualifying["position"] == 1)
+        ]
+        pairs = zip(quali["driver_id"], quali["constructor_id"], strict=True)
+        candidates = list(dict.fromkeys(pairs))
+        if len(candidates) != 1:
+            raise ValueError(f"{season} R{rnd} 예선 1위를 하나로 정할 수 없다: {candidates}")
+        return candidates[0]
+    grid = res[res["grid"] == 1]
+    candidates = list(dict.fromkeys(zip(grid["driver_id"], grid["constructor_id"], strict=True)))
+    if len({d for d, _ in candidates}) <= 1:
+        return candidates[0] if candidates else None
+    if (season, rnd) not in t.shared_poles:
+        raise ValueError(
+            f"{season} R{rnd} 결승 1번 그리드가 여러 명이다: {candidates}."
+            " data/curated/labels/pole_shared_cars.csv에 폴 시터를 기록해야 한다"
+        )
+    return t.shared_poles[(season, rnd)]
+
+
 def season_rounds(t: Tables, season: int) -> list[dict]:
     races = t.races[t.races["season"] == season].sort_values("round")
     results = t.results[(t.results["season"] == season) & (t.results["session_type"] == "R")]
@@ -207,10 +255,10 @@ def season_rounds(t: Tables, season: int) -> list[dict]:
         name_ko, short_ko = t.gp(r.race_name)
         res = results[results["round"] == rnd]
         winners = res[res["position"] == 1]
-        poles = res[res["grid"] == 1]
         q = quali_by_round.get(rnd)
         x = race_by_round.get(rnd)
         fmt = formats.get(rnd)
+        pole = pole_sitter(t, season, rnd, res, fmt)
         rounds.append(
             {
                 "round": rnd,
@@ -231,13 +279,15 @@ def season_rounds(t: Tables, season: int) -> list[dict]:
                     }
                     for w in winners.itertuples()
                 ],
-                "pole": [
+                # 폴은 많아야 한 명이다. 목록 모양은 화면 타입(EntryRef[])에 맞춘 것이다.
+                "pole": []
+                if pole is None
+                else [
                     {
-                        **t.driver(p.driver_id),
-                        "constructor_id": p.constructor_id,
-                        "constructor": t.team_name(season, p.constructor_id),
+                        **t.driver(pole[0]),
+                        "constructor_id": pole[1],
+                        "constructor": t.team_name(season, pole[1]),
                     }
-                    for p in poles.itertuples()
                 ],
                 "quali": None
                 if q is None
@@ -370,8 +420,12 @@ def build_season(t: Tables, season: int) -> dict:
 
 
 def season_summary(season_data: dict) -> dict:
-    drivers = [d for d in season_data["drivers"] if d["position"] == 1]
-    constructors = [c for c in season_data["constructors"] if c["position"] == 1]
+    # 마지막 일정 라운드의 순위가 들어오기 전에는 현재 1위를 챔피언으로 적지 않는다.
+    complete = any(
+        d["positions"] and d["positions"][-1] is not None for d in season_data["drivers"]
+    )
+    drivers = [d for d in season_data["drivers"] if complete and d["position"] == 1]
+    constructors = [c for c in season_data["constructors"] if complete and c["position"] == 1]
     return {
         "season": season_data["season"],
         "rounds": len(season_data["rounds"]),
@@ -389,6 +443,22 @@ def season_summary(season_data: dict) -> dict:
 # --- 팀(계보) --------------------------------------------------------------------------
 
 
+def _raw_index(table: pd.DataFrame, season: int, constructor_id: str) -> dict[int, float]:
+    """라운드별 지수 원값(반올림 전). 결측(NaN)인 라운드는 빠진다."""
+    rows = table[(table["season"] == season) & (table["constructor_id"] == constructor_id)]
+    return {
+        int(r.round): float(r.index_pct)
+        for r in rows.itertuples()
+        if clean(r.index_pct) is not None
+    }
+
+
+def name_history(segments: list[dict]) -> list[str]:
+    """계보 구간의 팀 이름 변천. 이웃한 구간의 같은 이름은 하나로 줄이고 재등장은 남긴다."""
+    names = [s["team_name"] for s in segments]
+    return [n for i, n in enumerate(names) if i == 0 or n != names[i - 1]]
+
+
 def build_team(t: Tables, lineage: object, seasons: dict[int, dict]) -> dict:
     lineage_id = lineage.lineage_id
     links = t.lineage_links[t.lineage_links["lineage_id"] == lineage_id].sort_values("season_from")
@@ -399,16 +469,21 @@ def build_team(t: Tables, lineage: object, seasons: dict[int, dict]) -> dict:
         season = int(member.season)
         data = seasons[season]
         entry = next((c for c in data["constructors"] if c["id"] == member.constructor_id), None)
+        # 중앙값은 정제 테이블의 원값으로 내고 한 번만 반올림한다. 시즌 JSON의 대회별 값은 이미
+        # 소수 셋째 자리로 반올림되어 있어, 대회 수가 짝수면 가운데 두 값의 평균이 어긋난다.
+        raw_quali = _raw_index(t.quali_index, season, member.constructor_id)
+        raw_race = _raw_index(t.race_index, season, member.constructor_id)
         dry_quali, all_quali = [], []
         race_values = []
-        for i, rnd in enumerate(data["rounds"]):
-            if entry and entry["quali_index"] and entry["quali_index"][i] is not None:
-                all_quali.append(entry["quali_index"][i])
+        for rnd in data["rounds"]:
+            value = raw_quali.get(rnd["round"])
+            if value is not None:
+                all_quali.append(value)
                 if rnd["quali"] and rnd["quali"]["wet"] != "wet":
-                    dry_quali.append(entry["quali_index"][i])
-            race_value = entry["race_index"][i] if entry and entry["race_index"] else None
+                    dry_quali.append(value)
+            race_value = raw_race.get(rnd["round"])
             if race_value is not None and rnd["race"] and not rnd["race"]["wet"]:
-                race_values.append(race_value["v"])
+                race_values.append(race_value)
         quali_formats = {r["quali"]["format"] for r in data["rounds"] if r["quali"]}
         rows.append(
             {
@@ -453,7 +528,8 @@ def build_team(t: Tables, lineage: object, seasons: dict[int, dict]) -> dict:
                 "from": int(r.season_from),
                 "to": int(r.season_to),
                 "link_type": r.link_type,
-                "link_type_ko": LINK_TYPES_KO.get(r.link_type, r.link_type),
+                # 한글 표기가 없는 연결 유형은 영문 ID를 화면에 내보내지 않도록 빌드를 멈춘다.
+                "link_type_ko": LINK_TYPES_KO[r.link_type],
                 "note": r.note if isinstance(r.note, str) else None,
             }
             for r in links.itertuples()
@@ -585,7 +661,10 @@ def format_lap(ms: float) -> str:
 def build_home(t: Tables, seasons: dict[int, dict], upgrades: dict) -> dict:
     season = LAST_SEASON
     data = seasons[season]
-    last = data["rounds"][-1]
+    # 진행 중인 시즌에는 일정상 마지막 라운드가 아니라 결승 결과가 있는 마지막 라운드를 쓴다.
+    done = raced_rounds(t, season)
+    index = max(i for i, r in enumerate(data["rounds"]) if r["round"] in done)
+    last = data["rounds"][index]
     rnd = last["round"]
     res = t.results[
         (t.results["season"] == season)
@@ -623,7 +702,8 @@ def build_home(t: Tables, seasons: dict[int, dict], upgrades: dict) -> dict:
                 "time": time_text,
                 "status": r.status_detail,
                 "points": clean(r.points),
-                "fastest_lap": bool(r.fastest_lap_rank == 1),
+                # 랩 기록이 없는 차는 순위가 NULL(pd.NA)이므로 clean()을 거쳐 비교한다.
+                "fastest_lap": clean(r.fastest_lap_rank) == 1,
             }
         )
     quali = t.qualifying[(t.qualifying["season"] == season) & (t.qualifying["round"] == rnd)]
@@ -637,7 +717,6 @@ def build_home(t: Tables, seasons: dict[int, dict], upgrades: dict) -> dict:
             "session": best.session_type,
             "time": format_lap(float(best.best_time_ms)),
         }
-    index = len(data["rounds"]) - 1
     pace = []
     for c in data["constructors"]:
         pace.append(
@@ -694,10 +773,25 @@ def build_home(t: Tables, seasons: dict[int, dict], upgrades: dict) -> dict:
 
 
 def build_meta(t: Tables) -> dict:
-    datasets = {r["source"]: r for r in manifest.read_rows("datasets.csv")}
+    rows = manifest.read_rows("datasets.csv")
+    # 출처마다 기준 행을 하나 고른다. Jolpica는 덤프 행을 기준으로 하되, API로 대회를 더 반영했으면
+    # 기준일은 가장 늦은 수집 시각을 쓰고 버전에 반영한 마지막 라운드를 덧붙인다.
+    datasets = {r["source"]: r for r in rows if r["name"] != "api-rounds"}
+    api_rounds = next(
+        (r for r in rows if (r["source"], r["name"]) == ("jolpica", "api-rounds")), None
+    )
+    if api_rounds and api_rounds["fetched_at"] > datasets["jolpica"]["fetched_at"]:
+        datasets["jolpica"] = {
+            **datasets["jolpica"],
+            "version": f"{datasets['jolpica']['version'][:10]} + API {api_rounds['version']}",
+            "fetched_at": api_rounds["fetched_at"],
+        }
     fia = manifest.read_rows("fia_documents.csv")
     indexed = max(r["indexed_at"] for r in fia)
-    last_race = t.races[t.races["season"] == LAST_SEASON].sort_values("round").iloc[-1]
+    raced = t.races[
+        (t.races["season"] == LAST_SEASON) & t.races["round"].isin(raced_rounds(t, LAST_SEASON))
+    ]
+    last_race = raced.sort_values("round").iloc[-1]
     car_docs = [r for r in fia if r["doc_type"] == "car_presentation"]
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
@@ -717,7 +811,9 @@ def build_meta(t: Tables) -> dict:
                 "name": "Jolpica-F1",
                 "url": "https://github.com/jolpica/jolpica-f1",
                 "license": "CC BY-NC-SA 4.0",
-                "version": datasets["jolpica"]["version"][:10],
+                "version": datasets["jolpica"]["version"].split("T")[0]
+                if " + API" not in datasets["jolpica"]["version"]
+                else datasets["jolpica"]["version"],
                 "as_of": kst_date(datasets["jolpica"]["fetched_at"]),
             },
             "f1db": {
@@ -801,7 +897,7 @@ def main() -> None:
                     for k in ("lineage_id", "name_ko", "base", "constructor", "entrant", "pu")
                 },
                 "since": team["segments"][0]["from"],
-                "names": [s["team_name"] for s in team["segments"]],
+                "names": name_history(team["segments"]),
             }
             for team in teams
         ],

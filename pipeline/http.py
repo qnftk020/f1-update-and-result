@@ -2,17 +2,21 @@
 
 - 데이터원별 최소 요청 간격과 시간당 요청 수를 지킨다. 간격은 data/raw/_locks/ 의 잠금 파일로
   세므로 여러 프로세스가 같은 데이터원을 동시에 써도 지켜진다.
-- 모든 응답을 data/raw/ 아래에 캐시한다. 캐시가 있으면 네트워크 요청을 하지 않는다.
-- 실제로 나간 요청은 data/raw/_logs/requests-<source>.csv 에 남긴다(요청 제한 준수 증빙).
+- 모든 응답을 data/raw/ 아래에 캐시한다. 캐시가 있으면 네트워크 요청을 하지 않는다. 캐시 파일은
+  임시 파일에 다 쓴 뒤 이름을 바꿔 만들므로, 중간에 끊긴 쓰기가 캐시로 남지 않는다.
+- 실제로 나간 요청은 data/raw/_logs/requests-<source>.csv 에 남긴다(요청 제한 준수 증빙). 응답을
+  받지 못한 요청(시간 초과, 연결 끊김)도 상태 열에 error:<예외 이름>으로 남긴다.
 """
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import fcntl
 import hashlib
 import json
 import os
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -38,6 +42,26 @@ class SourceBlocked(RuntimeError):
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def write_atomic(path: Path, content: bytes) -> None:
+    """content를 path에 원자적으로 쓴다.
+
+    같은 폴더의 고유한 임시 파일에 다 쓰고 디스크에 내린 뒤 os.replace로 이름을 바꾼다. 그래서 다른
+    프로세스는 파일이 없거나 완전한 파일만 보며, 쓰기가 중간에 실패하면 이전 파일이 그대로 남는다.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".part")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(tmp)
+        raise
 
 
 def utc_now_iso() -> str:
@@ -109,11 +133,20 @@ class PoliteClient:
                 recent = [float(t) for t in state.get("recent", [])]
                 blocked = float(state.get("blocked_until", 0.0)) - time.time()
                 if blocked > 0:  # 다른 프로세스가 거부 응답을 받았다. 함께 쉰다.
+                    if not self.block_cooldowns:
+                        # 기다리지 않기로 한 곳(CI)에서는 요청을 보내지 않고 바로 실패한다.
+                        raise SourceBlocked(
+                            f"{self.source}: 앞선 거부 응답으로 {blocked:.0f}초 더 쉬어야 한다"
+                        )
                     time.sleep(blocked)
                 if self.max_per_hour is not None:
                     recent = [t for t in recent if time.time() - t < 3600]
                     if len(recent) >= self.max_per_hour:
-                        time.sleep(max(0.0, 3600 - (time.time() - recent[0])) + 1)
+                        # 상한을 낮춘 뒤처럼 창 안의 요청이 상한보다 많을 수 있다. 이번 요청까지
+                        # 넣어도 상한을 넘지 않도록, 덜어 낼 요청 가운데 가장 늦은 것이 창을 벗어날
+                        # 때까지 기다린다.
+                        last_to_drop = recent[len(recent) - self.max_per_hour]
+                        time.sleep(max(0.0, 3600 - (time.time() - last_to_drop)) + 1)
                         recent = [t for t in recent if time.time() - t < 3600]
                 wait = self.min_interval - (time.time() - last)
                 if wait > 0:
@@ -148,7 +181,7 @@ class PoliteClient:
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
-    def _log(self, url: str, status: int, size: int, started: str) -> None:
+    def _log(self, url: str, status: int | str, size: int, started: str) -> None:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         new = not self.log_path.exists()
         with self.log_path.open("a", newline="", encoding="utf-8") as f:
@@ -165,12 +198,25 @@ class PoliteClient:
         params: dict | None = None,
         force: bool = False,
         empty_on_404: bytes | None = None,
+        refetch_empty: bool = False,
     ) -> FetchResult:
-        """url을 받아 data/raw/<source>/<cache_path>에 저장한다. 캐시가 있으면 그대로 쓴다."""
+        """url을 받아 data/raw/<source>/<cache_path>에 저장한다. 캐시가 있으면 그대로 쓴다.
+
+        empty_on_404를 주면 404를 "결과 없음"으로 보고 그 값을 캐시에 적어 돌려준다. 파일이 있어야
+        읽는 쪽이 엔드포인트를 빠짐없이 다룰 수 있기 때문이다. 다만 아직 올라오지 않은 자료도 404로
+        오므로, refetch_empty를 켜면 캐시 내용이 empty_on_404와 같을 때 캐시를 쓰지 않고 다시
+        묻는다. 이미 받은 실제 자료가 있는데 다시 받다가 404가 오면 그 자료를 덮어쓰지 않고 남긴다.
+        """
         path = self.raw_dir / cache_path
         if path.exists() and not force:
             content = path.read_bytes()
-            return FetchResult(url, path, content, sha256_bytes(content), True, None)
+            stale = (
+                refetch_empty
+                and empty_on_404 is not None
+                and content.strip() == empty_on_404.strip()
+            )
+            if not stale:
+                return FetchResult(url, path, content, sha256_bytes(content), True, None)
 
         last_error: Exception | None = None
         blocks = 0
@@ -181,6 +227,9 @@ class PoliteClient:
             try:
                 resp = self._client.get(url, params=params)
             except httpx.HTTPError as exc:  # 네트워크 오류는 간격을 늘려 재시도
+                # 서버에 닿았을 수 있는 요청이므로 응답이 없어도 기록한다.
+                sent = str(self._client.build_request("GET", url, params=params).url)
+                self._log(sent, f"error:{type(exc).__name__}", 0, started)
                 last_error = exc
                 time.sleep(self.min_interval * (2**attempt))
                 attempt += 1
@@ -191,6 +240,11 @@ class PoliteClient:
             if resp.status_code == 429 or "cf-mitigated" in resp.headers:
                 # 요청 제한이나 봇 확인 화면이다. 우회하지 않는다. 오래 쉬고 다시 묻는다.
                 if blocks >= len(self.block_cooldowns):
+                    # 멈추기 전에도 쉬는 시간을 적어 두어, 같은 데이터원을 쓰는 다른 프로세스가
+                    # 서버가 요청한 시간(Retry-After)을 지키게 한다.
+                    rest = max(delay, self.block_cooldowns[-1] if self.block_cooldowns else 0.0)
+                    if rest > 0:
+                        self._mark_blocked(rest)
                     raise SourceBlocked(
                         f"{self.source}: 서버가 요청을 계속 거부한다({resp.status_code}): {url}"
                     )
@@ -206,11 +260,14 @@ class PoliteClient:
                 continue
             if resp.status_code == 404 and empty_on_404 is not None:
                 content = empty_on_404  # "결과 없음"을 404로 알리는 API용
+                if path.exists():
+                    kept = path.read_bytes()
+                    if kept.strip() != empty_on_404.strip():  # 받은 실제 자료는 404로 지우지 않는다
+                        return FetchResult(url, path, kept, sha256_bytes(kept), True, None)
             else:
                 resp.raise_for_status()
                 content = resp.content
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(content)
+            write_atomic(path, content)
             return FetchResult(url, path, content, sha256_bytes(content), False, utc_now_iso())
         raise RuntimeError(f"요청 실패({self.source}): {url}") from last_error
 

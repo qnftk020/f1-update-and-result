@@ -32,17 +32,28 @@ FIA_DOC_TYPES = ["car_presentation", "pu_new", "pu_used"]
 
 
 def race(season: int, rnd: int) -> dict:
+    """대회명과 결승 날짜.
+
+    races.parquet에는 post-race가 결과를 반영해야 행이 생긴다. 그 전에 도는 fia-weekend와
+    post-session을 위해, 정제 테이블에 없으면 Jolpica 시즌 일정(캐시)에서 읽는다.
+    """
     races = pd.read_parquet(CURATED_DIR / "jolpica" / "races.parquet")
     row = races[(races["season"] == season) & (races["round"] == rnd)]
-    if row.empty:
-        raise SystemExit(f"{season}년 {rnd}라운드가 정제 테이블에 없다")
-    r = row.iloc[0]
-    return {
-        "season": season,
-        "round": rnd,
-        "race_name": r["race_name"],
-        "date": str(r["date"])[:10],
-    }
+    if not row.empty:
+        r = row.iloc[0]
+        return {
+            "season": season,
+            "round": rnd,
+            "race_name": r["race_name"],
+            "date": str(r["date"])[:10],
+        }
+    from pipeline.sources import jolpica
+
+    schedule = jolpica.fetch_api(f"{season}")["RaceTable"]["Races"]
+    r = next((r for r in schedule if int(r["round"]) == rnd), None)
+    if r is None:
+        raise SystemExit(f"{season}년 일정에 {rnd}라운드가 없다")
+    return {"season": season, "round": rnd, "race_name": r["raceName"], "date": r["date"][:10]}
 
 
 def changed_paths() -> list[str]:
@@ -91,43 +102,195 @@ def fia_weekend(season: int, rnd: int) -> dict:
 def post_session(season: int, rnd: int) -> dict:
     """OpenF1에서 그 대회의 본 예선과 결승을 받고 레이스 페이스 지수와 우천 플래그를 다시 만든다."""
     from pipeline.sources import openf1
-    from pipeline.transforms import openf1_tables, pace_index
+    from pipeline.transforms import pace_index
 
     info = race(season, rnd)
     sessions = openf1.collect_round(season, info["date"])
     record_openf1_fetch()
+    tables = update_openf1_sessions(sessions)
+    race_rows = pace_index.build_race()
     return {
         **info,
         "sessions": sessions,
-        "openf1": openf1_tables.build(),
-        "race_index_rows": pace_index.build_race(),
+        "openf1": tables,
+        "race_index_rows": race_rows,
+        # Jolpica 결과가 아직 없으면 그 대회의 레이스 지수가 없다. post-race가 다시 만든다.
+        "race_index_status": race_index_status(season, rnd),
         "wet_flags": pace_index.add_qualifying_wet_flags(),
     }
+
+
+def update_openf1_sessions(keys: list[int]) -> dict[str, int]:
+    """받은 세션만 OpenF1 정제 테이블에 더하거나 바꾼다.
+
+    openf1_tables.build()는 2023년부터의 원문 전체를 다시 읽으므로, 원문 캐시가 한 대회분뿐인
+    러너에서는 실패한다. 여기서는 커밋된 정제 테이블을 읽고, 이번에 받은 세션 키의 행만 원문으로
+    다시 만들어 바꾼다. 대응표(meeting_map, driver_map)는 정제 테이블만 읽으므로 합친 표로
+    다시 만든다.
+    """
+    from pipeline.sources.openf1 import ENDPOINTS
+    from pipeline.transforms import openf1_tables as ot
+
+    keys = [int(k) for k in keys]
+    fresh = ot.load_sessions(allow_partial=True)
+    fresh = fresh[fresh["session_key"].isin(keys)].reset_index(drop=True)
+    missing = sorted(set(keys) - set(fresh["session_key"].astype(int)))
+    if missing:
+        raise RuntimeError(f"OpenF1 원문 캐시에 세션이 없거나 엔드포인트가 빠졌다: {missing}")
+
+    def merged(name: str, new: pd.DataFrame) -> pd.DataFrame:
+        path = ot.OUT / f"{name}.parquet"
+        if not path.exists():
+            return new
+        old = pd.read_parquet(path)
+        old = old[~old["session_key"].isin(keys)]
+        return pd.concat([old, new], ignore_index=True) if len(new) else old
+
+    sessions = merged("sessions", fresh)
+    sessions = sessions.sort_values(["date_start"], kind="stable").reset_index(drop=True)
+    ot.write_parquet(sessions, "sessions")
+    counts = {"sessions": len(sessions)}
+    tables = {}
+    for endpoint in ENDPOINTS:
+        try:
+            new = ot.load_endpoint(fresh, endpoint)
+        except ValueError:  # 받은 세션 모두 그 엔드포인트가 빈 목록이다(pd.concat에 넣을 것이 없음)
+            new = pd.DataFrame(columns=ot.KEEP[endpoint])
+        if endpoint == "weather" and len(new):
+            new = ot.clean_weather(new)
+        df = merged(endpoint, new).sort_values(ot.SORT[endpoint], kind="stable")
+        df = df.reset_index(drop=True)
+        tables[endpoint] = df
+        ot.write_parquet(df, endpoint)
+        counts[endpoint] = len(df)
+    counts |= refresh_openf1_maps(sessions, tables["drivers"])
+    return counts
+
+
+def refresh_openf1_maps(
+    sessions: pd.DataFrame | None = None, drivers: pd.DataFrame | None = None
+) -> dict[str, int]:
+    """Jolpica와 OpenF1의 미팅·드라이버 대응표를 정제 테이블로 다시 만든다(원문은 읽지 않는다)."""
+    from pipeline.transforms import openf1_tables as ot
+
+    if sessions is None:
+        sessions = pd.read_parquet(ot.OUT / "sessions.parquet")
+    if drivers is None:
+        drivers = pd.read_parquet(ot.OUT / "drivers.parquet")
+    meeting_map = ot.build_meeting_map(sessions)
+    meeting_map.to_csv(ot.OUT / "meeting_map.csv", index=False)
+    driver_map = ot.build_driver_map(meeting_map, drivers)
+    driver_map.to_csv(ot.OUT / "driver_map.csv", index=False)
+    return {"meeting_map": len(meeting_map), "driver_map": len(driver_map)}
+
+
+def race_index_status(season: int, rnd: int) -> str:
+    """그 대회의 레이스 지수 상태.
+
+    - ok: 레이스 지수 행이 있다.
+    - unmapped: 미팅 대응표에 그 대회의 결승 세션이 없다. post-race 전에는 races.parquet에
+      대회 행이 없어 대응표에 오르지 못한다.
+    - no_laps: 결승 세션은 맞췄지만 OpenF1 랩이 없다.
+    - unmatched: 결승 랩은 있는데 레이스 지수 행이 없다(팀을 붙이지 못했다).
+    """
+    of = CURATED_DIR / "openf1"
+    meeting_map = pd.read_csv(of / "meeting_map.csv")
+    row = meeting_map[(meeting_map["season"] == season) & (meeting_map["round"] == rnd)]
+    row = row.dropna(subset=["race_session_key"])
+    if row.empty:
+        return "unmapped"
+    key = int(row.iloc[0]["race_session_key"])
+    laps = pd.read_parquet(of / "laps.parquet", columns=["session_key"])
+    if not (laps["session_key"] == key).any():
+        return "no_laps"
+    index_path = CURATED_DIR / "pace" / "race_index.parquet"
+    index = pd.read_parquet(index_path, columns=["season", "round"])
+    if ((index["season"] == season) & (index["round"] == rnd)).any():
+        return "ok"
+    return "unmatched"
+
+
+def record_dataset(row: dict) -> None:
+    """datasets.csv에서 (source, name)이 같은 행을 바꾸거나 더한다."""
+    from pipeline.sources.jolpica import DATASET_FIELDS, DATASET_MANIFEST
+
+    rows = {(r["source"], r["name"]): r for r in manifest.read_rows(DATASET_MANIFEST)}
+    merged = rows.get((row["source"], row["name"]), {}) | row
+    manifest.upsert_rows(
+        DATASET_MANIFEST, [merged], key=["source", "name"], fieldnames=DATASET_FIELDS
+    )
 
 
 def record_openf1_fetch() -> None:
     from pipeline.http import utc_now_iso
-    from pipeline.sources.jolpica import DATASET_FIELDS, DATASET_MANIFEST
 
-    rows = {r["source"]: r for r in manifest.read_rows(DATASET_MANIFEST)}
-    row = rows.get("openf1", {"source": "openf1", "name": "sessions-2023-2025"})
-    row |= {"version": f"2023-{LAST_SEASON}", "url": "https://api.openf1.org/v1/",
-            "fetched_at": utc_now_iso()}  # fmt: skip
-    manifest.upsert_rows(DATASET_MANIFEST, [row], key=["source", "name"], fieldnames=DATASET_FIELDS)
+    record_dataset(
+        {"source": "openf1", "name": "sessions-2023-2025", "version": f"2023-{LAST_SEASON}",
+         "url": "https://api.openf1.org/v1/", "fetched_at": utc_now_iso()}
+    )  # fmt: skip
+
+
+def record_jolpica_api_apply(season: int, rnd: int) -> None:
+    """post-race가 API로 반영한 라운드와 시각을 남긴다. 덤프 행(delayed-dump-csv)은 그대로 둔다."""
+    from pipeline.http import utc_now_iso
+    from pipeline.sources.jolpica import API_BASE
+
+    record_dataset(
+        {"source": "jolpica", "name": "api-rounds", "version": f"{season} R{rnd}",
+         "url": f"{API_BASE}/", "fetched_at": utc_now_iso()}
+    )  # fmt: skip
 
 
 def post_race(season: int, rnd: int) -> dict:
-    """Jolpica API에서 결과와 순위를 받아 반영하고 퀄리파잉 지수를 다시 만든다."""
+    """Jolpica API에서 결과와 순위를 받아 반영하고 페이스 지수를 다시 만든다.
+
+    결과가 들어와야 races.parquet에 그 대회가 생기고 레이스 지수에 팀이 붙는다. 그래서 여기서
+    미팅·드라이버 대응표와 레이스 지수를 다시 만들고, 결과가 들어오기 전에 라운드를 맞추지 못한
+    FIA 문서가 있으면 다시 파싱한다.
+    """
+    from pipeline import events
     from pipeline.transforms import lineage, pace_index, results_api
 
     counts = results_api.apply_round(season, rnd, force=True)
-    return {
-        **race(season, rnd),
+    record_jolpica_api_apply(season, rnd)
+    events.rounds.cache_clear()
+    info = race(season, rnd)
+    result = {
+        **info,
         "jolpica": counts,
         "constructor_seasons": lineage.build(),
+        "fia_reparsed": reparse_unmatched_fia(season, info["race_name"]),
+        "openf1_maps": refresh_openf1_maps(),
         "qualifying_index_rows": pace_index.build_qualifying(),
+        "race_index_rows": pace_index.build_race(),
         "wet_flags": pace_index.add_qualifying_wet_flags(),
     }
+    status = race_index_status(season, rnd)
+    if status == "unmatched":
+        raise RuntimeError(
+            f"{season}년 {rnd}라운드는 결승 랩이 있는데 레이스 지수에 팀을 붙이지 못했다"
+        )
+    result["race_index_status"] = status
+    return result
+
+
+def reparse_unmatched_fia(season: int, race_name: str) -> dict | None:
+    """그 대회의 FIA 문서 중 라운드를 맞추지 못해 검수 대기로 남은 것이 있으면 다시 파싱한다.
+
+    fia-weekend는 결과가 반영되기 전에 돌므로, 그때는 events.round_for가 라운드를 찾지 못한다.
+    """
+    from pipeline import events
+
+    names = {events.plain(n) for n in events.fia_names_for(season, race_name)}
+    unmatched = [
+        r for r in manifest.read_rows("parse_failures.csv")
+        if int(r["season"]) == season and not r["round"] and events.plain(r["event"]) in names
+    ]  # fmt: skip
+    if not unmatched:
+        return None
+    from pipeline.parsers import car_presentation, pu_elements
+
+    return {"car_presentation": car_presentation.build(), "pu_elements": pu_elements.build()}
 
 
 def regulations() -> dict:

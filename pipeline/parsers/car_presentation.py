@@ -93,6 +93,10 @@ COMPONENT_AREAS = [
     ("rear_suspension", re.compile(r"rear suspension", re.I)),
     ("front_corner", re.compile(r"front corner", re.I)),
     ("rear_corner", re.compile(r"rear corner", re.I)),
+    # 2025년 10라운드 캐나다 Mercedes 1번 항목은 원문에 "Floor Corner"로 적혀 있다. 기하 차이와
+    # 설명이 프런트 브레이크 덕트 흡입구와 배출구 확대이므로 Front Corner의 오기로 보고 프런트
+    # 코너로 묶는다. updated_component에는 원문 표기를 그대로 둔다.
+    ("front_corner", re.compile(r"^\s*floor corner\s*$", re.I)),
     ("floor", re.compile(r"floor|edge wing", re.I)),
     ("diffuser", re.compile(r"diffuser", re.I)),
     ("sidepod", re.compile(r"sidepod", re.I)),

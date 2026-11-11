@@ -54,7 +54,8 @@ def collect_round(year: int, race_date: str, *, force: bool = False) -> list[int
     """대회 하나의 본 예선과 결승만 받는다. 받은(또는 캐시된) 세션 키를 돌려준다.
 
     결승 날짜(현지 날짜)와 하루 이내로 시작한 Race 세션의 미팅을 그 대회로 본다. 세션 목록은
-    매번 새로 받는다(새 대회가 목록에 들어왔는지 봐야 하므로).
+    매번 새로 받는다(새 대회가 목록에 들어왔는지 봐야 하므로). 대회 주간에는 세션 자료가 올라오기
+    전에 실행될 수 있으므로, 캐시가 빈 목록인 엔드포인트는 실행할 때마다 다시 묻는다.
     """
     from datetime import date
 
@@ -83,6 +84,7 @@ def collect_round(year: int, race_date: str, *, force: bool = False) -> list[int
                     params={"session_key": key},
                     force=force,
                     empty_on_404=b"[]",
+                    refetch_empty=True,
                 )
             keys.append(key)
     return keys

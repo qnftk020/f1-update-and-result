@@ -86,6 +86,8 @@ def test_reason_parts(reason, parts):
         ("Rear Wing / Beam Wing", "rear_wing"),
         ("Floor fences", "floor"),
         ("Edge wing", "floor"),
+        ("Floor Corner", "front_corner"),  # 2025년 캐나다 Mercedes, 프런트 브레이크 덕트 항목
+        ("Floor Corner Fences", "floor"),  # 예외 규칙은 이 표기 하나에만 맞는다
         ("Coke / Engine Cover", "engine_cover"),
         ("Cooling Louvres", "engine_cover"),
         ("Sidepod Inlet / Engine cover", "sidepod"),
@@ -104,6 +106,19 @@ def test_every_component_has_an_area(items):
     inferred = items[items["reason_category_inferred"]]
     assert set(inferred["reason_category"]) <= {"performance", "circuit_specific"}
     assert len(inferred) < 20
+
+
+def test_floor_corner_typo_is_front_corner(items):
+    """2025년 캐나다 Mercedes 1번 항목은 원문 표기가 Floor Corner인 브레이크 덕트 항목이다."""
+    row = items[
+        (items["season"] == 2025)
+        & (items["round"] == 10)
+        & (items["constructor_id"] == "mercedes")
+        & (items["updated_component"] == "Floor Corner")
+    ]
+    assert len(row) == 1
+    assert row["component_area"].iloc[0] == "front_corner"
+    assert "front brake duct" in row["description"].iloc[0].lower()
 
 
 @pytest.mark.parametrize(

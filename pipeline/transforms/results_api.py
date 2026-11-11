@@ -5,7 +5,9 @@
 
 API가 주지 않는 값은 비워 둔다.
 - results.status_code: 덤프 내부 분류라 API에 없다. 다음 덤프 적재 때 채워진다.
-- races.scheduled_laps: API 일정에 없다.
+- races.scheduled_laps: API 일정에 없다. 이미 있는 라운드를 갈아 끼울 때는 기존 값을 둔다.
+- races.date: API는 결승 시작 시각의 UTC 날짜를 준다. 덤프는 대회의 현지 날짜라 밤 경기(2025
+  라스베이거스)에서 하루 다르다. 이미 있는 라운드는 기존 날짜를 두고, 새 라운드만 API 날짜를 쓴다.
 - results.time_ms: API는 완주로 분류된 차의 기록만 준다. 리타이어한 차는 비워 둔다.
 - 순위표의 adjustment_type: 기본값 0을 넣는다. is_eligible은 순위가 매겨졌는지로 정한다.
 - qualifying.position: API는 예선 최종 순위만 준다. 세션별 순위는 그 세션 기록 순으로 매기고,
@@ -218,6 +220,7 @@ def upsert(path: Path, name: str, rows: list[dict], *, keep_existing: bool = Fal
     """정제 테이블에서 같은 키의 행을 빼고 새 행을 넣어 다시 쓴다. 열 형식은 기존 파일을 따른다.
 
     keep_existing이 참이면 이미 있는 키는 건드리지 않고 없는 키만 더한다(드라이버, 팀 목록용).
+    돌려주는 값은 실제로 반영한 행 수다. 더할 행이 없으면 파일을 다시 쓰지 않는다.
     """
     if not rows:
         return 0
@@ -229,30 +232,54 @@ def upsert(path: Path, name: str, rows: list[dict], *, keep_existing: bool = Fal
     match = " and ".join(f'old."{k}" = new."{k}"' for k in keys)
     con.execute(f"create temp table new as select {casts} from frame")
     if keep_existing:
-        query = (
-            f"select * from '{path}' old union all "
-            f"select * from new where not exists (select 1 from '{path}' old where {match})"
-        )
+        con.execute(f"delete from new where exists (select 1 from '{path}' old where {match})")
+        applied = con.execute("select count(*) from new").fetchone()[0]
+        if not applied:
+            return 0
+        query = f"select * from '{path}' union all select * from new"
     else:
+        applied = len(rows)
         query = (
             f"select * from '{path}' old where not exists (select 1 from new where {match}) "
             "union all select * from new"
         )
     con.execute(f"create temp table merged as select * from ({query}) order by {ORDER_BY[name]}")
     con.execute(f"copy merged to '{path}' (format parquet, compression zstd)")
-    return len(rows)
+    return applied
+
+
+def keep_race_fields(path: Path, rows: list[dict]) -> list[dict]:
+    """이미 있는 라운드는 API가 덤프와 같게 내지 못하는 date, scheduled_laps를 기존 값으로 둔다."""
+    con = duckdb.connect()
+    kept = []
+    for row in rows:
+        old = con.execute(
+            f"select date, scheduled_laps from '{path}' where season = ? and round = ?",
+            [row["season"], row["round"]],
+        ).fetchone()
+        if old:
+            row = {**row, "date": str(old[0]) if old[0] is not None else None,
+                   "scheduled_laps": old[1]}  # fmt: skip
+        kept.append(row)
+    return kept
+
+
+def apply_tables(tables: dict[str, list[dict]], out_dir: Path = CURATED_DIR) -> dict[str, int]:
+    """정제 테이블 열 이름으로 맞춘 행을 테이블별로 반영하고, 반영한 행 수를 돌려준다."""
+    counts = {}
+    for name, rows in tables.items():
+        path = out_dir / "jolpica" / f"{name}.parquet"
+        if name == "races":
+            rows = keep_race_fields(path, rows)
+        counts[name] = upsert(path, name, rows, keep_existing=name in ("drivers", "constructors"))
+    return counts
 
 
 def apply_round(
     season: int, rnd: int, *, out_dir: Path = CURATED_DIR, force: bool = False
 ) -> dict[str, int]:
     """한 라운드를 API에서 받아 정제 테이블에 반영한다. 테이블별로 반영한 행 수를 돌려준다."""
-    tables = fetch_round(season, rnd, force=force)
-    counts = {}
-    for name, rows in tables.items():
-        path = out_dir / "jolpica" / f"{name}.parquet"
-        counts[name] = upsert(path, name, rows, keep_existing=name in ("drivers", "constructors"))
-    return counts
+    return apply_tables(fetch_round(season, rnd, force=force), out_dir)
 
 
 def completed_rounds(season: int, *, force: bool = False) -> list[int]:

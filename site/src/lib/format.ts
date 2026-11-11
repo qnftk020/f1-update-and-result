@@ -1,22 +1,30 @@
 // 숫자, 날짜, 지수의 화면 표기. 서버(빌드)와 브라우저에서 같은 결과가 나오도록 로캘을 고정한다.
 
 const integer = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 });
+const points = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 });
 
 /** 1,234 */
 export function formatInteger(value: number | null | undefined): string {
   return value == null ? '' : integer.format(value);
 }
 
-/** 점수: 정수면 그대로, 반점이 있으면 소수 첫째 자리까지. */
+/**
+ * 점수: 정수면 그대로, 소수가 있으면 소수 둘째 자리까지 보이고 끝의 0은 뺀다.
+ * 반점(3.5)뿐 아니라 1950년대 공유 점수(1/7, 1/3에서 나온 0.14, 24.64, 1.33 등)도 원자료와 같게 보인다.
+ */
 export function formatPoints(value: number | null | undefined): string {
   if (value == null) return '';
-  return Number.isInteger(value) ? integer.format(value) : value.toFixed(1);
+  return points.format(value);
 }
 
-/** 퀄리파잉 지수: 0 이상인 값. '+0.245%' (0은 '0.000%'). */
+/**
+ * 퀄리파잉 지수: 0 이상인 값. '+0.245%'.
+ * 표시 자릿수로 반올림해서 0이 되는 값은 부호 없이 '0.000%'로 보인다.
+ */
 export function formatQualiIndex(value: number | null | undefined, digits = 3): string {
   if (value == null) return '';
-  return value === 0 ? `${(0).toFixed(digits)}%` : `+${value.toFixed(digits)}%`;
+  const fixed = value.toFixed(digits);
+  return Number(fixed) === 0 ? `${(0).toFixed(digits)}%` : `+${fixed}%`;
 }
 
 /** 레이스 지수: 부호가 있는 값. 음수 부호는 유니코드 빼기 기호를 쓴다. */
