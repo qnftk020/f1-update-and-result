@@ -470,7 +470,8 @@ def test_meta_follows_api_round_updates(tmp_path, monkeypatch):
     """post-race로 API 대회를 반영하면 Jolpica 기준일과 버전이 그 시각을 따른다."""
     from pipeline import manifest
 
-    rows = manifest.read_rows("datasets.csv")
+    # 실제 post-race를 한 번 돌린 저장소에는 api-rounds 행이 이미 있다. 그 행을 빼고 시험 행만 둔다.
+    rows = [r for r in manifest.read_rows("datasets.csv") if r["name"] != "api-rounds"]
     extra = {
         "source": "jolpica", "name": "api-rounds", "version": "2025 R24", "url": "", "sha256": "",
         "bytes": "", "upstream_published_at": "", "fetched_at": "2026-12-08T03:00:00Z",
