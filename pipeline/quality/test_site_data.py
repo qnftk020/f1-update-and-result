@@ -311,6 +311,12 @@ def test_no_em_dash_in_generated_text(site):
         assert em_dash not in path.read_text(encoding="utf-8"), path.name
 
 
+def test_no_html_entities_in_generated_text(site):
+    # 원자료의 "Lotus-Pratt &amp; Whitney"는 build_site_data가 글자로 푼다.
+    for path in site.root.rglob("*.json"):
+        assert "&amp;" not in path.read_text(encoding="utf-8"), path.name
+
+
 def test_home_tolerates_missing_fastest_lap_rank(tables):
     """2025년부터 랩 기록이 없는 차는 fastest_lap_rank가 NULL이다(22라운드의 bortoleto, stroll)."""
     data = build_site_data.build_season(tables, LAST_SEASON)

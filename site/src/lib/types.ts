@@ -97,6 +97,8 @@ export interface LeadChange {
   round: number;
   leader_id: string;
   first_round: number;
+  /** 시즌 뒤 순위에서 제외되었지만 그 시점 점수로 1위였던 라운드가 있는 참가자(1997 Michael Schumacher) */
+  excluded_leader?: string[];
 }
 
 export interface SeasonFacts {

@@ -1,0 +1,110 @@
+/* 홈 부문별 요약 전용 스타일. index.astro만 불러온다. 모든 클래스는 hm- 접두사를 쓴다.
+   색과 간격은 tokens.css 값만 쓴다. 상자 테두리 대신 위 괘선과 머리카락 선으로 칸을 나눈다. */
+
+/* 머리의 부문 바로가기 */
+.hm-parts { margin-top: var(--sp-4); }
+.hm-parts .chip-link { min-height: 36px; }
+
+/* 부문 끝 링크: 한 줄, 화살표 */
+.hm-more { margin-top: var(--sp-4); font-size: var(--fs-table); font-weight: 650; }
+.hm-more a { text-decoration-color: var(--link-line); text-underline-offset: 3px; }
+.hm-more a::after { content: " →"; }
+.hm-more a + a { margin-left: var(--sp-4); }
+.hm-more.hm-split { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); }
+.hm-more.hm-split a + a { margin-left: 0; }
+
+.hm-race-title { margin-top: var(--sp-4); }
+.hm-race-title .latin { font-weight: 500; color: var(--ink-3); margin-left: 6px; font-size: var(--fs-table); }
+
+/* 연도별: 고르기 + 시즌 칸 | 차트 */
+.hm-picker { margin-top: var(--sp-2); }
+.hm-picker select { min-width: 0; width: 100%; }
+html.js .hm-nojs { display: none; }
+.hm-nojs { margin-top: var(--sp-2); }
+.hm-card { margin-top: var(--sp-4); border-top: 2px solid var(--brand-blue); padding-top: var(--sp-3); }
+.hm-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-4); }
+.hm-year { font-size: var(--fs-h2); font-weight: 800; letter-spacing: -0.01em; }
+.hm-year b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.hm-card-meta { font-size: var(--fs-small); color: var(--ink-2); }
+.hm-card-meta b { color: var(--ink); font-weight: 700; }
+.hm-duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: var(--sp-3); border-top: 1px solid var(--hair); }
+.hm-champ { padding: var(--sp-3) var(--sp-4) var(--sp-3) 0; min-width: 0; }
+.hm-champ + .hm-champ { padding-left: var(--sp-4); padding-right: 0; border-left: 1px solid var(--hair); }
+.hm-lab { font-size: var(--fs-micro); color: var(--ink-3); font-weight: 600; }
+.hm-name { margin-top: 2px; font-size: 1.0625rem; font-weight: 750; line-height: 1.35; }
+.hm-name a { color: inherit; }
+.hm-team { font-size: var(--fs-small); color: var(--ink-2); }
+.hm-big { margin-top: 6px; font-size: var(--fs-figure); font-weight: 750; line-height: 1.1; letter-spacing: -0.015em; color: var(--s1); font-variant-numeric: tabular-nums; }
+.hm-champ + .hm-champ .hm-big { color: var(--s2-ink); }
+.hm-big span { font-size: var(--fs-table); font-weight: 600; margin-left: 2px; color: var(--ink-2); }
+.hm-vs { margin-top: 6px; font-size: var(--fs-small); color: var(--ink-2); line-height: 1.55; }
+.hm-vs b { color: var(--ink); }
+.hm-none .hm-vs { margin-top: var(--sp-2); }
+.hm-note { margin-top: var(--sp-3); font-size: var(--fs-small); color: var(--ink-2); padding-left: var(--sp-3); border-left: 2px solid var(--warn); }
+@media (max-width: 420px) {
+  .hm-duo { grid-template-columns: minmax(0, 1fr); }
+  .hm-champ, .hm-champ + .hm-champ { padding: var(--sp-3) 0; border-left: 0; }
+  .hm-champ + .hm-champ { border-top: 1px solid var(--hair); }
+}
+.hm-kind { margin-bottom: var(--sp-3); }
+
+/* 숫자 묶음(작은 칸): 두 칸 격자, 위 블루 괘선 */
+.hm-figs { display: grid; grid-template-columns: repeat(var(--hm-cols, 2), minmax(0, 1fr)); margin-top: var(--sp-4); border-top: 2px solid var(--brand-blue); }
+.hm-figs > div { padding: var(--sp-2) var(--sp-3) var(--sp-3) 0; border-bottom: 1px solid var(--hair); min-width: 0; }
+.hm-figs > div + div { padding-left: var(--sp-3); border-left: 1px solid var(--hair); }
+.hm-figs dt { font-size: var(--fs-micro); color: var(--ink-3); }
+.hm-figs dd { margin-top: 2px; font-size: 1.5rem; font-weight: 750; line-height: 1.15; color: var(--s1); font-variant-numeric: tabular-nums; }
+.hm-figs > div:nth-child(even) dd { color: var(--s2-ink); }
+.hm-figs dd small { font-size: var(--fs-small); font-weight: 600; color: var(--ink-2); margin-left: 2px; }
+.hm-figs .hm-figs-sub { display: block; font-size: var(--fs-micro); font-weight: 400; color: var(--ink-3); margin-top: 2px; }
+.hm-figs4 { --hm-cols: 4; }
+@media (max-width: 640px) {
+  .hm-figs4 { --hm-cols: 2; }
+  .hm-figs4 > div:nth-child(3) { padding-left: 0; border-left: 0; }
+}
+
+/* 작은 선(라운드별 순위)과 표 */
+.spark { display: block; overflow: visible; }
+.spark .sp-line { fill: none; stroke: var(--s1); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.spark .sp-end { fill: var(--s2); }
+.spark .sp-ref { stroke: var(--grid); stroke-width: 1; }
+.dt td.hm-spark-cell { width: 96px; padding-top: 4px; padding-bottom: 4px; }
+.dt .hm-dn a, .dt .who a { color: inherit; }
+@media (max-width: 400px) {
+  .spark { width: 72px; }
+  .dt td.hm-spark-cell { width: 72px; }
+}
+
+/* 미니 순위(역대 기록, 계보 타이틀, PU 공급사) */
+.hm-rank { display: grid; gap: 0; margin-top: var(--sp-2); }
+.hm-rank li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; grid-template-areas: "r nm v" ". bar bar"; align-items: baseline; gap: 2px 8px; padding: 6px 0 8px; border-bottom: 1px solid var(--hair); font-size: var(--fs-table); }
+.hm-rank .r { grid-area: r; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hm-rank .nm { grid-area: nm; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-rank .nm a, .hm-rank .nm > span:first-child { font-weight: 650; }
+.hm-rank .nm small { font-size: var(--fs-micro); color: var(--ink-3); margin-left: 6px; }
+.hm-rank .v { grid-area: v; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hm-rank .bar { grid-area: bar; height: 6px; align-self: center; }
+.hm-rank .bar span { display: block; height: 100%; background: var(--s1); border-radius: 0 3px 3px 0; min-width: 2px; }
+.hm-rank li.top .bar span { background: var(--s2); }
+.hm-rank.hm-rank-nr li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nm v" "bar bar"; }
+.hm-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-5) var(--sp-6); }
+@media (max-width: 1100px) and (min-width: 901px) { .hm-two { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) { .hm-two { grid-template-columns: minmax(0, 1fr); } }
+.hm-cap { margin-top: var(--sp-4); font-size: var(--fs-table); font-weight: 750; }
+.hm-cap span { font-weight: 400; color: var(--ink-3); font-size: var(--fs-small); margin-left: 6px; }
+.hm-small { margin-top: var(--sp-2); font-size: var(--fs-small); color: var(--ink-2); line-height: 1.6; }
+.hm-small b { color: var(--ink); }
+
+/* 업그레이드, 엔진, 규정: 넓은 화면에서 세 단 */
+.hm-briefs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 40px; align-items: start; }
+.hm-briefs > .sec .read { font-size: var(--fs-body); }
+@media (max-width: 1023px) { .hm-briefs { grid-template-columns: minmax(0, 1fr); } }
+.hm-share { margin-top: var(--sp-4); }
+.hm-share .share-list li { grid-template-columns: 16px minmax(0, 1fr) auto 60px; }
+.hm-share .share-p { white-space: nowrap; }
+.hm-issues { margin-top: var(--sp-2); }
+.hm-issues li { padding: 7px 0; border-bottom: 1px solid var(--hair); font-size: var(--fs-table); display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.hm-issues li b { font-weight: 700; }
+.hm-issues li .badge { vertical-align: 1px; }
+.hm-rank.hm-wrap .nm { white-space: normal; overflow: visible; }
+.hm-rank.hm-wrap .nm small { display: block; margin-left: 0; }

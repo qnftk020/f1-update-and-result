@@ -5,6 +5,7 @@ import DataTable, { type Column } from '../DataTable.astro';
 import SourceLine from '../SourceLine.astro';
 import type { Round, Season } from '../../lib/types.ts';
 import { esc } from '../../lib/typeset.ts';
+import { driverLink } from '../../lib/driver-links.ts';
 import { badgeList, calendarSource, gpNameHtml, roundBadges, shortName } from './season-text.ts';
 
 interface Props {
@@ -15,7 +16,7 @@ const { source, asof } = calendarSource(season);
 
 function winnersHtml(r: Round): string {
   if (!r.winners.length) return '결측';
-  const names = r.winners.map((w) => esc(w.name)).join(', ');
+  const names = r.winners.map((w) => driverLink(w.id, esc(w.name))).join(', ');
   const teams = [...new Set(r.winners.map((w) => w.constructor))].map(esc).join(', ');
   return `<span class="who">${names}</span><span class="sub-line">${teams}</span>`;
 }
@@ -23,7 +24,7 @@ function winnersHtml(r: Round): string {
 function poleHtml(r: Round): string {
   const p = r.pole[0];
   if (!p) return '결측';
-  return `<span class="mono" title="${esc(p.name)}">${esc(shortName(p))}</span>`;
+  return driverLink(p.id, `<span class="mono" title="${esc(p.name)}">${esc(shortName(p))}</span>`);
 }
 
 const columns: Column<Round>[] = [

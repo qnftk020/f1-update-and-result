@@ -4,6 +4,7 @@ import { getSeason, labels, meta, upgrades } from '../../lib/data.ts';
 import { qualiRounds, raceRounds, railData } from '../../lib/chart-data.ts';
 import { formatPoints, hasBatchim, josa, n0, num, pct } from '../../lib/format.ts';
 import { aside, b, en, esc } from '../../lib/typeset.ts';
+import { driverLink } from '../../lib/driver-links.ts';
 import type { ReasonCategory, Team, TeamSeasonRow, TimelineRound, UpgradeItem } from '../../lib/types.ts';
 
 export const CATS: ReasonCategory[] = ['performance', 'circuit_specific', 'reliability', 'other'];
@@ -146,7 +147,7 @@ export function buildTeam(team: Team) {
     [`PU 공급사 (${last})`, team.pu ? en(esc(team.pu.name)) : '결측'],
     [
       `${last} 드라이버`,
-      team.drivers_last.map((d) => `<span lang="en" class="nw">${esc(d.name)}</span>`).join(', ') || '결측',
+      team.drivers_last.map((d) => `<span lang="en" class="nw">${driverLink(d.id, esc(d.name))}</span>`).join(', ') || '결측',
     ],
   ];
 

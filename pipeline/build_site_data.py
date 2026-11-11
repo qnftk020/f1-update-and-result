@@ -7,6 +7,9 @@
     labels.json             화면 표기용 한글 이름(대회, 부품 영역, 변경 사유 등)
     seasons.json            시즌 목록과 챔피언
     season/<연도>.json      대회, 순위 추이, 팀별 페이스 지수
+    drivers.json            드라이버 통산 요약 (pipeline/site_drivers.py)
+    driver/<id>.json        드라이버별 시즌, 대회, 팀 동료 비교 (pipeline/site_drivers.py)
+    history.json            시즌별 챔피언십 요약과 통산 집계 (pipeline/site_drivers.py)
     teams.json              2025 그리드 10개 계보 요약
     team/<계보>.json        계보 구간, 근거, 시즌별 성적과 지수
     upgrades.json           Car Presentation 업그레이드 항목 전체
@@ -19,8 +22,10 @@
 
 from __future__ import annotations
 
+import html
 import json
 import math
+import shutil
 import statistics
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -85,6 +90,13 @@ CATEGORY_ORDER = ["performance", "circuit_specific", "reliability", "other"]
 # 화면 자릿수보다 넉넉히 남긴다.
 QUALI_DIGITS = 9
 RACE_DIGITS = 6
+# 순위 점수는 소수 둘째 자리까지다(1/7 = 0.14). 원자료의 부동소수 오차
+# (1.1400000000000001)를 지운다.
+POINT_DIGITS = 2
+# Jolpica 순위의 adjustment_type. 드라이버 101은 시즌 순위에서 제외(1997 Michael Schumacher),
+# 컨스트럭터 102는 제외(2007 McLaren), 1은 감점(2020 Racing Point)이다.
+DRIVER_EXCLUDED = 101
+CONSTRUCTOR_EXCLUDED = 102
 
 
 # --- 도우미 ---------------------------------------------------------------------------
@@ -153,6 +165,11 @@ class Tables:
         self.constructor_standings = read("jolpica/constructor_standings.parquet")
         self.drivers = read("jolpica/drivers.parquet")
         self.constructors = read("jolpica/constructors.parquet")
+        # Jolpica 원자료에 HTML 개체로 저장된 이름이 있다("Lotus-Pratt &amp; Whitney").
+        # 화면 템플릿이 다시 이스케이프하므로 여기서 한 번 풀어 둔다.
+        self.constructors["name"] = self.constructors["name"].map(
+            lambda v: html.unescape(v) if isinstance(v, str) else v
+        )
         self.f1db_races = read("f1db/races.parquet")
         self.engines = read("f1db/engine_manufacturers.parquet")
         self.constructor_seasons = read("lineage/constructor_seasons.parquet")
@@ -371,9 +388,24 @@ def standings_series(
         if i is None:
             continue
         entry["positions"][i] = clean(row.position)
-        entry["points"][i] = clean(row.points)
+        entry["points"][i] = clean_points(row.points)
         entry["wins"] = max(entry["wins"], int(row.wins or 0))
     return out
+
+
+def clean_points(value: object) -> object:
+    """점수를 소수 둘째 자리로 맞춘다. 정수이면 int, 결측이면 None이다."""
+    number = clean(value)
+    if number is None:
+        return None
+    number = round(float(number), POINT_DIGITS)
+    return int(number) if number.is_integer() else number
+
+
+def excluded_ids(standings: pd.DataFrame, key: str, code: int) -> tuple[str, ...]:
+    """시즌 순위에서 제외된 참가자 ID(adjustment_type이 code인 행)."""
+    rows = standings[standings["adjustment_type"] == code]
+    return tuple(sorted(set(rows[key])))
 
 
 def last_value(values: list) -> object:
@@ -483,27 +515,76 @@ def build_season(t: Tables, season: int) -> dict:
         "has_constructor_standings": bool(len(cs)),
         "has_quali_index": bool(len(quali)),
         "has_race_index": bool(len(race)),
-        "facts": season_facts(rounds, drivers, constructors),
+        "facts": season_facts(
+            rounds,
+            drivers,
+            constructors,
+            excluded_ids(ds, "driver_id", DRIVER_EXCLUDED),
+            excluded_ids(cs, "constructor_id", CONSTRUCTOR_EXCLUDED),
+        ),
     }
 
 
-def last_lead_change(rounds: list[dict], entries: list[dict], key: str) -> dict | None:
-    """순위표 1위가 마지막으로 바뀐 라운드와 그 뒤의 1위. 순위가 없는 라운드는 건너뛴다."""
+def round_leaders(
+    rounds: list[dict], entries: list[dict], key: str, excluded: tuple[str, ...] = ()
+) -> list[tuple[int, str]] | None:
+    """라운드별 순위표 1위 (라운드, ID). 순위가 없는 라운드는 건너뛴다.
+
+    excluded는 시즌이 끝난 뒤 순위에서 제외된 참가자다(드라이버 adjustment_type 101,
+    컨스트럭터 102). Jolpica는 이들의 순위를 모든 라운드에서 비워 두므로, 라운드별 누적 점수가
+    남아 있으면(1997 Michael Schumacher) 그 점수가 순위표 1위보다 많은 라운드의 1위를 그
+    참가자로 본다. 점수까지 지워진 경우(2007 McLaren은 모든 라운드 0점)와 점수가 같아 동점 처리
+    규칙을 알 수 없는 라운드가 있으면 None(계산 불가)이다.
+    """
+    by_id = {e[key]: e for e in entries}
+    extra = [by_id[x] for x in excluded if x in by_id]
+    for e in extra:
+        if not any(p for p in (e["points"] or []) if p is not None):
+            return None
     leaders: list[tuple[int, str]] = []
     for i, rnd in enumerate(rounds):
-        top = [e[key] for e in entries if e["positions"] and e["positions"][i] == 1]
-        if top:
-            leaders.append((rnd["round"], top[0]))
+        top = [e for e in entries if e["positions"] and e["positions"][i] == 1]
+        if not top:
+            continue
+        leader = top[0]
+        for e in extra:
+            pe, pl = e["points"][i], leader["points"][i]
+            if pe is None or pl is None:
+                continue
+            if pe == pl:
+                return None
+            if pe > pl:
+                leader = e
+        leaders.append((rnd["round"], leader[key]))
+    return leaders
+
+
+def last_lead_change(
+    rounds: list[dict], entries: list[dict], key: str, excluded: tuple[str, ...] = ()
+) -> dict | None:
+    """순위표 1위가 마지막으로 바뀐 라운드와 그 뒤의 1위. 제외된 참가자는 round_leaders를 따른다."""
+    leaders = round_leaders(rounds, entries, key, excluded)
     if not leaders:
         return None
     change = leaders[0][0]
     for (_, prev), (rnd, cur) in zip(leaders, leaders[1:], strict=False):
         if cur != prev:
             change = rnd
-    return {"round": change, "leader_id": leaders[-1][1], "first_round": leaders[0][0]}
+    out = {"round": change, "leader_id": leaders[-1][1], "first_round": leaders[0][0]}
+    counted = [x for x in excluded if any(lid == x for _, lid in leaders)]
+    if counted:
+        # 시즌 뒤 제외된 참가자가 그 시점 1위였던 라운드가 있다. 화면 문장에 이 사실을 밝힌다.
+        out["excluded_leader"] = counted
+    return out
 
 
-def season_facts(rounds: list[dict], drivers: list[dict], constructors: list[dict]) -> dict:
+def season_facts(
+    rounds: list[dict],
+    drivers: list[dict],
+    constructors: list[dict],
+    driver_excluded: tuple[str, ...] = (),
+    constructor_excluded: tuple[str, ...] = (),
+) -> dict:
     """사실 줄, 캘린더 문장, 순위 추이 문장에 쓰는 시즌 집계. 모두 rounds와 순위표에서 센다."""
     winners: list[str] = []
     for r in rounds:
@@ -523,9 +604,9 @@ def season_facts(rounds: list[dict], drivers: list[dict], constructors: list[dic
         "quali_reference_formats": sorted({r["quali"]["format_ko"] for r in reference}),
         "race_index_rounds": sum(1 for r in rounds if r["race"]),
         "race_wet": [r["round"] for r in rounds if r["race"] and r["race"]["wet"]],
-        "driver_lead": last_lead_change(rounds, drivers, "id"),
+        "driver_lead": last_lead_change(rounds, drivers, "id", driver_excluded),
         "constructor_lead": last_lead_change(
-            rounds, [c for c in constructors if c["positions"]], "id"
+            rounds, [c for c in constructors if c["positions"]], "id", constructor_excluded
         ),
     }
 
@@ -1281,6 +1362,14 @@ def main() -> None:
     for season, data in seasons.items():
         write_json(f"season/{season}.json", data)
     write_json("seasons.json", [season_summary(seasons[s]) for s in sorted(seasons, reverse=True)])
+
+    # 드라이버 페이지와 챔피언십 분석(drivers.json, driver/<id>.json, history.json)
+    from pipeline import site_drivers
+
+    # driver/<id>.json은 Jolpica ID가 바뀌거나 빠지면 옛 파일이 남는다. 사이트는 이 폴더의 파일로
+    # 링크 여부를 정하지 않지만(drivers.json을 따른다), 낡은 파일을 싣지 않도록 비우고 다시 쓴다.
+    shutil.rmtree(SITE_DATA_DIR / "driver", ignore_errors=True)
+    site_drivers.build_all(t, seasons, write_json)
 
     upgrades = build_upgrades(t)
     teams = [build_team(t, lineage, seasons, upgrades) for lineage in t.lineages.itertuples()]

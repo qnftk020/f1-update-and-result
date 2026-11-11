@@ -2,6 +2,7 @@
 // 시즌 목록 /seasons/: 1950-2025 모든 시즌과 두 순위 1위. 연대별 표를 빌드 때 모두 싣고, 스크립트가 있으면
 // 연대 분할 전환으로 고른 연대 표만 보인다(스크립트가 없으면 모든 연대가 차례로 보인다).
 import DataTable, { type Column } from '../../components/DataTable.astro';
+import ChampionshipSections from '../../components/history/ChampionshipSections.astro';
 import PageHead from '../../components/PageHead.astro';
 import Section from '../../components/Section.astro';
 import Seg from '../../components/Seg.astro';
@@ -72,6 +73,8 @@ const segItems = decades.map((d, i) => ({ value: String(d.dec), label: `${d.dec}
       ['레이스 지수', `${rFrom}년부터`],
     ]}
   />
+
+  <ChampionshipSections />
 
   <Section id="list" title="시즌 목록" read="연대별 표다. 시즌을 누르면 그 시즌의 캘린더와 우승자, 순위 추이, 팀 페이스 쪽으로 간다.">
     <div class="dec-row" data-js-only><Seg label="연대 고르기" attr="decade" items={segItems} id="dec-pick" /></div>

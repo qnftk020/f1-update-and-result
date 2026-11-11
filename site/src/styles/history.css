@@ -1,0 +1,36 @@
+/* 챔피언십 역사 차트(lib/charts/history.js)의 순위 단계 색. 시즌 목록과 팀 목록이 불러온다.
+   단일 색상(블루) 순서 단계 다섯 칸: r1 11위 이하, r2 6~10위, r3 4~5위, r4 3위, r5 2위. 1위는 핑크(--s2)다.
+   밝은 면에서는 높은 순위가 진하고, 어두운 면에서는 높은 순위가 밝다(어느 쪽이든 높은 순위가 바탕과 더 멀다).
+   dataviz 검증기(--ordinal)로 두 모드 모두 통과했다: 밝기 단조, 이웃 단계 ΔL 0.06 이상, 바탕 대비 2:1 이상, 한 색상.
+   밝게 #f6f7fb 위 가장 옅은 칸 2.06:1, 어둡게 #0c1528 위 가장 어두운 칸 2.23:1. */
+:root {
+  --hist-r1: #8fb0e5;
+  --hist-r2: #6a94db;
+  --hist-r3: #4777cc;
+  --hist-r4: #2c5cb3;
+  --hist-r5: #1b428a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hist-r1: #2a4e8c;
+    --hist-r2: #3564b3;
+    --hist-r3: #4a80d6;
+    --hist-r4: #6d9eea;
+    --hist-r5: #9cc0f5;
+  }
+}
+:root[data-theme="dark"] {
+  --hist-r1: #2a4e8c;
+  --hist-r2: #3564b3;
+  --hist-r3: #4a80d6;
+  --hist-r4: #6d9eea;
+  --hist-r5: #9cc0f5;
+}
+
+/* 순위 칸 표(표 보기와 스크립트 없는 화면): 칸 색 견본 */
+.rank-chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; forced-color-adjust: none; }
+.rank-chip.none { background: var(--paper); box-shadow: inset 0 0 0 1px var(--ink-3); }
+/* 챔피언 격자의 "2025 그리드 밖의 팀" 견본: 테두리를 바탕 대비 3:1 이상(ink-3)으로 둔다 */
+#champions .key-nodoc::before { border-color: var(--ink-3); }
+.hist-tools { margin-top: var(--sp-4); display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); align-items: center; }
+.hist-tools .lab { font-size: var(--fs-small); color: var(--ink-3); }

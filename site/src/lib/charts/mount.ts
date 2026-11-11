@@ -12,7 +12,10 @@
 // 차트는 페이지 스크립트가 ready를 기다려 handles에서 손잡이를 받아 redraw()하거나, data-chart 없이
 // 둔 .viz에 mount()를 직접 부른다.
 import * as charts from './charts.js';
+import * as driverCharts from './drivers.js';
+import * as historyCharts from './history.js';
 import { puTeamSteps } from '../../components/engines/pu-charts.js';
+import { seasonMargins } from './home.js';
 import { figureFallback, initFigures, mount } from './core.js';
 
 export * from './core.js';
@@ -46,6 +49,22 @@ export const REGISTRY = {
   puTeamSteps: (data: unknown, opts: Record<string, any>) =>
     puTeamSteps(data, { ...opts, allowed: opts.allowedBy?.[opts.element] ?? null }),
   newIce: charts.newIce,
+  // 홈 "연도별": 시즌별 1위와 2위 점수 차이(고른 시즌은 핑크). 고르기와 막대 누르기는 index.astro 스크립트가 잇는다.
+  seasonMargins,
+  // 드라이버 쪽(/drivers/, /drivers/<id>/): lib/charts/drivers.js
+  rankBars: driverCharts.rankBars,
+  championWins: driverCharts.championWins,
+  driverSteps: driverCharts.driverSteps,
+  driverShare: driverCharts.driverShare,
+  driverPodiums: driverCharts.driverPodiums,
+  mateBars: driverCharts.mateBars,
+  driverTeams: driverCharts.driverTeams,
+  // 챔피언십 역사(/seasons/, /teams/): lib/charts/history.js
+  seasonBars: historyCharts.seasonBars,
+  titleDots: historyCharts.titleDots,
+  titleGrid: historyCharts.titleGrid,
+  lineageHeat: historyCharts.lineageHeat,
+  lineageBars: historyCharts.lineageBars,
 } as const;
 
 export type ChartName = keyof typeof REGISTRY;

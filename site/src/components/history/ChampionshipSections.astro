@@ -1,0 +1,350 @@
+---
+// 시즌 목록(/seasons/)의 챔피언십 분석 절 셋: 챔피언십 추이, 드라이버 1위와 컨스트럭터 1위, 타이틀 순위.
+// 자료와 문장은 빌드 때 lib/history.ts(history.json)에서 만든다. 차트는 lib/charts/history.js다.
+import '../../styles/history.css';
+import type { Column } from '../DataTable.astro';
+import Figure from '../Figure.astro';
+import type { LegendItem } from '../Legend.astro';
+import Note from '../Note.astro';
+import Section from '../Section.astro';
+import Seg from '../Seg.astro';
+import {
+  type ChampCell,
+  type HistSeason,
+  type TitleRow,
+  champCells,
+  constructorTitleRows,
+  driverTitleRows,
+  history,
+  ledSeries,
+  lineageTitleRows,
+  lineagesWithoutTitle,
+  linCats,
+  lineageShortKo,
+  marginC,
+  marginD,
+  median,
+  r2,
+  seasonsWithC,
+  splitSeasons,
+  winnersSeries,
+} from '../../lib/history.ts';
+import { routes } from '../../lib/paths.ts';
+import { competitionRanks } from '../../lib/rank.ts';
+import { F1DB, JOLPICA, asofF1db, asofJolpica } from '../../lib/sources.ts';
+import { b, en, esc, nw } from '../../lib/typeset.ts';
+
+const S = history.seasons;
+const first = history.first_season;
+const last = history.last_season;
+const cFrom = history.constructor_first_season;
+const asof = asofJolpica();
+const SRC_ST = `${JOLPICA} 드라이버와 컨스트럭터 최종 순위, 결승 결과`;
+
+const pctT = (x: number) => `${x.toFixed(x < 10 ? 2 : 1)}%`;
+const ptsT = (x: number | null | undefined) => (x == null ? '결측' : `${r2(x)}`);
+const name = (s: string) => en(esc(s));
+const driverLink = (id: string, n: string) => `<a href="${routes.driver(id)}" lang="en">${esc(n)}</a>`;
+
+/* ---------------------------------------------------------------- 챔피언십 추이 */
+
+const lo = S.reduce((a, c) => (c.margin_pct < a.margin_pct ? c : a));
+const hi = S.reduce((a, c) => (c.margin_pct > a.margin_pct ? c : a));
+const under5 = S.filter((s) => s.margin_pct < 5).length;
+const cLo = seasonsWithC.reduce((a, c) => ((c.c_margin_pct as number) < (a.c_margin_pct as number) ? c : a));
+const cHi = seasonsWithC.reduce((a, c) => ((c.c_margin_pct as number) > (a.c_margin_pct as number) ? c : a));
+const winners = winnersSeries();
+const led = ledSeries();
+const wMax = S.reduce((a, c) => (c.winners > a.winners ? c : a));
+const fullLead = S.filter((s) => s.d1.led === s.rounds);
+const lastOnly = S.filter((s) => s.d1.led === 1);
+const exLead = S.filter((s) => s.excluded.length);
+// 시대별 중앙값: 앞 절반과 뒤 절반이 아니라 1950-1979, 1980-2009, 2010-2025 세 구간으로 나눈다
+const eras = [
+  [first, 1979],
+  [1980, 2009],
+  [2010, last],
+].map(([a, z]) => ({ a, z, m: r2(median(S.filter((s) => s.season >= a && s.season <= z).map((s) => s.margin_pct))) }));
+const f1dbDiff = S.flatMap((s) => [
+  ...(s.d1.f1db_pts != null ? [`${s.season} ${s.d1.name} ${s.d1.pts}/${s.d1.f1db_pts}`] : []),
+  ...(s.c1?.f1db_pts != null ? [`${s.season} ${s.c1.name} ${s.c1.pts}/${s.c1.f1db_pts}`] : []),
+]);
+
+const trendRead =
+  `${first}년부터 ${last}년까지 ${S.length}개 시즌 가운데 드라이버 1위와 2위의 점수 차가 1위 점수의 5% 미만인 시즌은 ${b(`${under5}개`)}다. ` +
+  `가장 근소한 시즌은 ${b(`${lo.season}년`)}(${name(lo.d1.name)}, ${pctT(lo.margin_pct)}), 가장 큰 차이는 ${b(`${hi.season}년`)}(${name(hi.d1.name)}, ${pctT(hi.margin_pct)})이다. ` +
+  `시기별 점수 차 중앙값은 ${eras.map((e) => `${nw(`${e.a}-${e.z}`)}년 ${pctT(e.m)}`).join(', ')}다.`;
+
+const marginLegend: LegendItem[] = [
+  { type: 'rect', color: 's1', label: '시즌' },
+  { type: 'rect', color: 's2', label: '가장 근소한 시즌과 가장 큰 차이' },
+  { type: 'line', color: 'ink-3', label: '중앙값 (점선)' },
+];
+const marginCols: Column<HistSeason>[] = [
+  { label: '시즌', cls: 'pos', render: (s) => `<a href="${routes.season(s.season)}">${s.season}</a>` },
+  { label: '드라이버 1위', render: (s) => `${driverLink(s.d1.id, s.d1.name)} ${ptsT(s.d1.pts)}` },
+  { label: '2위', render: (s) => `${driverLink(s.d2.id, s.d2.name)} ${ptsT(s.d2.pts)}` },
+  { label: '차이 (점)', num: true, render: (s) => ptsT(s.margin) },
+  { label: '차이 (%)', num: true, render: (s) => pctT(s.margin_pct) },
+  { label: '컨스트럭터 1위', render: (s) => (s.c1 ? `${name(s.c1.name)} ${ptsT(s.c1.pts)}` : '<span class="muted">1958년부터</span>') },
+  { label: '2위', render: (s) => (s.c2 ? `${name(s.c2.name)} ${ptsT(s.c2.pts)}` : '') },
+  { label: '차이 (%)', num: true, render: (s) => (s.c_margin_pct != null ? pctT(s.c_margin_pct) : '') },
+];
+const desc = [...S].reverse();
+
+const winnersCols: Column<HistSeason>[] = [
+  { label: '시즌', cls: 'pos', render: (s) => `<a href="${routes.season(s.season)}">${s.season}</a>` },
+  { label: '대회', num: true, render: (s) => `${s.rounds}` },
+  { label: '서로 다른 우승자', num: true, render: (s) => `${s.winners}명` },
+  { label: '1위의 우승', num: true, render: (s) => `${s.d1.wins}승` },
+];
+const ledCols: Column<HistSeason>[] = [
+  { label: '시즌', cls: 'pos', render: (s) => `<a href="${routes.season(s.season)}">${s.season}</a>` },
+  { label: '드라이버 1위', render: (s) => driverLink(s.d1.id, s.d1.name) },
+  { label: '선두 라운드', num: true, render: (s) => `${s.d1.led}/${s.rounds}` },
+  { label: '비율', num: true, render: (s) => pctT(r2((s.d1.led / s.rounds) * 100)) },
+  { label: '마지막 선두 교체', num: true, render: (s) => (s.lead_change != null ? `${s.lead_change}라운드` : '') },
+];
+
+/* ---------------------------------------------------------------- 드라이버 1위와 컨스트럭터 1위 */
+
+const withC = champCells.filter((c) => c.c);
+const lastSplit = splitSeasons[splitSeasons.length - 1];
+const sameTeam = withC.length - splitSeasons.length;
+const champRead =
+  `컨스트럭터 순위가 생긴 ${cFrom}년부터 ${withC.length}개 시즌 가운데 ${b(`${sameTeam}개`)} 시즌은 드라이버 1위의 팀이 컨스트럭터 1위이기도 했고, ` +
+  `${b(`${splitSeasons.length}개`)} 시즌은 갈렸다. 가장 최근에 갈린 시즌은 ${lastSplit.s}년(드라이버 ${name(lastSplit.d.name)}, ${name(lastSplit.d.teams)} · 컨스트럭터 ${name(lastSplit.c!.name)})이다. ` +
+  `칸의 색은 팀 계보이고, 컨스트럭터 타이틀이 많은 세 계보(${linCats.slice(0, 3).map((c) => lineageShortKo(c.label)).join(', ')})만 색을 따로 준다.`;
+const catType = (k: string): LegendItem => {
+  const c = linCats.find((x) => x.key === k)!;
+  return k === 'out' ? { type: 'nodoc', label: c.label } : { type: 'rect', color: k, label: c.label };
+};
+const champLegend: LegendItem[] = [
+  ...linCats.map((c) => catType(c.key)),
+  { type: 'hollow', color: 'ink', label: '드라이버 1위의 팀이 컨스트럭터 1위가 아닌 시즌' },
+];
+const champCols: Column<ChampCell>[] = [
+  { label: '시즌', cls: 'pos', render: (c) => `<a href="${routes.season(c.s)}">${c.s}</a>` },
+  { label: '드라이버 1위', render: (c) => `${en(esc(c.d.name))}<span class="sub-line" lang="en">${esc(c.d.teams)}</span>` },
+  { label: '팀 계보', cls: 'hide-sm', render: (c) => (c.d.lin ? esc(lineageShortKo(c.d.lin)) : '<span class="muted">계보 밖</span>') },
+  { label: '컨스트럭터 1위', render: (c) => (c.c ? en(esc(c.c.name)) : '<span class="muted">1958년부터</span>') },
+  { label: '계보', cls: 'hide-sm', render: (c) => (c.c ? (c.c.lin ? esc(lineageShortKo(c.c.lin)) : '<span class="muted">계보 밖</span>') : '') },
+  { label: '갈림', render: (c) => (c.split ? '<b>갈림</b>' : '') },
+];
+
+/* ---------------------------------------------------------------- 타이틀 순위 */
+
+const totalD = driverTitleRows.reduce((a, r) => a + r.n, 0);
+const topN = driverTitleRows[0].n;
+const tops = driverTitleRows.filter((r) => r.n === topN);
+const ones = driverTitleRows.filter((r) => r.n === 1).length;
+const runOf = (r: TitleRow) => {
+  const ys = [...r.seasons].sort((a, z) => a - z);
+  let best = { from: ys[0], to: ys[0] };
+  let from = ys[0];
+  ys.forEach((y, i) => {
+    if (i > 0 && y !== ys[i - 1] + 1) from = y;
+    if (y - from > best.to - best.from) best = { from, to: y };
+  });
+  return { ...best, n: best.to - best.from + 1 };
+};
+const dRun = driverTitleRows.map((r) => ({ r, ...runOf(r) })).sort((a, z) => z.n - a.n || a.from - z.from)[0];
+const lRun = lineageTitleRows.map((r) => ({ r, ...runOf(r) })).sort((a, z) => z.n - a.n || a.from - z.from)[0];
+const totalC = constructorTitleRows.reduce((a, r) => a + r.n, 0);
+const inLineage = lineageTitleRows.reduce((a, r) => a + r.n, 0);
+const titlesRead =
+  `드라이버 타이틀 ${totalD}개를 ${b(`${driverTitleRows.length}명`)}이 나눠 가졌다. 가장 많은 ${topN}회는 ${tops.map((t) => name(t.name)).join(', ')} ${tops.length}명이고, 한 번만 차지한 드라이버는 ${ones}명이다. ` +
+  `가장 긴 연속 타이틀은 ${name(dRun.r.name)}의 ${nw(`${dRun.from}-${dRun.to}`)}년 ${dRun.n}연속이다. ` +
+  `컨스트럭터 타이틀 ${totalC}개는 컨스트럭터 ID로 ${constructorTitleRows.length}곳에 돌아갔고, 그 가운데 ${b(`${inLineage}개`)}가 2025 그리드 ${history.lineages.length}개 계보의 몫이다. 계보로 묶으면 가장 긴 연속은 ${esc(lineageShortKo(lRun.r.name))}의 ${nw(`${lRun.from}-${lRun.to}`)}년 ${lRun.n}연속이다.`;
+
+const titleCols = (who: string, link: boolean, rows: TitleRow[]): Column<TitleRow>[] => {
+  const ranks = competitionRanks(rows, (r) => r.n);
+  return [
+  { label: '순위', cls: 'pos', render: (_r, i) => `${ranks[i]}` },
+  { label: who, render: (r) => (link ? driverLink(r.key, r.name) : r.name.match(/[가-힣]/) ? esc(r.name) : name(r.name)) },
+  { label: '타이틀', num: true, render: (r) => `${r.n}회` },
+  { label: '시즌', render: (r) => r.seasons.join(', ') },
+  ];
+};
+const driverTwin = {
+  caption: '드라이버 타이틀 순위',
+  columns: [...titleCols('드라이버', true, driverTitleRows).slice(0, 2), { label: '국적', cls: 'hide-xs', render: (r: TitleRow) => esc(r.sub.split(' · ')[0]) }, ...titleCols('', true, driverTitleRows).slice(2)],
+  rows: driverTitleRows,
+};
+const titleData = (rows: TitleRow[]) => ({ from: first, to: last, rows });
+const cTitleData = { from: cFrom, to: last, rows: constructorTitleRows };
+const lTitleData = { from: cFrom, to: last, rows: lineageTitleRows };
+const segKind = [
+  { value: 'd', label: '드라이버', pressed: true },
+  { value: 'c', label: '컨스트럭터' },
+];
+---
+
+<Section id="trend" title="챔피언십 추이" read={trendRead} meta={`${first}-${last} · 시즌 최종 순위`}>
+  <div class="hist-tools" data-js-only>
+    <span class="lab" id="mk-lab">점수 차 순위표</span>
+    <Seg label="점수 차 순위표 고르기" attr="kind" items={segKind} id="mk-pick" />
+  </div>
+  <Figure
+    id="f-margin"
+    title="1위와 2위의 점수 차"
+    scope={`<span id="mk-scope" data-d="${first}-${last} · 드라이버 순위" data-c="${cFrom}-${last} · 컨스트럭터 순위">${first}-${last} · 드라이버 순위</span>`}
+    sub="막대는 2위와의 점수 차를 1위 점수에 대한 비율로 나타낸 값이다. 높을수록 1위와 2위가 멀리 떨어진 시즌이다. 점수 체계가 시대마다 달라 점수 대신 비율로 견준다."
+    legend={marginLegend}
+    chart="seasonBars"
+    data={{ d: marginD, c: marginC }}
+    opts={{ kind: 'd' }}
+    source={`${SRC_ST}. F1DB 대조 값은 ${F1DB}`}
+    asof={`${asof}, F1DB ${asofF1db()}`}
+    twin={{ caption: '시즌별 1위와 2위의 점수 차', columns: marginCols, rows: desc }}
+    notes={[
+      {
+        head: '읽는 법',
+        body: `컨스트럭터로 바꾸면 ${cFrom}년부터 그린다. 컨스트럭터 점수 차는 ${cLo.season}년 ${pctT(cLo.c_margin_pct as number)}가 가장 작고 ${cHi.season}년 ${pctT(cHi.c_margin_pct as number)}가 가장 크다.`,
+      },
+      {
+        head: '주의',
+        caution: true,
+        body: `점수는 버린 점수(dropped scores)와 감점을 반영한 최종 순위표 값이라 결승 점수 합과 다를 수 있다. 1997년은 순위에서 제외된 드라이버를 빼고 2위를 셌다. F1DB와 1위 점수가 다른 시즌(Jolpica/F1DB): ${f1dbDiff.map((x) => en(esc(x))).join(', ')}.`,
+      },
+    ]}
+  />
+  <div class="pair">
+    <Figure
+      pair
+      id="f-winners"
+      title="서로 다른 우승자 수"
+      scope={`${first}-${last} · 결승`}
+      sub={`시즌마다 결승에서 1위를 한 드라이버의 수다. 핑크는 가장 많은 ${wMax.season}년 ${wMax.winners}명이다.`}
+      legend={[
+        { type: 'rect', color: 's1', label: '시즌' },
+        { type: 'rect', color: 's2', label: '가장 많은 시즌' },
+        { type: 'line', color: 'ink-3', label: '중앙값 (점선)' },
+      ]}
+      chart="seasonBars"
+      data={winners}
+      source={`${JOLPICA} 결승 결과`}
+      asof={asof}
+      twin={{ caption: '시즌별 서로 다른 우승자 수', columns: winnersCols, rows: desc }}
+    />
+    <Figure
+      pair
+      id="f-led"
+      title="최종 1위가 선두였던 라운드"
+      scope={`${first}-${last} · 드라이버 순위`}
+      sub={`라운드가 끝날 때마다 드라이버 순위 선두였던 비율이다. ${fullLead.length}개 시즌은 첫 라운드부터 끝까지 선두였다. 핑크는 마지막 라운드가 끝나고 처음 선두가 된 ${lastOnly.length}개 시즌(${lastOnly.map((s) => s.season).join(', ')})이다.${exLead.map((s) => ` ${s.season}년은 시즌 뒤 순위에서 제외된 ${s.excluded.map((e) => name(e.name)).join(', ')}의 라운드별 점수를 넣어 그 시점의 선두를 셌다(Jolpica 라운드별 순위표는 제외된 기록을 비워 둔다).`).join('')}`}
+      legend={[
+        { type: 'rect', color: 's1', label: '시즌' },
+        { type: 'rect', color: 's2', label: '마지막 라운드에 처음 선두' },
+        { type: 'line', color: 'ink-3', label: '중앙값 (점선)' },
+      ]}
+      chart="seasonBars"
+      data={led}
+      source={`${JOLPICA} 라운드별 드라이버 순위`}
+      asof={asof}
+      twin={{ caption: '시즌별 최종 1위가 선두였던 라운드', columns: ledCols, rows: desc }}
+    />
+  </div>
+</Section>
+
+<Section id="champions" title="드라이버 1위와 컨스트럭터 1위" read={champRead} meta={`${first}-${last} · ${S.length}개 시즌`}>
+  <Figure
+    id="f-champs"
+    wide
+    title="해마다의 드라이버 1위와 컨스트럭터 1위"
+    scope={`${first}-${last} · 행은 연대, 열은 끝자리`}
+    sub="칸 하나가 한 시즌이다. 위 칸은 드라이버 1위가 탄 팀, 아래 칸은 컨스트럭터 1위의 계보 색이다. 넓은 화면에서는 이름을 함께 적는다. 1958년 이전은 컨스트럭터 순위가 없어 아래 칸이 비어 있다."
+    legend={champLegend}
+    chart="titleGrid"
+    data={{ cats: linCats, rows: champCells }}
+    source={`${SRC_ST}, 계보 묶음은 이 사이트의 계보 테이블`}
+    asof={asof}
+    twin={{ caption: '시즌별 드라이버 1위와 컨스트럭터 1위', columns: champCols, rows: [...champCells].reverse(), rowClass: (c: ChampCell) => (c.split ? 'hl' : '') }}
+    notes={[
+      {
+        head: '읽는 법',
+        body: '드라이버 1위가 한 시즌에 두 팀을 탔으면(1954년) 계보가 있는 팀을 먼저 찾고, 없으면 계보 밖으로 둔다. 팀 이름은 Jolpica 컨스트럭터 이름이다.',
+      },
+      {
+        head: '계보',
+        body: '브래클리 계보에는 Tyrrell(1971, 1973)과 Brawn(2009)이 들어간다. 계보 밖의 팀은 2025 그리드 10개 계보로 이어지지 않는 팀(Lotus, Brabham, Cooper 등)이다.',
+      },
+    ]}
+  />
+</Section>
+
+<Section id="titles" title="타이틀 순위" read={titlesRead} meta="드라이버, 컨스트럭터, 계보">
+  <Figure
+    id="f-dtitles"
+    title="드라이버 타이틀"
+    scope={`${first}-${last} · ${driverTitleRows.length}명`}
+    sub="행마다 타이틀을 차지한 시즌에 점을 찍고 첫 타이틀부터 마지막 타이틀까지 선을 그었다. 오른쪽 숫자는 타이틀 수다."
+    chart="titleDots"
+    data={titleData(driverTitleRows)}
+    source={`${JOLPICA} 드라이버 최종 순위`}
+    asof={asof}
+    twin={driverTwin}
+    notes={[
+      { head: '읽는 법', body: '같은 횟수 안에서는 첫 타이틀이 이른 순서다. 좁은 화면에서는 성만 적는다. 전체 이름은 점을 누르거나 표에서 본다.' },
+      { head: '주의', caution: true, body: '1997년 드라이버 순위에서 제외된 기록은 타이틀에 들어가지 않는다.' },
+    ]}
+  />
+  <div class="pair">
+    <Figure
+      pair
+      id="f-ctitles"
+      title="컨스트럭터 타이틀 (컨스트럭터별)"
+      scope={`${cFrom}-${last} · Jolpica 컨스트럭터 ID ${constructorTitleRows.length}곳`}
+      sub="컨스트럭터 ID마다 따로 센다. 같은 공장이라도 이름이 다르면 다른 행이다(예: Benetton과 Renault)."
+      chart="titleDots"
+      data={cTitleData}
+      source={`${JOLPICA} 컨스트럭터 최종 순위`}
+      asof={asof}
+      twin={{ caption: '컨스트럭터별 타이틀', columns: titleCols('컨스트럭터', false, constructorTitleRows), rows: constructorTitleRows }}
+    />
+    <Figure
+      pair
+      id="f-ltitles"
+      title="컨스트럭터 타이틀 (계보별)"
+      scope={`${cFrom}-${last} · 2025 그리드 계보 ${lineageTitleRows.length}개`}
+      sub={`이 사이트의 계보로 묶어 센다. 타이틀이 없는 계보 ${lineagesWithoutTitle.length}개(${lineagesWithoutTitle.map((l) => lineageShortKo(l.name_ko)).join(', ')})는 행이 없다.`}
+      chart="titleDots"
+      data={lTitleData}
+      source={`${JOLPICA} 컨스트럭터 최종 순위, 계보 묶음은 이 사이트의 계보 테이블`}
+      asof={asof}
+      twin={{ caption: '계보별 컨스트럭터 타이틀', columns: titleCols('계보', false, lineageTitleRows), rows: lineageTitleRows }}
+    />
+  </div>
+  <aside class="notes hist-notes" aria-label="컨스트럭터 타이틀 주석">
+    <Note head="읽는 법" body={`계보별 행은 같은 공장과 조직이 이어진 흐름으로 묶은 값이다. 계보의 타이틀 시즌 이름은 표 보기와 팀 쪽에서 본다.`} />
+    <Note head="주의" caution body="브래클리 계보의 타이틀에는 Tyrrell 1971과 Brawn 2009가 들어간다. 계보 밖의 팀(Lotus, Cooper, Brabham 등)의 타이틀은 계보별 그림에 없다." />
+  </aside>
+</Section>
+
+<script>
+  import { ready } from '../../lib/charts/mount.ts';
+
+  // 점수 차 그림의 드라이버, 컨스트럭터 전환
+  const btns = [...document.querySelectorAll<HTMLButtonElement>('#mk-pick [data-kind]')];
+  const scope = document.getElementById('mk-scope');
+  ready.then((handles) => {
+    const h = handles.get('f-margin');
+    if (!h) return;
+    btns.forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const kind = btn.dataset.kind as string;
+        btns.forEach((x) => x.setAttribute('aria-pressed', String(x === btn)));
+        if (scope) scope.textContent = (kind === 'c' ? scope.dataset.c : scope.dataset.d) ?? '';
+        h.redraw(null, { kind });
+      }),
+    );
+  });
+</script>
+
+<style>
+  .hist-notes {
+    margin-top: var(--sp-5);
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--sp-4) var(--sp-6);
+  }
+</style>

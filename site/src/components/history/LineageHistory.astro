@@ -1,0 +1,183 @@
+---
+// 팀 목록(/teams/)의 계보 역사 절 둘: 계보별 시즌 최종 순위 추이(열지도, 좁으면 이름을 줄 위로 올린 칸 줄), 계보별 컨스트럭터 타이틀과 우승.
+// 자료와 문장은 빌드 때 lib/history.ts(history.json)에서 만든다. 차트는 lib/charts/history.js다.
+import '../../styles/history.css';
+import type { Column } from '../DataTable.astro';
+import Figure from '../Figure.astro';
+import type { LegendItem } from '../Legend.astro';
+import Section from '../Section.astro';
+import { teams } from '../../lib/data.ts';
+import { type HeatRow, type HistLineage, heatRows, history, lineageShortKo, longestTitleRun, r2 } from '../../lib/history.ts';
+import { routes } from '../../lib/paths.ts';
+import { JOLPICA, asofJolpica } from '../../lib/sources.ts';
+import { b, esc, nw } from '../../lib/typeset.ts';
+
+const cFrom = history.constructor_first_season;
+const last = history.last_season;
+const asof = asofJolpica();
+const SRC = `${JOLPICA} 컨스트럭터 최종 순위와 결승 결과, 계보 묶음은 이 사이트의 계보 테이블`;
+
+// 행 순서는 위 계보 목록과 같다(2025 컨스트럭터 순위 순)
+const order = [...teams].sort((a, c) => (a.last?.position ?? 99) - (c.last?.position ?? 99)).map((t) => t.lineage_id);
+const rows = heatRows(order);
+const heatData = { from: cFrom, to: last, rows };
+
+// 이름이 가장 많이 바뀐 두 계보의 컨스트럭터 이름(처음 나온 순서)
+const namesOf = (l: HistLineage) => [...new Set(l.seasons.map((x) => x.name))];
+const multiName = [...history.lineages]
+  .sort((a, c) => namesOf(c).length - namesOf(a).length)
+  .slice(0, 2)
+  .map((l) => `${esc(lineageShortKo(l.name_ko))} (<span lang="en">${esc(namesOf(l).join(', '))}</span>)`)
+  .join(', ');
+
+/* ---------------------------------------------------------------- 순위 추이 문장 */
+
+const run = longestTitleRun();
+const top3 = rows.map((r) => ({ r, n: r.cells.filter((c) => c.pos != null && c.pos <= 3).length })).sort((a, c) => c.n - a.n)[0];
+const noTitle = rows.filter((r) => r.titles === 0);
+const bestOf = (r: HeatRow) => Math.min(...r.cells.filter((c) => c.pos != null).map((c) => c.pos as number));
+const nt = noTitle.map((r) => ({ r, best: bestOf(r) })).sort((a, c) => a.best - c.best)[0];
+const ntYears = nt ? nt.r.cells.filter((c) => c.pos === nt.best).map((c) => c.s) : [];
+const heatRead =
+  `${cFrom}년부터 ${last}년까지 컨스트럭터 최종 순위를 계보마다 한 줄에 놓았다. 1위를 가장 길게 이어 간 계보는 ${b(esc(lineageShortKo(run.name)))}의 ${nw(`${run.from}-${run.to}`)}년 ${b(`${run.n}시즌`)}이다. ` +
+  `3위 안에 든 시즌이 가장 많은 계보는 ${esc(top3.r.short)}(${top3.n}시즌)이다.` +
+  (nt ? ` 1위가 없는 ${noTitle.length}개 계보 가운데 가장 높은 순위는 ${esc(nt.r.short)}의 ${nt.best}위(${ntYears.join(', ')})다.` : '');
+
+const legend: LegendItem[] = [
+  { type: 'rect', color: 's2', label: '1위' },
+  { type: 'rect', color: 'hist-r5', label: '2위' },
+  { type: 'rect', color: 'hist-r4', label: '3위' },
+  { type: 'rect', color: 'hist-r3', label: '4~5위' },
+  { type: 'rect', color: 'hist-r2', label: '6~10위' },
+  { type: 'rect', color: 'hist-r1', label: '11위 이하' },
+  { type: 'hollow', color: 'ink-3', label: '출전했지만 순위 없음' },
+];
+const chipVar = (pos: number | null) =>
+  pos == null ? null : pos === 1 ? 's2' : pos === 2 ? 'hist-r5' : pos === 3 ? 'hist-r4' : pos <= 5 ? 'hist-r3' : pos <= 10 ? 'hist-r2' : 'hist-r1';
+
+// 표 보기: 행은 시즌(최근부터), 열은 계보
+const byLin = new Map(rows.map((r) => [r.id, new Map(r.cells.map((c) => [c.s, c]))]));
+const years = Array.from({ length: last - cFrom + 1 }, (_, i) => last - i);
+const heatCols: Column<number>[] = [
+  { label: '시즌', cls: 'pos', render: (y) => `<a href="${routes.season(y)}">${y}</a>` },
+  ...rows.map((r) => ({
+    label: r.short,
+    num: true,
+    render: (y: number) => {
+      const c = byLin.get(r.id)?.get(y);
+      if (!c) return '';
+      const v = chipVar(c.pos);
+      return v ? `<span class="rank-chip" style="background:var(--${v})" aria-hidden="true"></span>${c.pos}위` : '<span class="rank-chip none" aria-hidden="true"></span>없음';
+    },
+  })),
+];
+
+/* ---------------------------------------------------------------- 타이틀과 우승 */
+
+const L = new Map(history.lineages.map((l) => [l.lineage_id, l]));
+const lin = order.map((id) => L.get(id) as HistLineage);
+const short = (l: HistLineage) => lineageShortKo(l.name_ko);
+const winPct = (l: HistLineage) => r2((l.wins / l.entered) * 100);
+const firstS = (l: HistLineage) => l.seasons[0].s;
+const sortBy = (k: (l: HistLineage) => number) => [...lin].sort((a, c) => k(c) - k(a) || short(a).localeCompare(short(c), 'ko'));
+const titleBars = {
+  unit: '회',
+  rows: sortBy((l) => l.titles).map((l) => ({
+    key: l.lineage_id,
+    name: short(l),
+    v: l.titles,
+    tip: [
+      [`${l.titles}회`, '컨스트럭터 타이틀'],
+      ...(l.title_seasons.length ? [[l.title_seasons.join(', '), '시즌']] : []),
+    ],
+  })),
+};
+const winBars = {
+  unit: '승',
+  rows: sortBy((l) => l.wins).map((l) => ({
+    key: l.lineage_id,
+    name: short(l),
+    v: l.wins,
+    tip: [
+      [`${l.wins}승`, '결승 우승'],
+      [`${l.entered}개`, `출전 대회 (${firstS(l)}-${last})`],
+      [`${winPct(l)}%`, '출전 대회 대비 우승'],
+      [`${l.podiums}회`, '포디움'],
+    ],
+  })),
+};
+const tTop = sortBy((l) => l.titles)[0];
+const wTop = sortBy((l) => l.wins)[0];
+const rTop = sortBy(winPct).slice(0, 2);
+const noWin = lin.filter((l) => l.wins === 0);
+const twRead =
+  `컨스트럭터 타이틀은 ${b(esc(short(tTop)))} ${b(`${tTop.titles}회`)}가 가장 많고, ${lin.filter((l) => l.titles === 0).length}개 계보는 타이틀이 없다. ` +
+  `결승 우승은 ${esc(short(wTop))} ${wTop.wins}승이 가장 많다. 출전 대회 대비 우승 비율은 ${rTop.map((l) => `${esc(short(l))} ${winPct(l)}%`).join(', ')} 순이다.` +
+  (noWin.length ? ` 우승이 없는 계보는 ${noWin.map((l) => esc(short(l))).join(', ')}다.` : '');
+const twCols: Column<HistLineage>[] = [
+  { label: '계보', cls: 'who', render: (l) => `<a href="${routes.team(l.lineage_id)}">${esc(short(l))}</a>` },
+  { label: '첫 시즌', num: true, render: (l) => `${firstS(l)}` },
+  { label: '타이틀', num: true, render: (l) => `${l.titles}회` },
+  { label: '우승', num: true, render: (l) => `${l.wins}승` },
+  { label: '포디움', num: true, render: (l) => `${l.podiums}회` },
+  { label: '출전 대회', num: true, render: (l) => `${l.entered}개` },
+  { label: '우승 비율', num: true, render: (l) => `${winPct(l)}%` },
+  { label: '타이틀 시즌', render: (l) => l.title_seasons.join(', ') },
+];
+---
+
+<Section id="history" title="계보별 시즌 최종 순위 추이" read={heatRead} meta={`${cFrom}-${last} · 컨스트럭터 순위`}>
+  <Figure
+    id="f-heat"
+    wide
+    title="계보별 시즌 최종 컨스트럭터 순위"
+    scope={`${cFrom}-${last} · 계보 ${rows.length}개 · 행 순서는 ${last} 순위`}
+    sub="칸 하나가 한 계보의 한 시즌이다. 블루가 바탕에서 도드라질수록(밝은 화면은 진할수록, 어두운 화면은 밝을수록) 높은 순위이고 1위는 핑크다. 빈 자리는 그 계보가 출전하지 않은 시즌이다."
+    legend={legend}
+    chart="lineageHeat"
+    data={heatData}
+    source={SRC}
+    asof={asof}
+    twin={{ caption: '시즌별 계보 최종 컨스트럭터 순위', columns: heatCols, rows: years }}
+    notes={[
+      {
+        head: '읽는 법',
+        body: '한 시즌에 컨스트럭터 이름이 둘 이상인 계보(1966-1970 워킹, 2006 실버스톤)는 가장 높은 순위를 칸에 썼다. 순위 없음은 출전했지만 Jolpica 순위표에 순위가 없는 시즌이다(2007 McLaren 제외 처분 포함).',
+      },
+      {
+        head: '주의',
+        caution: true,
+        body: `계보는 이 사이트가 정한 조직 흐름이다. 이름이 여럿인 계보의 예: ${multiName}. 연결 근거는 각 팀 페이지에 있다.`,
+      },
+    ]}
+  />
+</Section>
+
+<Section id="titles-wins" title="계보별 컨스트럭터 타이틀과 우승" read={twRead} meta={`${cFrom}-${last} 타이틀 · 첫 시즌부터 우승`}>
+  <div class="pair">
+    <Figure
+      pair
+      id="f-ltitle-bars"
+      title="컨스트럭터 타이틀"
+      scope={`${cFrom}-${last}`}
+      sub="계보별 컨스트럭터 순위 1위 횟수다."
+      chart="lineageBars"
+      data={titleBars}
+      source={SRC}
+      asof={asof}
+      twin={{ caption: '계보별 컨스트럭터 타이틀과 우승', columns: twCols, rows: sortBy((l) => l.titles) }}
+    />
+    <Figure
+      pair
+      id="f-lwin-bars"
+      title="결승 우승"
+      scope={`계보 첫 시즌부터 ${last}`}
+      sub="계보에 속한 팀이 결승에서 우승한 횟수다. 1958년 이전 시즌도 센다(마라넬로 1950년부터)."
+      chart="lineageBars"
+      data={winBars}
+      source={SRC}
+      asof={asof}
+      twin={{ caption: '계보별 결승 우승', columns: twCols, rows: sortBy((l) => l.wins) }}
+    />
+  </div>
+</Section>

@@ -11,6 +11,8 @@ export const routes = {
   home: () => url('/'),
   seasons: () => url('/seasons/'),
   season: (year: number) => url(`/seasons/${year}/`),
+  drivers: () => url('/drivers/'),
+  driver: (driverId: string) => url(`/drivers/${driverId}/`),
   teams: () => url('/teams/'),
   team: (lineageId: string) => url(`/teams/${lineageId}/`),
   upgrades: () => url('/upgrades/'),
@@ -27,12 +29,13 @@ export const aboutRoutes = {
   license: () => url('/about/license/'),
 };
 
-export type NavKey = 'home' | 'seasons' | 'teams' | 'upgrades' | 'engines' | 'regulations' | 'about';
+export type NavKey = 'home' | 'seasons' | 'drivers' | 'teams' | 'upgrades' | 'engines' | 'regulations' | 'about';
 
-/** 주 메뉴 일곱 칸. 순서와 이름은 DESIGN.md "되풀이 문구"의 메뉴를 따른다. */
+/** 주 메뉴 여덟 칸 (2026-11-11에 드라이버를 더했다). */
 export const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: 'home', label: '홈', href: routes.home() },
   { key: 'seasons', label: '시즌', href: routes.seasons() },
+  { key: 'drivers', label: '드라이버', href: routes.drivers() },
   { key: 'teams', label: '팀', href: routes.teams() },
   { key: 'upgrades', label: '업그레이드 탐색기', href: routes.upgrades() },
   { key: 'engines', label: '엔진', href: routes.engines() },

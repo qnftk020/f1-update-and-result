@@ -9,6 +9,7 @@ import { JOLPICA, asofJolpica } from '../../lib/sources.ts';
 import { roundLabels } from '../../lib/chart-data.ts';
 import type { Season } from '../../lib/types.ts';
 import { esc, keepNames } from '../../lib/typeset.ts';
+import { driverLink } from '../../lib/driver-links.ts';
 import { EMPTY, constructorLeadRead, driverLeadRead, pointsCell, posCell, shortName } from './season-text.ts';
 
 interface Props {
@@ -31,7 +32,7 @@ const hlCons = cons.slice(0, 3);
 function ptsColumns(nameKey: string): Column[] {
   return [
     { label: '순위', num: true, render: (r) => posCell(r) },
-    { label: '이름', cls: 'stick', render: (r) => esc(r[nameKey]) },
+    { label: '이름', cls: 'stick', render: (r) => driverLink(r.id, esc(r[nameKey])) },
     ...Array.from({ length: n }, (_, i): Column => ({ label: String(i + 1), num: true, render: (r) => pointsCell(r.points[i]) })),
   ];
 }

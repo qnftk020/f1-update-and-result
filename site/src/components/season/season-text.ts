@@ -7,6 +7,7 @@ import { meta } from '../../lib/data.ts';
 import { formatPoints, n0, num, pct, roundsText } from '../../lib/format.ts';
 import { F1DB, JOLPICA, OPENF1, OPENF1_LICENSE, asofJolpica, asofQualiIndex, asofRaceIndex } from '../../lib/sources.ts';
 import type { DriverSeason, Round, Season } from '../../lib/types.ts';
+import { surname } from '../../lib/names.ts';
 import { aside, b, esc, nw } from '../../lib/typeset.ts';
 
 /** 우천 판정(OpenF1)이 있는 첫 시즌. 그 전 예선은 우천 여부 미분류다. */
@@ -21,11 +22,8 @@ export const EMPTY = {
   race: '레이스 지수는 2023년부터 계산한다.',
 };
 
-/** 이름의 마지막 낱말(약어가 없는 옛 드라이버의 짧은 이름). 'Juan Fangio' -> 'Fangio' */
-export function surname(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return parts[parts.length - 1] ?? name;
-}
+/** 이름의 마지막 낱말(약어가 없는 옛 드라이버의 짧은 이름, lib/names.ts) */
+export { surname };
 
 /** 드라이버 짧은 이름: 세 글자 약어가 있으면 약어, 없으면 성 */
 export function shortName(d: { code: string | null; name: string }): string {
@@ -163,6 +161,13 @@ export function driverLeadRead(s: Season): string {
     first = `순위표 1위는 마지막 ${b(`${n}라운드`)}에서 바뀌어 ${name}의 1위로 끝났다.`;
   } else {
     first = `순위표 1위가 마지막으로 바뀐 것은 ${b(`${lead.round}라운드`)}이고, 그 뒤로는 ${name}의 1위가 이어졌다.`;
+  }
+  const ex = (lead.excluded_leader ?? []).map((id) => {
+    const d = s.drivers.find((x) => x.id === id);
+    return esc(d ? d.name : id);
+  });
+  if (ex.length) {
+    first += ` 이 문장의 선두는 시즌 뒤 순위에서 제외된 ${ex.join(', ')}의 그 시점 점수를 넣어 센 것이다. 그림의 순위는 Jolpica 기록대로 제외된 기록을 뺀 순위라 이 선두 교체가 보이지 않는다.`;
   }
   const hl = Math.min(3, s.drivers.length);
   return `${first} 강조한 ${hl === 3 ? '세 명은 최종 순위 상위 3명' : `${hl}명은 최종 순위 상위 ${hl}명`}이며, 칩으로 바꿀 수 있다.`;

@@ -2,6 +2,7 @@
 // 팀 목록 /teams/. DESIGN.md "팀" 목록 와이어프레임: 2025 그리드 10개 팀을 계보로 묶은 표. 행 전체가 그 팀 페이지 링크다.
 // 리드와 표의 수치는 teams.json에서 센다.
 import DataTable, { type Column } from '../../components/DataTable.astro';
+import LineageHistory from '../../components/history/LineageHistory.astro';
 import PageHead from '../../components/PageHead.astro';
 import Section from '../../components/Section.astro';
 import SourceLine from '../../components/SourceLine.astro';
@@ -51,7 +52,8 @@ const cols: Column<TeamSummary>[] = [
     render: (t) => num(t.last?.quali_index_mean),
   },
   {
-    label: '',
+    label: '<span class="sr-only">예선 지수 막대</span>',
+    labelHtml: true,
     cls: 'meter-cell hide-sm',
     render: (t) =>
       t.last?.quali_index_mean != null
@@ -92,6 +94,8 @@ const read =
       </aside>
     </div>
   </Section>
+
+  <LineageHistory />
 </BaseLayout>
 
 <style>

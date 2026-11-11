@@ -89,6 +89,12 @@ a:hover { text-decoration-color: var(--link-line); text-decoration-thickness: 2p
   html:not(.js) .site-menu { display: flex; }
 }
 html:not(.js) .menu-btn, html:not(.js) .theme { display: none; }
+/* 접기 기준(960px) 바로 위에서는 메뉴 8개가 한 줄에 들어가도록 꼬리표를 숨기고 간격을 줄인다 */
+@media (min-width: 961px) and (max-width: 1120px) {
+  .brand-tag { display: none; }
+  .site-bar, .site-menu { gap: var(--sp-4); }
+  .nav ul { column-gap: var(--sp-3); }
+}
 
 /* 분할 단추 공통: 모서리는 첫 칸과 끝 칸이 갖고, 초점 고리가 잘리지 않게 틀은 넘침을 자르지 않는다 */
 .theme > button:first-child, .seg > button:first-child, .seg-view > button:first-child { border-radius: 3px 0 0 3px; }

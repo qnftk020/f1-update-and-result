@@ -120,7 +120,13 @@ export function mount(slot, fn, data, opts = {}) {
   const draw = (force) => {
     if (failed) return;
     const nw = Math.round(slot.clientWidth);
-    if (!nw || (!force && Math.abs(nw - w) < 2)) return;
+    // 숨겨진 동안(표 보기)에는 그리지 않고 폭을 0으로 돌려 둔다. 다시 보일 때 ResizeObserver가
+    // 새 폭을 알리면 그동안 바뀐 자료와 옵션으로 다시 그린다.
+    if (!nw) {
+      w = 0;
+      return;
+    }
+    if (!force && Math.abs(nw - w) < 2) return;
     w = nw;
     const plots = [...slot.querySelectorAll(".plot")];
     const fi = plots.indexOf(document.activeElement);
