@@ -60,10 +60,74 @@ def constructor_for(team_name: str) -> str | None:
     return None
 
 
-def reason_category(primary_reason: str) -> str:
+# 상위 범주 없이 세부 사유만 적은 행이 있다. FIA 양식에서 한 범주에만 나오는 세부 사유는 그 범주로
+# 본다. 원문(primary_reason)은 그대로 두고, 이렇게 정한 행은 reason_category_inferred로 표시한다.
+DETAIL_CATEGORY = {
+    "local load": "performance",
+    "flow conditioning": "performance",
+    "drag reduction": "performance",
+    "drag range": "circuit_specific",
+    "cooling range": "circuit_specific",
+    "balance range": "circuit_specific",
+}
+DETAIL_NAMES = {
+    "local load": "Local Load",
+    "flow conditioning": "Flow Conditioning",
+    "drag reduction": "Drag Reduction",
+    "mechanical setup": "Mechanical Setup",
+    "drag range": "Drag Range",
+    "cooling range": "Cooling Range",
+    "balance range": "Balance Range",
+    "drag level": "Drag Level",
+}
+SEPARATORS = r"[\s\-\u2013:]+"
+
+# 부품 표기(48가지 철자)를 묶는 부품 영역. 위에서부터 먼저 맞는 것을 쓴다.
+# "Rear Wing / Beam Wing"처럼 둘을 적은 행은 먼저 적힌 쪽을 따른다.
+COMPONENT_AREAS = [
+    ("beam_wing", re.compile(r"beam wing", re.I)),
+    ("front_wing", re.compile(r"front wing", re.I)),
+    ("rear_wing", re.compile(r"rear wing", re.I)),
+    ("nose", re.compile(r"nose", re.I)),
+    ("front_suspension", re.compile(r"front suspension", re.I)),
+    ("rear_suspension", re.compile(r"rear suspension", re.I)),
+    ("front_corner", re.compile(r"front corner", re.I)),
+    ("rear_corner", re.compile(r"rear corner", re.I)),
+    ("floor", re.compile(r"floor|edge wing", re.I)),
+    ("diffuser", re.compile(r"diffuser", re.I)),
+    ("sidepod", re.compile(r"sidepod", re.I)),
+    (
+        "engine_cover",
+        re.compile(r"engine cover|coke|cooling louvre|air intake|chassis scoop", re.I),
+    ),
+    ("cockpit", re.compile(r"halo|mirror|headrest", re.I)),
+]
+
+
+def reason_parts(primary_reason: str) -> tuple[str, str, bool]:
+    """(상위 범주, 세부 사유, 세부 사유로 범주를 정했는지)를 돌려준다."""
+    text = re.sub(rf"^{SEPARATORS}", "", clean(primary_reason))
     for category, pattern in REASON_CATEGORIES:
-        if pattern.search(primary_reason.strip()):
-            return category
+        match = pattern.search(text)
+        if match:
+            detail = re.sub(rf"^{SEPARATORS}", "", text[match.end() :])
+            return category, DETAIL_NAMES.get(detail.casefold(), detail), False
+    key = text.casefold()
+    if key in DETAIL_CATEGORY:
+        return DETAIL_CATEGORY[key], DETAIL_NAMES[key], True
+    detail = re.sub(rf"^other{SEPARATORS}", "", text, flags=re.I)
+    return "other", detail, False
+
+
+def reason_category(primary_reason: str) -> str:
+    return reason_parts(primary_reason)[0]
+
+
+def component_area(updated_component: str) -> str:
+    first = clean(updated_component).split("/")[0]
+    for area, pattern in COMPONENT_AREAS:
+        if pattern.search(first):
+            return area
     return "other"
 
 
@@ -220,7 +284,11 @@ def finish_rows(rows: list[dict], problems: list[str], where: str) -> None:
         row.setdefault("item_no_inferred", False)
         if not re.fullmatch(r"\d+", row["item_no"]):
             problems.append(f"{where}: 번호가 숫자가 아니다: {row['item_no']!r}")
-        row["reason_category"] = reason_category(row["primary_reason"])
+        category, detail, inferred = reason_parts(row["primary_reason"])
+        row["reason_category"] = category
+        row["reason_detail"] = detail
+        row["reason_category_inferred"] = inferred
+        row["component_area"] = component_area(row["updated_component"])
 
 
 def team_name_from(lines: list[str]) -> str:
@@ -364,8 +432,11 @@ def build() -> dict[str, int]:
                         **key, "constructor_id": team.constructor_id, "row_order": order,
                         "item_no": row["item_no"], "item_no_inferred": row["item_no_inferred"],
                         "updated_component": row["updated_component"],
+                        "component_area": row["component_area"],
                         "primary_reason": row["primary_reason"],
                         "reason_category": row["reason_category"],
+                        "reason_detail": row["reason_detail"],
+                        "reason_category_inferred": row["reason_category_inferred"],
                         "geometric_differences": row["geometric_differences"],
                         "description": row["description"],
                         "description_shared": row["description_shared"],
@@ -386,9 +457,14 @@ def build() -> dict[str, int]:
     )
     # 실패 목록은 문서 유형별로 갈아 끼운다(다른 파서의 기록은 건드리지 않는다)
     fields = ["season", "round", "event", "doc_type", "url", "problems", "recorded_at"]
-    others = [
-        r for r in manifest.read_rows("parse_failures.csv") if r["doc_type"] != "car_presentation"
-    ]
+    existing = manifest.read_rows("parse_failures.csv")
+    others = [r for r in existing if r["doc_type"] != "car_presentation"]
+    # 이미 적힌 실패는 처음 기록한 날짜를 유지한다.
+    first_seen = {
+        r["url"]: r["recorded_at"] for r in existing if r["doc_type"] == "car_presentation"
+    }
+    for failure in failures:
+        failure["recorded_at"] = first_seen.get(failure["url"], failure["recorded_at"])
     manifest.write_rows("parse_failures.csv", others + failures, fields)
     return {"documents": len(doc_rows), "teams": len(team_rows), "rows": len(items),
             "failures": len(failures)}  # fmt: skip

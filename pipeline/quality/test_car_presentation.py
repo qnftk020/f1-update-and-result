@@ -49,10 +49,61 @@ def documents():
         ("Reliability", "reliability"),
         ("Cooling", "other"),
         ("Other - Local flow alignment", "other"),
+        ("- Performance Flow Conditioning", "performance"),
+        ("Local load", "performance"),
+        ("Balance range", "circuit_specific"),
+        ("Driver Cooling", "other"),
     ],
 )
 def test_reason_category(reason, category):
     assert cp.reason_category(reason) == category
+
+
+@pytest.mark.parametrize(
+    ("reason", "parts"),
+    [
+        ("Performance - Local Load", ("performance", "Local Load", False)),
+        ("Performance \u2013 Local load", ("performance", "Local Load", False)),
+        ("Performance -Flow Conditioning", ("performance", "Flow Conditioning", False)),
+        ("Circuit specific", ("circuit_specific", "", False)),
+        ("Circuit specific \u2013 Drag Level", ("circuit_specific", "Drag Level", False)),
+        ("Reliability", ("reliability", "", False)),
+        ("Local load", ("performance", "Local Load", True)),
+        ("Other - Local flow alignment", ("other", "Local flow alignment", False)),
+    ],
+)
+def test_reason_parts(reason, parts):
+    """세부 사유만 적힌 행은 FIA 양식의 범주로 보고 표시를 남긴다."""
+    assert cp.reason_parts(reason) == parts
+
+
+@pytest.mark.parametrize(
+    ("component", "area"),
+    [
+        ("Front Wing", "front_wing"),
+        ("Front Wing Endplate", "front_wing"),
+        ("Rear Beam Wing", "beam_wing"),
+        ("Rear Wing / Beam Wing", "rear_wing"),
+        ("Floor fences", "floor"),
+        ("Edge wing", "floor"),
+        ("Coke / Engine Cover", "engine_cover"),
+        ("Cooling Louvres", "engine_cover"),
+        ("Sidepod Inlet / Engine cover", "sidepod"),
+        ("Other - rear view mirrors", "cockpit"),
+        ("Rear Impact Structure", "other"),
+    ],
+)
+def test_component_area(component, area):
+    assert cp.component_area(component) == area
+
+
+def test_every_component_has_an_area(items):
+    """부품 표기가 새로 생기면 영역 규칙을 보완하도록 '기타'의 범위를 고정해 둔다."""
+    other = set(items.loc[items["component_area"] == "other", "updated_component"])
+    assert other <= {"Rear Impact Structure"}
+    inferred = items[items["reason_category_inferred"]]
+    assert set(inferred["reason_category"]) <= {"performance", "circuit_specific"}
+    assert len(inferred) < 20
 
 
 @pytest.mark.parametrize(
