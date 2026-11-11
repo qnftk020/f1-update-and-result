@@ -702,8 +702,14 @@ def build_team(t: Tables, lineage: object, seasons: dict[int, dict], upgrades: d
             }
         )
     current = t.season_team.get((LAST_SEASON, lineage.constructor_id_2025))
-    # 현재 컨스트럭터 시기: 마지막 계보 구간. 계보 보기를 끈 화면의 범위다.
-    current_from = int(links.iloc[-1]["season_from"]) if len(links) else LAST_SEASON
+    # 현재 컨스트럭터 시기: 2025년 constructor_id가 끊기지 않고 이어진 구간.
+    # 계보 보기를 끈 화면의 범위다. 같은 ID가 여러 행으로 나뉘거나(faenza의 rb 2024, 2025)
+    # 다른 ID 행이 뒤에 올 수 있어(woking) 행 순서에 기대지 않는다.
+    current_from = LAST_SEASON
+    same_id = links[links["constructor_id"] == lineage.constructor_id_2025]
+    for row in same_id.sort_values("season_to", ascending=False).itertuples():
+        if int(row.season_to) >= current_from - 1 and int(row.season_from) < current_from:
+            current_from = int(row.season_from)
     current_rows = [r for r in rows if r["season"] >= current_from]
     last_results = t.results[
         (t.results["season"] == LAST_SEASON)
