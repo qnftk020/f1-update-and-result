@@ -37,11 +37,31 @@
 | 기간 | 형식 | 쓰는 기록 | 표기 |
 |---|---|---|---|
 | 1996–2002 | 단일 세션(`ONE_SESSION`) | 드라이버별 최고 기록 | 기본 |
-| 2003–2005 | 원랩(`ONE_LAP`) | 그리드를 정한 랩의 기록 | 참고용. 결승 연료를 싣고 달린 기록이라 연료 전략이 섞인다(미검증) |
+| 2003–2005 | 원랩(`ONE_LAP`) | 그리드를 정한 랩의 기록 | 참고용. 결승 연료를 싣고 달린 기록이라 연료 전략이 섞인다 |
 | 2005년 초반 | 합산(`AGGREGATE`) | 두 세션 합산 기록 | 참고용. 합산 시간끼리 같은 식으로 계산한다 |
-| 2006–2025 | 녹아웃(`KNOCKOUT`, `ELIMINATION`, `SPRINT_RACE`) | Q1, Q2, Q3 기록 중 최솟값 | 기본. 2006–2009년은 Q3를 결승 연료로 달려 최솟값이 주로 Q2에서 나온다(미검증) |
+| 2006–2025 | 녹아웃(`KNOCKOUT`, `ELIMINATION`, `SPRINT_RACE`) | Q1, Q2, Q3 기록 중 최솟값 | 기본. 2006–2009년은 Q3를 결승 연료로 달려 최솟값이 주로 Q2에서 나온다 |
 
 "세션 최고 랩"을 Q1부터 Q3까지의 최솟값으로 두면 Q3 기록이 연료 때문에 느렸던 2006–2009년에도 같은 정의를 그대로 쓸 수 있다.
+
+형식 구분의 근거(문장과 확인일은 `data/curated/references/methodology_evidence.csv`의 `quali_2003_2005`, `quali_2006_2009` 행):
+
+- 2003년 원랩 예선은 결승 연료량으로 달렸고, FIA는 2003년 2월 26일 예선과 결승 사이의 연료 주입과 배출을 막았다([formula1.com 예선 형식사](https://www.formula1.com/en/latest/article/deciding-the-grid-a-history-of-f1-qualifying-formats.1oh1hemlnZ4x9rt2nff8vn.html), [위키백과 2003 시즌](https://en.wikipedia.org/wiki/2003_Formula_One_World_Championship)).
+- 2005년 1–6라운드의 합산 방식은 토요일 저연료, 일요일 오전 결승 연료로 달렸고, 7라운드(유럽 그랑프리)부터는 토요일 결승 연료 원랩으로 돌아갔다(같은 formula1.com 기사, [위키백과 2005 시즌](https://en.wikipedia.org/wiki/2005_Formula_One_World_Championship)).
+- 2006–2007년 FIA 스포츠 규정은 Q3 동안 연료를 넣거나 빼지 못하게 하고 Q3에서 쓴 연료만 결승 당일 다시 채우게 했다. 2008–2009년 규정은 Q3 시작부터 결승 출발까지 연료 변경을 막았다([2007년 규정 보존본](https://web.archive.org/web/20140203164233id_/http://argent.fia.com/web/fia-public.nsf/1754DB4574B7A2C0C1257329003642F0/$FILE/2007-F1-SPORTING_REG_13-07-2007.pdf), [2008년 규정 보존본](https://web.archive.org/web/20080920232309id_/http://argent.fia.com/web/fia-public.nsf/16A57B4C6E078BC7C12573FB00429D39/$FILE/1-2008%20F1%20SPORTING%20REGULATIONS%2022-02-2008.pdf)).
+- 2010년 규정은 결승 중 재급유를 금지했다. 그 뒤로 Q3는 저연료로 달렸다([2010년 규정 보존본](https://web.archive.org/web/20110919152016id_/http://argent.fia.com/web/fia-public.nsf/B113B92B22ACE29CC125768D002AF688/$FILE/1-2010%20SPORTING%20REGULATIONS%2011-12-2009.pdf)).
+
+이 저장소의 Jolpica 예선 기록으로 세션 최고 랩이 나온 구간을 세면 위 설명과 맞는다(2026-11-11 집계, `data/curated/jolpica/qualifying.parquet`).
+
+| 시즌 | 대회 | Q1 | Q2 | Q3 |
+|---|---|---|---|---|
+| 2006 | 18 | 0 | 15 | 3 |
+| 2007 | 17 | 0 | 16 | 1 |
+| 2008 | 18 | 4 | 14 | 0 |
+| 2009 | 17 | 1 | 15 | 1 |
+| 2010 | 19 | 1 | 1 | 17 |
+| 2011 | 19 | 0 | 1 | 18 |
+
+2006–2009년 70개 대회 가운데 Q3에서 세션 최고 랩이 나온 대회는 5개이고, 재급유가 금지된 2010–2011년에는 38개 대회 가운데 35개다.
 
 ### 데이터 출처
 
@@ -106,8 +126,9 @@
 
 ### 연료 보정 가정
 
-- 0.03초/kg은 관행값이다(작업서 기준, 미검증).
-- 출발 연료 110kg은 결승 연료 사용 상한을 가득 채웠다고 본 가정이다(미검증, T8에서 기술 규정 조항을 확인한 뒤 근거 URL을 붙인다). 실제 탑재량은 팀과 서킷마다 다르고 공개되지 않는다.
+- 0.03초/kg은 공개된 값의 범위(0.03–0.04초/kg)에서 낮은 쪽이다. 팀과 공식 매체는 대개 10kg당 0.3–0.4초를 말한다(예: [formula1.com 2023 프리시즌 해설](https://www.formula1.com/en/latest/article/essential-guide-how-to-read-bahrain-pre-season-testing-with-f1-strategy.2CkqwrzR0PSA013BRRnOQR), Mercedes의 2019년 W10 보도자료는 5kg당 약 0.2초). 뮌헨공과대학교 Heilmeier의 박사 학위 논문(2022)은 0.03초/kg을 가정값으로 쓰고, 2019년 중국 그랑프리 타이밍 자료로 구한 값을 0.031초/kg으로 보고한다([보존본 PDF](https://web.archive.org/web/20250124001601/https://mediatum.ub.tum.de/doc/1647512/1647512.pdf), 5쪽과 153쪽). 같은 논문은 질량 민감도가 연료량 범위 안에서 거의 일정하다고 적어, 남은 연료에 비례하는 선형 보정을 뒷받침한다.
+- 서킷마다 값이 다르다. formula1.com은 서킷에 따라 1kg이 랩당 약 0.1초에 해당한다고도 적는다([2023 바레인 테스트 정리](https://www.formula1.com/en/latest/article/the-5-key-questions-from-2023-pre-season-testing-in-bahrain.41Sz9HCilsvmgcnyBTf0ze)). 이 지수는 대회마다 같은 값을 모든 팀에 적용하므로 계수가 틀리면 팀 사이의 차이가 아니라 주로 절대 수준이 달라진다.
+- 출발 연료 110kg은 2019 시즌부터 적용된 결승 연료 상한이다([formula1.com 2019 규정 변경](https://www.formula1.com/en/latest/article/what-you-need-to-know-about-f1s-2019-rule-changes.4nfMbkc0YoU2EAmcSUw08o)). 상한을 가득 채웠다고 본 가정이며, 팀들은 흔히 이보다 적게 싣는다([Aston Martin 공식 사이트, 2023-09-13](https://www.astonmartinf1.com/en-GB/news/feature/avatrade-explains-the-f1-rulebook-fuel)). 실제 탑재량은 팀과 서킷마다 다르고 공개되지 않는다. 2023–2025 기술 규정 원문의 해당 조항 번호는 아직 확인하지 않았다(미검증).
 - 연료는 랩마다 같은 양이 줄어든다고 본다. 세이프티 카 구간의 소모 감소는 반영하지 않는다.
 - 지수는 같은 대회의 팀끼리 나눈 값이라 가정이 틀려도 오차가 대부분 상쇄된다. 팀마다 클린 랩이 몰린 구간이 다를 때만 오차가 남는다.
 
