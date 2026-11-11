@@ -538,10 +538,172 @@ def test_regulations_matrix_covers_every_year(site):
         # 조항 비교에는 본문을 싣지 않는다(번호, 제목, 변경 유형, 쪽만).
         for ch in c["changes"]:
             assert set(ch) == {
-                "clause_no", "top_article", "top_title", "heading", "change", "page_from", "page_to"
+                "clause_no", "top_article", "top_title", "heading", "change", "renumbered",
+                "from_clause_no", "page_from", "page_to",
             }  # fmt: skip
     # 등급 C 문서의 설명(스캔 내용을 옮긴 문장)은 싣지 않는다.
     for docs in reg["documents"].values():
         for d in docs:
             if d["grade"] == "C":
                 assert d["note_ko"] is None
+
+
+def _reg_documents():
+    return pd.read_csv(CURATED_DIR / "regulations" / "documents.csv", dtype={"issue": str})
+
+
+def test_comparisons_name_the_versions_they_skip(site):
+    """건너뛴 판이 있는 비교는 review가 참이고, 건너뛴 판을 순서대로 판 정보와 함께 적는다."""
+    reg = site("regulations.json")
+    curated = pd.read_csv(CURATED_DIR / "regulations" / "comparisons.csv", dtype=str)
+    docs = _reg_documents()
+    key = ["kind", "section", "from_season", "from_version", "to_season", "to_version"]
+    exported = {tuple(str(c[k]) for k in key): c for c in reg["comparisons"]}
+    assert len(exported) == len(curated)
+    reviewed = 0
+    for row in curated.itertuples():
+        c = exported[tuple(getattr(row, k) for k in key)]
+        tokens = [t for t in str(row.skipped_versions or "").split(";") if t and t != "nan"]
+        assert [f"{k['season']}:{k['version']}" for k in c["skipped_versions"]] == tokens
+        assert c["review"] == bool(tokens)
+        reviewed += c["review"]
+        for k in c["skipped_versions"]:
+            hit = docs[
+                (docs["season"] == k["season"])
+                & (docs["section"] == c["section"])
+                & (docs["version_key"] == k["version"])
+            ].iloc[0]
+            assert k["url"] == hit["url"]
+            if hit["status"] == "needs_review":
+                assert k["status"] == "needs_review" and k["review_reasons"]
+    assert reviewed == 7
+    # 2025 스포팅 규정 시즌 비교는 검수 대기인 Issue 5(2025-04-30)를 건너뛴다.
+    c = next(
+        c
+        for c in reg["comparisons"]
+        if c["kind"] == "season" and c["section"] == "sporting" and c["to_season"] == 2025
+    )
+    assert c["review"] and [(k["issue"], k["version"]) for k in c["skipped_versions"]] == [
+        ("5", "2025-04-30")
+    ]
+
+
+def test_needs_review_versions_say_why_in_korean(site):
+    reg = site("regulations.json")
+    docs = _reg_documents()
+    review = docs[docs["status"] == "needs_review"]
+    exported = [d for ds in reg["documents"].values() for d in ds if d["status"] == "needs_review"]
+    assert len(exported) == len(review) == 12
+    for d in exported:
+        assert d["problems"] and d["review_reasons"]
+        assert all(not r.endswith("..") and "\u2014" not in r for r in d["review_reasons"])
+    for ds in reg["documents"].values():
+        for d in ds:
+            if d["status"] != "needs_review":
+                assert d["problems"] == [] and d["review_reasons"] == []
+    by = {
+        (int(y), d["section"], d["version_key"]): d
+        for y, ds in reg["documents"].items()
+        for d in ds
+    }
+    # 렌더링한 쪽에서 확인한 원문 오류는 원문 오류라고 적는다.
+    issue5 = by[(2025, "sporting", "2025-04-30")]["review_reasons"]
+    assert issue5[0].startswith("FIA 원문에 같은 조항 번호가 두 번 인쇄되어 있다(25쪽 23.6)")
+    # 확인하지 않은 문제는 아직 확인하지 않았다고 적는다.
+    unverified = by[(2022, "technical", "2021-12-15")]["review_reasons"]
+    assert unverified[-1] == "원문의 오류인지 파싱의 오류인지 아직 사람이 확인하지 않았다."
+    assert "14.3.3" in unverified[0]
+
+
+def test_review_reasons_group_parser_problems():
+    from pipeline import site_data_extra as extra
+
+    reasons = extra.review_reasons(
+        "8쪽: 들여 쓴 줄이 다음 조항 번호로 시작한다(2.9.2) / 54쪽: 조항 번호 순서가 어긋난다"
+        "(8.2.5 다음 8.2.5) / 조항 번호 8.2.5가 2번 나온다 / 9쪽: 조항 번호가 건너뛴다(2.9.1 다음 "
+        "2.9.3) / 외 3건"
+    )
+    assert reasons == [
+        "자동 파싱에서 같은 조항 번호가 두 번 읽혔다(8.2.5).",
+        "조항 번호가 건너뛰는 곳이 있다(9쪽 2.9.1 다음 2.9.3).",
+        "본문 줄이 다음 조항 번호로 시작해 조항 경계를 자동으로 정하지 못했다(8쪽 2.9.2).",
+        "그 밖에 3건이 더 있다.",
+        "원문의 오류인지 파싱의 오류인지 아직 사람이 확인하지 않았다.",
+    ]
+    assert extra.review_reasons("") == []
+
+
+def test_regulation_facts_carry_their_issue(site):
+    """규정에서 읽은 수치는 읽은 판과 시즌 마지막 판인지를 함께 싣고, 인용문은 싣지 않는다."""
+    reg = site("regulations.json")
+    pu = pd.read_csv(CURATED_DIR / "regulations" / "pu_allocation_rules.csv", dtype=str)
+    fuel = pd.read_csv(CURATED_DIR / "regulations" / "fuel_rules.csv", dtype=str)
+    facts = [f for fs in reg["facts"].values() for f in fs]
+    assert len(facts) == len(pu) + len(fuel)
+    for f in facts:
+        assert "quote" not in f and "quote_start" not in f
+        assert f["version_key"] and f["clause_no"] and f["url"]
+        assert (f["final_issue"] is None) == bool(f["is_final_issue"])
+    non_final = [f for f in facts if f["is_final_issue"] is False]
+    assert {f["element"] for f in non_final} == set(
+        pu.loc[pu["is_final_issue"] == "False", "element"]
+    )
+    for f in non_final:
+        assert (f["issue"], f["version_key"]) == ("4", "2025-02-26")
+        fin = f["final_issue"]
+        assert (fin["issue"], fin["version"], fin["status"]) == ("5", "2025-04-30", "needs_review")
+        assert fin["review_reasons"]
+
+
+def test_engine_allocation_says_where_values_come_from(site):
+    engines = site("engines.json")
+    s = engines["seasons"]["2025"]
+    ice = s["allocation"]["ICE"]
+    assert (ice["basis"], ice["clause_no"], ice["issue"], ice["is_final_issue"]) == (
+        "regulation", "28.2", "4", False,
+    )  # fmt: skip
+    assert ice["final_issue"]["issue"] == "5" and ice["final_issue"]["status"] == "needs_review"
+    # FIA 선언 문서의 배정 문장(pu_allocations.csv)도 함께 싣는다.
+    statements = pd.read_csv(CURATED_DIR / "fia" / "pu_allocations.csv")
+    for el, rows in s["allocation_statements"].items():
+        want = statements[(statements["season"] == 2025) & (statements["element"] == el)]
+        assert sorted((r["allowed"], r["first_round"], r["documents"]) for r in rows) == sorted(
+            zip(want["allowed"], want["first_round"], want["documents"], strict=True)
+        )
+    assert s["allocation_statements"]["ICE"] == [
+        {
+            "allowed": 4,
+            "first_round": 1,
+            "documents": 19,
+            "url": statements.loc[
+                (statements["season"] == 2025) & (statements["element"] == "ICE"), "source_url"
+            ].iloc[0],
+        }
+    ]
+    for key, season in engines["seasons"].items():
+        for el, a in season["allocation"].items():
+            if a and a["basis"] == "regulation" and int(key) < 2025:
+                assert a["is_final_issue"] is True and a["final_issue"] is None, (key, el)
+
+
+def test_ice_events_without_ordinal_explain_the_conflict(site):
+    engines = site("engines.json")
+    events = pd.read_csv(CURATED_DIR / "fia" / "pu_ice_events.csv")
+    exported = [e for s in engines["seasons"].values() for e in s["ice_events"]]
+    assert len(exported) == len(events)
+    unsure = [e for e in exported if e["ice_number"] is None]
+    assert len(unsure) == int(events["ice_number"].isna().sum()) == 2
+    for e in exported:
+        assert {"printed_previously_used", "stated_ordinal", "conflict", "conflict_ko"} <= set(e)
+        if e["ice_number"] is None:
+            assert e["conflict"] and e["conflict_ko"]
+            assert e["conflict_ko"].endswith("어느 쪽도 고르지 않고 순번을 비워 둔다.")
+        else:
+            assert e["conflict"] is None and e["conflict_ko"] is None
+    leclerc = next(e for e in unsure if e["driver_id"] == "leclerc")
+    assert (leclerc["printed_previously_used"], leclerc["stated_ordinal"]) == (3, 4)
+    assert leclerc["conflict_ko"].startswith(
+        "선언 문서는 이전 사용 개수를 3개로 적었으나 같은 대회 누적 문서로 센 값은 2개다."
+    )
+    coverage = {c["season"]: c["ice_unsure"] for c in engines["coverage"]}
+    assert coverage[2022] == 2 and sum(coverage.values()) == 2

@@ -30,13 +30,10 @@
 
 from __future__ import annotations
 
-import contextlib
 import csv
 import difflib
-import fcntl
 import functools
 import hashlib
-import io
 import json
 import os
 import re
@@ -2191,57 +2188,11 @@ def series_of(rows: list[dict], season: int, section: str) -> list[dict]:
     )
 
 
-FAILURE_FIELDS = ["season", "round", "event", "doc_type", "url", "problems", "recorded_at"]
-
-
-def failure_order(row: dict) -> tuple:
-    """실패 목록의 정렬 기준: 문서 유형, 시즌, 라운드, URL(라운드가 없으면 시즌 안에서 앞)."""
-
-    def number(value: object) -> int:
-        text = str(value if value is not None else "").strip()
-        return int(text) if text.lstrip("-").isdigit() else -1
-
-    return row["doc_type"], number(row["season"]), number(row["round"]), row["url"]
-
-
-@contextlib.contextmanager
-def failures_lock():
-    """parse_failures.csv를 읽고 쓰는 동안 다른 파서 프로세스를 막는 잠금(data/raw/_locks/)."""
-    from pipeline.config import RAW_DIR
-
-    path = RAW_DIR / "_locks" / "parse_failures.lock"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
-
-
 def write_failures(failures: list[dict]) -> None:
-    """parse_failures.csv에서 규정 문서 행만 갈아 끼운다.
-
-    다른 파서의 행은 그대로 두고, 처음 기록한 날짜는 유지한다. 잠금을 잡은 채 읽고, 정렬해서
-    원자적으로 쓴다. 그래서 다른 파서가 같은 때 돌아도 서로의 행을 지우지 않고, 어느 파서가
-    마지막에 돌았든 같은 내용이면 같은 파일이 된다.
-    """
+    """parse_failures.csv에서 규정 문서 행만 갈아 끼운다(잠금과 원자적 쓰기는 manifest가 맡는다)."""
     from pipeline import manifest
-    from pipeline.config import MANIFEST_DIR
-    from pipeline.http import write_atomic
 
-    ours = set(DOC_TYPES.values())
-    with failures_lock():
-        existing = manifest.read_rows("parse_failures.csv")
-        first_seen = {r["url"]: r["recorded_at"] for r in existing if r["doc_type"] in ours}
-        mine = [{**f, "recorded_at": first_seen.get(f["url"], f["recorded_at"])} for f in failures]
-        others = [r for r in existing if r["doc_type"] not in ours]
-        buffer = io.StringIO()
-        writer = csv.DictWriter(buffer, fieldnames=FAILURE_FIELDS, lineterminator="\n")
-        writer.writeheader()
-        for row in sorted(others + mine, key=failure_order):
-            writer.writerow({k: row.get(k, "") for k in FAILURE_FIELDS})
-        write_atomic(MANIFEST_DIR / "parse_failures.csv", buffer.getvalue().encode("utf-8"))
+    manifest.replace_failures(set(DOC_TYPES.values()), failures)
 
 
 if __name__ == "__main__":

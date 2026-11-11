@@ -104,7 +104,7 @@ export function puTeamSteps(rows, { width, rounds, element = "ICE", yMax, allowe
 }
 
 /**
- * rows: [{id(고유), label, code, team, ice: [라운드별 누적 | null], fresh: [투입한 ICE 번호 | null], over: [허용 초과 투입 여부], teamStart}]
+ * rows: [{id(고유), label, code, team, ice: [라운드별 누적 | null], fresh: [투입한 ICE 번호, 순번 미확정이면 -1 | null], over: [허용 초과 투입 여부], teamStart}]
  * opts: rounds, missing, allowed, roundNames
  */
 export function newIceMatrix(rows, { width, rounds, missing = [], allowed = null, roundNames = [], label } = {}) {
@@ -145,7 +145,8 @@ export function newIceMatrix(rows, { width, rounds, missing = [], allowed = null
     const name = roundNames[c.round - 1] ? ` ${roundNames[c.round - 1]}` : "";
     const value = c.c != null ? `${c.c}개` : miss.has(c.round) ? "문서 미수집" : "미출전";
     let note = null;
-    if (c.fresh) note = `이 라운드에 ${c.fresh}번째 ICE를 투입했다.${c.over && allowed != null ? ` 허용 ${allowed}개를 넘었다.` : ""}`;
+    if (c.fresh > 0) note = `이 라운드에 ${c.fresh}번째 ICE를 투입했다.${c.over && allowed != null ? ` 허용 ${allowed}개를 넘었다.` : ""}`;
+    else if (c.fresh) note = "이 라운드에 새 ICE를 투입했다. 문서끼리 값이 어긋나 순번은 미확정이다.";
     else if (miss.has(c.round)) note = "이 라운드의 누적 문서를 받지 않았거나 검수 대기다.";
     return {
       px: xs.apply(c.round), py: ys.apply(c.key) + rowH / 2,

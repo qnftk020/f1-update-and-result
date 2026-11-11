@@ -1073,7 +1073,41 @@ def test_failures_match_documents_needing_review(documents):
     every = manifest.read_rows("parse_failures.csv")
     others = {r["doc_type"] for r in every}
     assert "car_presentation" in others  # 다른 파서의 실패 행은 그대로 남는다
-    assert every == sorted(every, key=reg.failure_order)  # 어느 파서가 마지막에 써도 같은 순서
+    # 어느 파서가 마지막에 써도 같은 순서다
+    assert every == sorted(every, key=manifest._failure_order)
+
+
+def test_write_failures_uses_shared_locked_helper(tmp_path, monkeypatch):
+    """규정 파서도 manifest.replace_failures로 쓴다. 잠금을 두 번 잡지 않으므로 멈추지 않는다."""
+    monkeypatch.setattr(manifest, "MANIFEST_DIR", tmp_path / "manifests")
+    monkeypatch.setattr(manifest, "RAW_DIR", tmp_path / "raw")
+    fields = manifest.FAILURE_FIELDS
+
+    def failure(doc_type, season, url, day):
+        return dict(zip(fields, [season, "", "", doc_type, url, "p", day], strict=True))
+
+    manifest.write_rows(manifest.FAILURES, [
+        failure("regulation_sporting", 2025, "s", "2026-01-01"),
+        failure("pu_used", 2025, "u", "2026-01-02"),
+    ], fields)  # fmt: skip
+    calls = []
+    real = manifest.replace_failures
+    monkeypatch.setattr(
+        manifest, "replace_failures", lambda types, rows: calls.append(types) or real(types, rows)
+    )
+    reg.write_failures([
+        failure("regulation_technical", 2024, "t", "2026-02-02"),
+        failure("regulation_sporting", 2025, "s", "2026-02-02"),
+    ])  # fmt: skip
+    assert calls == [set(reg.DOC_TYPES.values())]
+    got = [
+        (r["doc_type"], r["url"], r["recorded_at"]) for r in manifest.read_rows(manifest.FAILURES)
+    ]
+    assert got == [
+        ("pu_used", "u", "2026-01-02"),  # 다른 파서의 행은 남는다
+        ("regulation_sporting", "s", "2026-01-01"),  # 처음 기록한 날짜를 유지한다
+        ("regulation_technical", "t", "2026-02-02"),
+    ]
 
 
 def test_articles_keys_values_and_order(articles, documents):

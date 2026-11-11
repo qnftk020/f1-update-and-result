@@ -310,6 +310,56 @@ def test_transport_error_is_logged(tmp_path, monkeypatch):
     assert rows[1]["status"] == "200"
 
 
+def test_unreachable_source_raises_source_unavailable(tmp_path, monkeypatch):
+    """재시도를 다 써도 서버에 닿지 못하면 SourceUnavailable이다. 5xx는 전과 같이 RuntimeError다."""
+    monkeypatch.setitem(http.MIN_INTERVAL_SECONDS, "testsrc", 0.0)
+
+    def refused(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    down = http.PoliteClient(
+        "testsrc", raw_dir=tmp_path, transport=httpx.MockTransport(refused), max_retries=2
+    )
+    with pytest.raises(http.SourceUnavailable) as caught:
+        down.get("https://example.invalid/x", "x.txt")
+    assert isinstance(caught.value, RuntimeError)  # RuntimeError를 잡던 곳은 그대로 잡는다
+    assert isinstance(caught.value.__cause__, httpx.ConnectError)
+
+    def broken(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, content=b"")
+
+    monkeypatch.setattr(http.time, "sleep", lambda seconds: None)
+    erroring = http.PoliteClient(
+        "testsrc", raw_dir=tmp_path, transport=httpx.MockTransport(broken), max_retries=2
+    )
+    with pytest.raises(RuntimeError) as caught:
+        erroring.get("https://example.invalid/y", "y.txt")
+    assert not isinstance(caught.value, http.SourceUnavailable)
+
+
+def test_offline_mode_uses_cache_and_sends_nothing(tmp_path, monkeypatch):
+    """PIPELINE_OFFLINE=1이면 캐시는 그대로 쓰고, 캐시에 없는 자료는 요청하지 않고 멈춘다.
+
+    transport를 준 클라이언트(테스트의 가짜 서버)는 네트워크가 아니므로 막지 않는다.
+    """
+    monkeypatch.setitem(http.MIN_INTERVAL_SECONDS, "testsrc", 0.0)
+    monkeypatch.delenv("PIPELINE_OFFLINE", raising=False)
+    calls: list[float] = []
+    client = make_client(tmp_path, calls)
+    client.get("https://example.invalid/a", "a.txt")
+    real = http.PoliteClient("testsrc", raw_dir=tmp_path)
+    monkeypatch.setattr(
+        real._client, "get", lambda *a, **k: pytest.fail("PIPELINE_OFFLINE=1인데 요청을 보냈다")
+    )
+    monkeypatch.setenv("PIPELINE_OFFLINE", "1")
+    assert real.get("https://example.invalid/a", "a.txt").from_cache
+    with pytest.raises(http.SourceUnavailable):
+        real.get("https://example.invalid/b", "b.txt")
+    assert not (tmp_path / "testsrc" / "b.txt").exists()
+    assert client.get("https://example.invalid/c", "c.txt").content == b"ok"  # 가짜 서버
+    assert len(calls) == 2
+
+
 class FakeClock:
     """time 모듈 대신 쓰는 가짜 시계. sleep은 시각만 앞으로 옮긴다."""
 
@@ -381,6 +431,55 @@ def test_blocked_source_in_fixture_is_skipped(pytester):
         @pytest.mark.parametrize("n", [1])
         def test_other_error_still_fails(n):
             raise ValueError("데이터가 틀렸다")
+        """
+    )
+    result = pytester.runpytest("-p", "no:cacheprovider")
+    result.assert_outcomes(skipped=3, failed=1)
+
+
+def test_unreachable_source_is_skipped(pytester):
+    """네트워크가 막혀 서버에 닿지 못한 network 테스트도 건너뜀이다. 감싼 예외도 알아본다."""
+    pytester.makeini(
+        """
+        [pytest]
+        markers =
+            network: 원문을 내려받아야 하는 테스트
+        """
+    )
+    pytester.makeconftest("from pipeline.quality.conftest import *  # noqa: F403")
+    pytester.makepyfile(
+        """
+        import httpx
+        import pytest
+
+        from pipeline.http import SourceUnavailable
+
+
+        @pytest.fixture(scope="module")
+        def downloaded():
+            raise SourceUnavailable("fia: 서버에 닿지 못함")
+
+
+        @pytest.mark.network
+        def test_fixture(downloaded):
+            pass
+
+
+        @pytest.mark.network
+        def test_raw_transport_error():
+            raise httpx.ConnectError("connection refused")
+
+
+        @pytest.mark.network
+        def test_wrapped():
+            try:
+                raise SourceUnavailable("jolpica: 서버에 닿지 못함")
+            except SourceUnavailable as exc:
+                raise RuntimeError("적재 실패") from exc
+
+
+        def test_not_network_still_fails():
+            raise SourceUnavailable("network 표시가 없는 테스트는 실패다")
         """
     )
     result = pytester.runpytest("-p", "no:cacheprovider")

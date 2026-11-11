@@ -2,11 +2,33 @@
 // 공용 lib/types.ts에 엔진 타입이 아직 없어서 이 폴더에 둔다.
 import { getOptional } from '../../lib/data.ts';
 
+export interface FinalIssue {
+  issue: string | null;
+  version: string | null;
+  status: string;
+  url: string | null;
+  review_reasons: string[];
+}
+
 export interface Allocation {
   allowed: number;
   basis: 'regulation' | 'document';
   clause_no: string | null;
   page: number | null;
+  url: string | null;
+  /** 규정 값을 읽은 판(basis가 regulation일 때) */
+  version_key: string | null;
+  issue: string | null;
+  /** 시즌 마지막 판에서 읽었는가. 거짓이면 final_issue가 마지막 판이다 */
+  is_final_issue: boolean | null;
+  final_issue: FinalIssue | null;
+}
+
+/** FIA 선언 문서의 배정 문장이 밝힌 허용 개수(pu_allocations.csv) */
+export interface AllocationStatement {
+  allowed: number;
+  first_round: number;
+  documents: number;
   url: string | null;
 }
 
@@ -44,8 +66,13 @@ export interface IceEvent {
   constructor_id: string | null;
   team: string | null;
   car_number: number | null;
+  /** 문서끼리 어긋나면 null(순번 미확정) */
   ice_number: number | null;
+  printed_previously_used: number | null;
+  stated_ordinal: number | null;
   within_allocation: boolean | null;
+  conflict: string | null;
+  conflict_ko: string | null;
   url: string | null;
 }
 
@@ -56,6 +83,7 @@ export interface EngineSeason {
   suppliers: { id: string; name: string; teams: { constructor_id: string; team: string; lineage_id: string | null }[] }[];
   elements: string[];
   allocation: Record<string, Allocation | null>;
+  allocation_statements: Record<string, AllocationStatement[]>;
   parsed_rounds: number[];
   missing_rounds: number[];
   partial_rounds: number[];
@@ -84,6 +112,7 @@ export interface Engines {
     review_documents: number;
     inconsistencies: number;
     ice_events: number;
+    ice_unsure: number;
   }[];
 }
 

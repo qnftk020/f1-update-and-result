@@ -15,6 +15,13 @@ engines.json
     used_before_event(대회 시작 전 누적)를 적고 그 라운드를 unknown_new_rounds에 남긴다.
     누적 문서를 읽지 않은 라운드는 null이다.
 
+    allocation[구성요소]는 규정 조항에서 읽은 값이면 그 판(version_key, issue)과 시즌 마지막
+    판인지(is_final_issue), 마지막 판의 상태(final_issue)를 함께 적는다. allocation_statements에는
+    FIA 선언 문서의 배정 문장이 밝힌 값과 처음 나온 라운드, 그 값을 적은 문서 수를 둔다.
+
+    ice_events[]의 ice_number는 문서끼리 어긋나면 비어 있다(null). 그때 printed_previously_used,
+    stated_ordinal(원문 값)과 conflict(어긋난 내용), conflict_ko(한국어 설명)를 함께 둔다.
+
     teams[].drivers[].rounds는 PU 문서에 그 드라이버 값이 있는 라운드다. 문서는 대회 전
     상태를 적으므로 결승 출전 라운드와 다를 수 있다. 결승 출전은 teams[].race_drivers
     (Jolpica 결승 결과)에 둔다.
@@ -24,11 +31,19 @@ regulations.json
     documents{연도}  문서 목록(제목, 판, 게시일, 등급, 상태, 원문 링크)
     summaries{연도}  주요 변경 요약(한국어 요약과 출처 링크. 인용문은 싣지 않는다)
     comparisons[]    2018년 이후 조항 단위 비교(조항 번호, 제목, 변경 유형, 쪽). 본문은 싣지 않는다.
+                     skipped_versions는 비교가 건너뛴 검수 대기·미수집 판이고, 하나라도 있으면
+                     review가 참이다.
+    facts{연도}      규정에서 읽은 수치(PU 할당 수, 연료 조항). 값, 조항, 쪽, 판과 그 판이 시즌
+                     마지막 판인지만 싣는다. 인용문은 싣지 않는다.
+
+    documents의 검수 대기 판에는 problems(파서가 적은 문제)와 review_reasons(사람이 읽을 한국어
+    설명)를 둔다.
 """
 
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -209,13 +224,54 @@ class _Lookups:
 # --- 엔진 ------------------------------------------------------------------------------
 
 
-def _allocation(season: int, elements: list[str], rules, statements) -> dict:
+def _final_issue(reg_docs, season: int, section: str) -> dict | None:
+    """그 시즌·규정의 마지막 판(판 날짜 순 마지막)과 상태."""
+    if reg_docs is None:
+        return None
+    rows = reg_docs[(reg_docs["season"] == season) & (reg_docs["section"] == section)]
+    if not len(rows):
+        return None
+    last = rows.sort_values(["version_date", "version_key"]).iloc[-1]
+    return {
+        "issue": _str(last.get("issue")),
+        "version": _str(last.get("version_key")),
+        "status": _reg_status(_str(last.get("status"))),
+        "url": _str(last.get("url")),
+        "review_reasons": review_reasons(_str(last.get("problems")))
+        if _str(last.get("status")) == "needs_review"
+        else [],
+    }
+
+
+def _fact_source(row, reg_docs, season: int, section: str) -> dict:
+    """규정 사실 행이 나온 판과, 그 판이 시즌 마지막 판인지."""
+    version = _str(row.get("version_key"))
+    issue = None
+    if reg_docs is not None and version:
+        hit = reg_docs[
+            (reg_docs["season"] == season)
+            & (reg_docs["section"] == section)
+            & (reg_docs["version_key"].astype(str) == version)
+        ]
+        issue = _str(hit.iloc[0]["issue"]) if len(hit) else None
+    final = _val(row.get("is_final_issue"))
+    is_final = None if final is None else str(final).strip().lower() == "true"
+    return {
+        "version_key": version,
+        "issue": issue,
+        "is_final_issue": is_final,
+        "final_issue": None if is_final else _final_issue(reg_docs, season, section),
+    }
+
+
+def _allocation(season: int, elements: list[str], rules, statements, reg_docs=None) -> dict:
     """허용 개수. 규정 조항(pu_allocation_rules)이 있으면 그것을 쓴다.
 
     없으면 FIA 선언 문서의 배정 문장을 쓴다.
 
     선언 문서 문장은 한 시즌에 값이 여럿일 수 있다(2020년 ICE "two"와 "three"). 규정 조항이 없는데
-    값이 여럿이면 정하지 않고 비운다.
+    값이 여럿이면 정하지 않고 비운다. 규정 조항 값에는 그 값을 읽은 판을 적는다. 시즌 마지막 판이
+    검수 대기라 앞 판에서 읽었으면 is_final_issue가 거짓이고 final_issue에 마지막 판이 있다.
     """
     out: dict[str, dict | None] = {}
     for el in elements:
@@ -230,6 +286,7 @@ def _allocation(season: int, elements: list[str], rules, statements) -> dict:
                     "clause_no": _str(r.get("clause_no")),
                     "page": _val(r.get("page")),
                     "url": _str(r.get("url")),
+                    **_fact_source(r, reg_docs, season, "sporting"),
                 }
         if entry is None and statements is not None:
             hit = statements[(statements["season"] == season) & (statements["element"] == el)]
@@ -241,9 +298,70 @@ def _allocation(season: int, elements: list[str], rules, statements) -> dict:
                     "clause_no": None,
                     "page": None,
                     "url": _str(hit.iloc[0].get("source_url")),
+                    "version_key": None,
+                    "issue": None,
+                    "is_final_issue": None,
+                    "final_issue": None,
                 }
         out[el] = entry
     return out
+
+
+def _allocation_statements(season: int, elements: list[str], statements) -> dict[str, list]:
+    """FIA 선언 문서의 배정 문장이 밝힌 허용 개수. 값마다 처음 나온 라운드와 문서 수, 첫 문서."""
+    out: dict[str, list] = {}
+    if statements is None:
+        return out
+    rows = statements[statements["season"] == season]
+    for el in elements:
+        hit = rows[rows["element"] == el].sort_values(["first_round", "allowed"])
+        out[el] = [
+            {
+                "allowed": _val(r.allowed),
+                "first_round": _val(r.first_round),
+                "documents": _val(r.documents),
+                "url": _str(r.source_url),
+            }
+            for r in hit.itertuples()
+        ]
+    return out
+
+
+CONFLICT = re.compile(
+    r"^(?P<kind>[a-z_]+) \(expected (?P<expected>[^,]+), actual (?P<actual>[^)]+)\)$"
+)
+
+
+def conflict_ko(conflict: str | None) -> str | None:
+    """pu_ice_events의 conflict를 한국어 설명으로 옮긴다. 비어 있으면 None.
+
+    previously_used: 같은 대회 누적 문서로 센 이전 개수(expected)와 선언 문서의 Previously
+    used(actual)가 다르다. statement_ordinal: 선언 문서의 배정 문장이 적은 순서(actual)가
+    Previously used + 1(expected)과 다르다.
+    """
+    if not conflict:
+        return None
+    out = []
+    for part in [p.strip() for p in conflict.split(";") if p.strip()]:
+        m = CONFLICT.match(part)
+        if not m:
+            out.append(f"문서끼리 값이 어긋난다({part}).")
+            continue
+        kind, expected, actual = m["kind"], m["expected"], m["actual"]
+        if kind == "previously_used":
+            out.append(
+                f"선언 문서는 이전 사용 개수를 {actual}개로 적었으나 같은 대회 누적 문서로 센 값은 "
+                f"{expected}개다."
+            )
+        elif kind == "statement_ordinal":
+            out.append(
+                f"선언 문서의 배정 문장은 {actual}번째라고 적었으나 이전 사용 개수에 1을 더하면 "
+                f"{expected}번째다."
+            )
+        else:
+            out.append(f"문서끼리 값이 어긋난다({part}).")
+    out.append("어느 쪽도 고르지 않고 순번을 비워 둔다.")
+    return " ".join(out)
 
 
 def _engine_season(season: int, lk: _Lookups, tables: dict) -> dict:
@@ -285,7 +403,10 @@ def _engine_season(season: int, lk: _Lookups, tables: dict) -> dict:
         if tables["rules"] is not None
         and ((tables["rules"]["season"] == season) & (tables["rules"]["element"] == e)).any()
     ]
-    allocation = _allocation(season, elements, tables["rules"], tables["statements"])
+    allocation = _allocation(
+        season, elements, tables["rules"], tables["statements"], tables.get("reg_docs")
+    )
+    statements = _allocation_statements(season, elements, tables["statements"])
 
     parsed_rounds: list[int] = []
     partial_rounds: list[int] = []
@@ -369,7 +490,11 @@ def _engine_season(season: int, lk: _Lookups, tables: dict) -> dict:
                     "team": lk.team(season, cid) if cid else None,
                     "car_number": _val(r.car_number),
                     "ice_number": _val(r.ice_number),
+                    "printed_previously_used": _val(getattr(r, "printed_previously_used", None)),
+                    "stated_ordinal": _val(getattr(r, "stated_ordinal", None)),
                     "within_allocation": _val(r.within_allocation),
+                    "conflict": _str(getattr(r, "conflict", None)),
+                    "conflict_ko": conflict_ko(_str(getattr(r, "conflict", None))),
                     "url": _str(r.source_url),
                 }
             )
@@ -402,6 +527,7 @@ def _engine_season(season: int, lk: _Lookups, tables: dict) -> dict:
         "suppliers": suppliers,
         "elements": elements,
         "allocation": allocation,
+        "allocation_statements": statements,
         "parsed_rounds": parsed_rounds,
         "missing_rounds": missing_rounds,
         "partial_rounds": partial_rounds,
@@ -425,6 +551,7 @@ def build_engines() -> dict | None:
         "incons": _read(FIA / "pu_inconsistencies.csv"),
         "rules": _read(REG / "pu_allocation_rules.csv"),
         "statements": _read(FIA / "pu_allocations.csv"),
+        "reg_docs": _read(REG / "documents.csv"),
     }
     lk = _Lookups()
     seasons = {
@@ -454,6 +581,7 @@ def build_engines() -> dict | None:
                 "review_documents": len(v["review_documents"]),
                 "inconsistencies": v["inconsistencies"],
                 "ice_events": len(v["ice_events"]),
+                "ice_unsure": sum(e["ice_number"] is None for e in v["ice_events"]),
             }
             for k, v in seasons.items()
         ],
@@ -477,6 +605,91 @@ def _first_sentence(text: str | None) -> str | None:
         return None
     head = text.split(". ")[0].rstrip(".")
     return f"{head}."
+
+
+REG_STATUS = {"ok": "parsed", "not_downloaded": "listed"}
+
+
+def _reg_status(status: str | None) -> str:
+    """documents.csv의 상태를 사이트 상태로. ok: 조항 파싱, not_downloaded: 목록만 확인."""
+    status = status or "listed"
+    return REG_STATUS.get(status, status)
+
+
+def split_problems(text: str | None) -> list[str]:
+    """documents.csv problems 칸(" / "로 이음)을 문제 목록으로."""
+    return [p.strip() for p in (text or "").split(" / ") if p.strip()]
+
+
+SOURCE_ERROR = re.compile(
+    r"^(?P<page>\d+)쪽: 원문 번호 오류\(렌더링한 쪽에서 확인\)\. 원문에 (?P<no>\S+?)[이가] 두 번 "
+    r"찍혀 (?:있다\.\s*|있고\s*)(?P<rest>.*)$"
+)
+DUPLICATE = re.compile(r"^조항 번호 (?P<no>\S+?)[이가] (?P<n>\d+)번 나온다$")
+ORDER = re.compile(r"^(?P<page>\d+)쪽: 조항 번호 순서가 어긋난다\((?P<a>\S+) 다음 (?P<b>\S+)\)$")
+GAP = re.compile(r"^(?P<page>\d+)쪽: 조항 번호가 건너뛴다\((?P<a>\S+) 다음 (?P<b>\S+)\)$")
+INLINE = re.compile(
+    r"^(?P<page>\d+)쪽: (?:들여 쓴 줄|표 안 줄)이 다음 조항 번호로 시작한다\((?P<no>\S+)\)$"
+)
+MORE = re.compile(r"^외 (?P<n>\d+)건$")
+
+
+def review_reasons(problems: str | None) -> list[str]:
+    """검수 대기 판의 문제(파서가 적은 글)를 사람이 읽을 한국어 설명으로 묶는다.
+
+    렌더링한 쪽에서 확인한 원문 번호 오류는 "FIA 원문에 같은 조항 번호가 두 번 인쇄되어 있다"로
+    적는다. 파서가 찾았지만 사람이 확인하지 않은 문제는 종류별로 묶고, 원문 오류인지 파싱 오류인지
+    아직 확인하지 않았다고 덧붙인다. 알아보지 못한 글은 그대로 옮긴다.
+    """
+    items = split_problems(problems)
+    if not items:
+        return []
+    out: list[str] = []
+    dup: list[str] = []
+    order: list[str] = []
+    gaps: list[str] = []
+    inline: list[str] = []
+    other: list[str] = []
+    more = 0
+    verified = False
+    for item in items:
+        if m := SOURCE_ERROR.match(item):
+            verified = True
+            rest = m["rest"].strip().rstrip(".")
+            out.append(
+                f"FIA 원문에 같은 조항 번호가 두 번 인쇄되어 있다({m['page']}쪽 {m['no']}). "
+                "렌더링한 쪽을 보고 확인했다." + (f" {rest}." if rest else "")
+            )
+        elif m := DUPLICATE.match(item):
+            dup.append(m["no"])
+        elif m := ORDER.match(item):
+            if m["a"] != m["b"]:  # 같은 번호가 이어진 경우는 겹친 번호로 이미 센다
+                order.append(f"{m['page']}쪽 {m['a']} 다음 {m['b']}")
+        elif m := GAP.match(item):
+            gaps.append(f"{m['page']}쪽 {m['a']} 다음 {m['b']}")
+        elif m := INLINE.match(item):
+            inline.append(f"{m['page']}쪽 {m['no']}")
+        elif m := MORE.match(item):
+            more += int(m["n"])
+        else:
+            other.append(item.rstrip("."))
+    if dup:
+        out.append(f"자동 파싱에서 같은 조항 번호가 두 번 읽혔다({', '.join(dup)}).")
+    if order:
+        out.append(f"조항 번호 순서가 어긋나는 곳이 있다({', '.join(order)}).")
+    if gaps:
+        out.append(f"조항 번호가 건너뛰는 곳이 있다({', '.join(gaps)}).")
+    if inline:
+        out.append(
+            "본문 줄이 다음 조항 번호로 시작해 조항 경계를 자동으로 정하지 못했다"
+            f"({', '.join(inline)})."
+        )
+    out += [f"{x}." for x in other]
+    if more:
+        out.append(f"그 밖에 {more}건이 더 있다.")
+    if not verified:
+        out.append("원문의 오류인지 파싱의 오류인지 아직 사람이 확인하지 않았다.")
+    return out
 
 
 VARIANT_KO = {"marked": "변경 표시본", "clean": "정리본", "appendix": "부록"}
@@ -509,6 +722,9 @@ def _reg_documents(year: int, links, legacy, current) -> list[dict]:
                     "note_ko": _str(r.note_ko) if grade == "B" else None,
                     "pages": None,
                     "clauses": None,
+                    "version_key": None,
+                    "problems": [],
+                    "review_reasons": [],
                 }
             )
     elif 2008 <= year <= 2017 and legacy is not None:
@@ -533,6 +749,9 @@ def _reg_documents(year: int, links, legacy, current) -> list[dict]:
                     "note_ko": None,
                     "pages": _val(r.pages),
                     "clauses": None,
+                    "version_key": None,
+                    "problems": [],
+                    "review_reasons": [],
                 }
             )
     elif year >= 2018 and current is not None:
@@ -541,6 +760,8 @@ def _reg_documents(year: int, links, legacy, current) -> list[dict]:
         for r in rows.itertuples():
             url = _str(r.url)
             status = _str(r.status) or "listed"
+            review = status == "needs_review"
+            problems = _str(getattr(r, "problems", None))
             docs.append(
                 {
                     "section": r.section,
@@ -548,6 +769,7 @@ def _reg_documents(year: int, links, legacy, current) -> list[dict]:
                     "language": "en",
                     "issue": _str(r.issue),
                     "version": _str(r.version_date),
+                    "version_key": _str(r.version_key),
                     "variant": _str(r.variant),
                     "published_at": _str(r.published_at),
                     "url": url,
@@ -555,10 +777,12 @@ def _reg_documents(year: int, links, legacy, current) -> list[dict]:
                     "format": "text",
                     "grade": grade,
                     # ok: 조항 파싱, needs_review: 검수 대기, not_downloaded: 목록만 확인
-                    "status": {"ok": "parsed", "not_downloaded": "listed"}.get(status, status),
+                    "status": _reg_status(status),
                     "note_ko": None,
                     "pages": _val(r.pages),
                     "clauses": _val(r.clauses),
+                    "problems": split_problems(problems) if review else [],
+                    "review_reasons": review_reasons(problems) if review else [],
                 }
             )
     return docs
@@ -620,6 +844,35 @@ def build_regulations() -> dict | None:
                 }
             )
 
+    def _skipped_versions(text: str | None, section: str) -> list[dict]:
+        """comparisons.csv skipped_versions("시즌:판 키"를 ;로 이음)를 판 정보 목록으로."""
+        out = []
+        for token in [t.strip() for t in (text or "").split(";") if t.strip()]:
+            season_text, _, version = token.partition(":")
+            season = int(season_text)
+            hit = None
+            if current is not None:
+                rows = current[
+                    (current["season"] == season)
+                    & (current["section"] == section)
+                    & (current["version_key"].astype(str) == version)
+                ]
+                hit = rows.iloc[0] if len(rows) else None
+            status = _str(hit["status"]) if hit is not None else None
+            out.append(
+                {
+                    "season": season,
+                    "version": version,
+                    "issue": _str(hit["issue"]) if hit is not None else None,
+                    "url": _str(hit["url"]) if hit is not None else None,
+                    "status": _reg_status(status) if status else None,
+                    "review_reasons": review_reasons(_str(hit["problems"]))
+                    if status == "needs_review"
+                    else [],
+                }
+            )
+        return out
+
     comps: list[dict] = []
     if comparisons is not None:
         for c in comparisons.sort_values(["to_season", "section"]).itertuples():
@@ -641,6 +894,8 @@ def build_regulations() -> dict | None:
                             "top_title": _str(r.top_title),
                             "heading": _str(r.heading),
                             "change": _str(r.change),
+                            "renumbered": bool(_val(getattr(r, "renumbered", False))),
+                            "from_clause_no": _str(getattr(r, "from_clause_no", None)),
                             "page_from": _val(r.page_from),
                             "page_to": _val(r.page_to),
                         }
@@ -666,6 +921,7 @@ def build_regulations() -> dict | None:
                 ]
                 return _str(hit.iloc[0]["issue"]) if len(hit) else None
 
+            skipped = _skipped_versions(_str(getattr(c, "skipped_versions", None)), c.section)
             comps.append(
                 {
                     "kind": c.kind,
@@ -684,7 +940,46 @@ def build_regulations() -> dict | None:
                     "removed": _val(c.removed),
                     "modified": _val(c.modified),
                     "unchanged": _val(c.unchanged),
+                    "renumbered": _val(getattr(c, "renumbered", None)),
+                    "skipped_versions": skipped,
+                    "review": bool(skipped),
                     "changes": rows,
+                }
+            )
+
+    facts: dict[str, list[dict]] = {}
+    pu_rules = _read(REG / "pu_allocation_rules.csv")
+    fuel_rules = _read(REG / "fuel_rules.csv")
+    if pu_rules is not None:
+        for r in pu_rules.sort_values(["season"], kind="stable").itertuples():
+            season = int(r.season)
+            facts.setdefault(str(season), []).append(
+                {
+                    "kind": "pu_allocation",
+                    "section": "sporting",
+                    "rule": "pu_allocation",
+                    "element": _str(r.element),
+                    "value": f"{_val(r.allowed)}개",
+                    "clause_no": _str(r.clause_no),
+                    "page": _val(r.page),
+                    "url": _str(r.url),
+                    **_fact_source(r._asdict(), current, season, "sporting"),
+                }
+            )
+    if fuel_rules is not None:
+        for r in fuel_rules.sort_values(["season"], kind="stable").itertuples():
+            season = int(r.season)
+            facts.setdefault(str(season), []).append(
+                {
+                    "kind": "fuel",
+                    "section": _str(r.section),
+                    "rule": _str(r.rule),
+                    "element": None,
+                    "value": _str(r.value),
+                    "clause_no": _str(r.clause_no),
+                    "page": _val(r.page),
+                    "url": _str(r.url),
+                    **_fact_source(r._asdict(), current, season, _str(r.section) or "sporting"),
                 }
             )
 
@@ -707,6 +1002,7 @@ def build_regulations() -> dict | None:
         "documents": documents,
         "summaries": summaries_out,
         "comparisons": comps,
+        "facts": facts,
     }
 
 

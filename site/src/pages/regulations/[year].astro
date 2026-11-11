@@ -4,6 +4,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import DataTable, { type Column } from '../../components/DataTable.astro';
 import EmptyState from '../../components/EmptyState.astro';
+import Expand from '../../components/Expand.astro';
 import LinkPick from '../../components/LinkPick.astro';
 import Notice from '../../components/Notice.astro';
 import PageHead from '../../components/PageHead.astro';
@@ -12,16 +13,20 @@ import SourceLine from '../../components/SourceLine.astro';
 import RegStyle from '../../components/regulations/RegStyle.astro';
 import {
   CHANGE_KO,
+  FACT_KO,
   GRADE_RANGE,
   SECTIONS,
   SECTION_KO,
   decadeGroups,
   docBadge,
   gradeHtml,
+  issueName,
   regulations,
+  skippedHtml,
   type RegChange,
   type RegComparison,
   type RegDocument,
+  type RegFact,
   type Section as Sec,
 } from '../../components/regulations/reg-data.ts';
 import { routes } from '../../lib/paths.ts';
@@ -64,9 +69,11 @@ const facts: [string, string][] = [
 ];
 
 const STATUS_KO: Record<string, string> = { parsed: '조항 파싱', listed: '목록만 확인', linked: '링크', needs_review: '검수 대기' };
+// 검수 대기 판은 배지 아래에 까닭을 적는다(review_reasons, pipeline/site_data_extra.py review_reasons).
+const reasonsHtml = (reasons: string[]) => (reasons.length ? `<span class="rnote">${reasons.map((r) => esc(r)).join(' ')}</span>` : '');
 const statusHtml = (d: RegDocument) =>
   d.status === 'needs_review'
-    ? badgeHtml('review', '검수 대기')
+    ? `${badgeHtml('review', '검수 대기')}${reasonsHtml(d.review_reasons ?? [])}`
     : d.status === 'parsed'
       ? `조항 파싱${d.clauses ? `<span class="sub-line">${n0(d.clauses)}개 조항</span>` : ''}`
       : STATUS_KO[d.status] ?? esc(d.status);
@@ -106,9 +113,15 @@ const docCols: Column<RegDocument>[] = [
 const docRows = [...docs].sort((a, b) => a.section.localeCompare(b.section) * -1 || (a.version ?? '').localeCompare(b.version ?? ''));
 const docBreak = (d: RegDocument, i: number) => (docRows[i + 1] && docRows[i + 1].section !== d.section ? 'break' : '');
 
-// 조항 비교: 이 연도로 들어오는 비교(앞 해 -> 이 해)
-const cmpOf = (sec: Sec): RegComparison | undefined => R.comparisons.find((c) => c.to_season === year && c.section === sec);
-const nextOf = (sec: Sec): RegComparison | undefined => R.comparisons.find((c) => c.from_season === year && c.section === sec);
+// 조항 비교: 이 연도로 들어오는 시즌 비교(앞 해 마지막 판 -> 이 해 마지막 판)와 이 해 판 사이 비교
+const cmpOf = (sec: Sec): RegComparison | undefined => R.comparisons.find((c) => c.kind === 'season' && c.to_season === year && c.section === sec);
+const nextOf = (sec: Sec): RegComparison | undefined => R.comparisons.find((c) => c.kind === 'season' && c.from_season === year && c.section === sec);
+const issuesOf = (sec: Sec): RegComparison[] =>
+  R.comparisons.filter((c) => c.kind === 'issue' && c.to_season === year && c.section === sec).sort((a, b) => a.to_version.localeCompare(b.to_version));
+const skipNames = (c: RegComparison) =>
+  c.skipped_versions
+    .map((k) => (k.url ? `<a href="${esc(k.url)}" rel="noopener">${esc(issueName(k.issue, k.version))}</a>` : esc(issueName(k.issue, k.version))))
+    .join(', ');
 const changeHtml = (c: RegChange) => {
   const k = CHANGE_KO[c.change] ?? { mark: '', label: esc(c.change) };
   return `<span class="chg"><span class="m" aria-hidden="true">${k.mark}</span>${k.label}</span>`;
@@ -118,8 +131,12 @@ const titleOf = (c: RegChange) => {
   const head = c.heading && c.heading !== c.top_title ? `<span class="sub-line" lang="en">${esc(c.heading)}</span>` : '';
   return top || head ? `${top}${head}` : '<span class="rmiss">제목 미표기</span>';
 };
+// 번호가 바뀐 조항은 옛 번호를 함께 적는다.
+const clauseHtml = (c: RegChange) =>
+  `<span class="nw">${esc(c.clause_no ?? '')}</span>` +
+  (c.renumbered && c.from_clause_no ? `<span class="sub-line nw">옛 번호 ${esc(c.from_clause_no)}</span>` : '');
 const changeCols: Column<RegChange>[] = [
-  { label: '조항', render: (c) => `<span class="nw">${esc(c.clause_no ?? '')}</span>`, cls: 'pos' },
+  { label: '조항', render: clauseHtml, cls: 'pos' },
   { label: '제목 (원문)', render: titleOf },
   { label: '변경', render: changeHtml },
   { label: '앞 쪽', render: (c) => (c.page_from == null ? '' : `${c.page_from}`), num: true, cls: 'hide-xs' },
@@ -130,15 +147,62 @@ const ver = (issue: string | null, v: string, u: string | null) => {
   return u ? `<a href="${esc(u)}" rel="noopener">${t}</a>` : t;
 };
 const cmpLine = (c: RegComparison) =>
-  `바뀐 조항 <b>${n0((c.added ?? 0) + (c.removed ?? 0) + (c.modified ?? 0))}개</b>: 추가 ${n0(c.added)}, 삭제 ${n0(c.removed)}, 수정 ${n0(c.modified)}. ` +
+  `바뀐 조항 <b>${n0((c.added ?? 0) + (c.removed ?? 0) + (c.modified ?? 0))}개</b>: 추가 ${n0(c.added)}, 삭제 ${n0(c.removed)}, 수정 ${n0(c.modified)}` +
+  (c.renumbered ? `(수정 가운데 번호가 바뀐 조항 ${n0(c.renumbered)}개)` : '') +
+  '. ' +
   `앞 판 ${c.from_season} ${ver(c.from_issue, c.from_version, c.from_url)}, 뒤 판 ${c.to_season} ${ver(c.to_issue, c.to_version, c.to_url)}. 그대로인 조항은 ${n0(c.unchanged)}개다.`;
 const noCmpText = (sec: Sec) => {
   if (year === 2018) return '2017년 이전 문서는 조항을 파싱하지 않아 2018년 문서는 비교할 앞 해 판이 없다.';
   const review = docs.find((d) => d.section === sec && d.status === 'needs_review');
   if (review)
-    return `${year} ${SECTION_KO[sec]} ${review.issue ? `Issue ${review.issue}` : '판'}은 검수 대기라 비교에 넣지 않았다(조항 번호가 어긋난 쪽이 있다).`;
+    return `${year} ${SECTION_KO[sec]} ${issueName(review.issue, review.version)}은 검수 대기라 비교에 넣지 않았다. ${(review.review_reasons ?? []).join(' ')}`;
   return '이 연도와 규정의 비교 자료는 아직 없다.';
 };
+const issueCols: Column<RegComparison>[] = [
+  { label: '앞 판', render: (c) => ver(c.from_issue, c.from_version, c.from_url) },
+  { label: '뒤 판', render: (c) => ver(c.to_issue, c.to_version, c.to_url) },
+  { label: `${CHANGE_KO.added.mark} 추가`, render: (c) => n0(c.added), num: true },
+  { label: `${CHANGE_KO.removed.mark} 삭제`, render: (c) => n0(c.removed), num: true },
+  { label: `${CHANGE_KO.modified.mark} 수정`, render: (c) => n0(c.modified), num: true },
+  { label: '건너뛴 판', render: (c) => (c.review ? `<span class="rcell">${badgeHtml('review', '검수 대기')}<span>${skipNames(c)}</span></span>` : '없음') },
+];
+
+// 규정에서 읽은 수치: 시즌 마지막 판이 아닌 판에서 읽었으면 그 판과 마지막 판의 상태를 적는다.
+const yearFacts: RegFact[] = (R.facts?.[String(year)] ?? [])
+  .slice()
+  .sort((a, b) => b.section.localeCompare(a.section) || b.kind.localeCompare(a.kind));
+const stateKo = (status: string | null | undefined) =>
+  status === 'needs_review' ? '검수 대기' : status === 'listed' ? '받지 않음' : status === 'parsed' ? '조항 파싱' : esc(status ?? '상태 기록 없음');
+const factIssueHtml = (f: RegFact) => {
+  const name = f.issue ? `Issue ${esc(f.issue)}` : nw(esc(f.version_key ?? ''));
+  const head = f.url ? `<a href="${esc(f.url)}" rel="noopener">${name}</a>` : name;
+  const date = f.issue && f.version_key ? `<span class="sub-line nw">${esc(f.version_key)}</span>` : '';
+  // 시즌 마지막 판이 아닌 판에서 읽은 값: 배지를 달고, 까닭은 표 위 안내 상자에 적는다.
+  const mark = f.is_final_issue === false ? `<span class="sub-line">${badgeHtml('review', '검수 대기')}</span>` : '';
+  return `${head}${date}${mark}`;
+};
+const factCols: Column<RegFact>[] = [
+  {
+    label: '항목',
+    render: (f) => (f.kind === 'pu_allocation' ? `PU 할당 <span lang="en">${esc(f.element ?? '')}</span>` : esc(FACT_KO[f.rule] ?? f.rule)),
+    cls: 'who',
+  },
+  { label: '값', render: (f) => nw(esc(f.value)), num: true },
+  { label: '조항', render: (f) => `<span class="nw">${esc(f.clause_no ?? '')}</span><span class="sub-line nw">${SECTION_KO[f.section]}${f.page ? ` ${f.page}쪽` : ''}</span>` },
+  { label: '읽은 판', render: factIssueHtml },
+];
+const nonFinal = yearFacts.filter((f) => f.is_final_issue === false);
+const nonFinalNote = (() => {
+  if (!nonFinal.length) return '';
+  const f = nonFinal[0];
+  const fin = f.final_issue;
+  const finName = fin ? issueName(fin.issue, fin.version) : '마지막 판';
+  const reasons = fin?.review_reasons?.length ? ` ${fin.review_reasons.join(' ')}` : '';
+  return (
+    `${year} ${SECTION_KO[f.section]}에서 읽은 수치 ${nonFinal.length}개는 시즌 마지막 판이 아닌 ${issueName(f.issue, f.version_key)}에서 읽었다. ` +
+    `마지막 판 ${finName}은 ${stateKo(fin?.status)}라 읽지 않았다.${reasons}`
+  );
+})();
 const pick = decadeGroups(R.years.map((y) => y.year), year);
 const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
 ---
@@ -222,8 +286,29 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
   </Section>
 
   {
+    yearFacts.length > 0 && (
+      <Section
+        id="facts"
+        title="규정에서 읽은 수치"
+        meta={`${yearFacts.length}개`}
+        read="PU 구성요소 할당 수와 연료 조항의 수치를 시즌의 마지막으로 파싱한 판에서 읽었다. 값, 조항 번호, 쪽, 읽은 판만 싣고 조항 본문은 싣지 않는다."
+      >
+        {nonFinal.length > 0 && (
+          <div class="reg-block">
+            <Notice badges={[['review', '검수 대기']]}>{nonFinalNote}</Notice>
+          </div>
+        )}
+        <div class="reg-block">
+          <DataTable caption={`${year} 규정에서 읽은 수치`} columns={factCols} rows={yearFacts} />
+          <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 파싱(값과 조항 번호)" asof={asof} />
+        </div>
+      </Section>
+    )
+  }
+
+  {
     year >= 2018 && (
-      <Section id="compare" title="조항 비교" meta={`${year - 1} → ${year}`} read="앞 해의 파싱한 판과 이 해의 파싱한 판을 조항 번호로 맞춰 비교했다. 수정은 같은 조항 번호의 글이 달라진 것, 추가와 삭제는 조항 번호가 생기거나 없어진 것이다. 조항 번호가 바뀌어 옮겨진 조항은 삭제와 추가로 함께 잡힌다. 조항 번호와 제목, 변경 유형, 쪽만 싣고 본문은 싣지 않는다.">
+      <Section id="compare" title="조항 비교" meta={`${year - 1} → ${year}`} read="앞 해의 마지막으로 파싱한 판과 이 해의 마지막으로 파싱한 판을 조항 단위로 비교했다. 조항은 먼저 같은 번호로 맞추고, 번호가 바뀐 조항은 같은 글이나 낱말 유사도 0.8 이상인 글로 찾아 짝짓는다. 수정은 짝지은 조항의 번호, 소제목, 글, 그림 가운데 하나라도 달라진 것이고, 추가와 삭제는 짝이 없는 조항이다. 조항 번호와 제목, 변경 유형, 쪽만 싣고 본문은 싣지 않는다.">
         {SECTIONS.map((sec) => {
           const c = cmpOf(sec);
           const nx = nextOf(sec);
@@ -236,6 +321,13 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
               {c ? (
                 <Fragment>
                   <p class="cmp-line" set:html={cmpLine(c)} />
+                  {c.review && (
+                    <div class="reg-block">
+                      <Notice badges={[['review', '검수 대기']]}>
+                        <Fragment set:html={skippedHtml(c, esc)} />
+                      </Notice>
+                    </div>
+                  )}
                   {c.changes.length ? (
                     <div class="reg-block">
                       <DataTable
@@ -259,6 +351,21 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
                 <p class="axis-note">
                   다음 해와의 비교는 <a href={`${routes.regulations()}${nx.to_season}/#cmp-${sec}`}>{nx.to_season} 쪽</a>에 있다.
                 </p>
+              )}
+              {issuesOf(sec).length > 0 && (
+                <div class="reg-block">
+                  <Expand
+                    summary={`${year} ${SECTION_KO[sec]} 판 사이 비교 ${issuesOf(sec).length}쌍 보기${issuesOf(sec).some((x) => x.review) ? ', 검수 대기 판을 건너뛴 비교 포함' : ''}`}
+                  >
+                    <DataTable caption={`${year} ${SECTION_KO[sec]} 판 사이 조항 비교`} columns={issueCols} rows={issuesOf(sec)} />
+                    {issuesOf(sec)
+                      .filter((x) => x.review)
+                      .map((x) => (
+                        <p class="axis-note" set:html={`${esc(issueName(x.from_issue, x.from_version))} → ${esc(issueName(x.to_issue, x.to_version))}: ${skippedHtml(x, esc)}`} />
+                      ))}
+                    <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 파싱(같은 해 파싱한 판끼리 차례로 비교)" asof={asof} />
+                  </Expand>
+                </div>
               )}
             </div>
           );

@@ -132,9 +132,12 @@ const eventAt = (d: (typeof rows)[number], i: number) =>
     : undefined;
 const iceAllowed = allowed('ICE');
 // 허용 초과 투입: 허용 개수가 있으면 ICE 번호가 그보다 큰 투입, 없으면 문서 문장의 판정(within_allocation)을 따른다.
-const isOver = (e: { ice_number: number | null; within_allocation: boolean | null } | undefined) =>
-  !e ? false : iceAllowed != null && e.ice_number != null ? e.ice_number > iceAllowed : e.within_allocation === false;
+// 순번 미확정(문서끼리 어긋남)인 투입은 허용 초과 여부도 정하지 않는다.
+const isUnsure = (e: { ice_number: number | null; conflict?: string | null } | undefined) => Boolean(e && e.ice_number == null && e.conflict);
+const isOver = (e: { ice_number: number | null; within_allocation: boolean | null; conflict?: string | null } | undefined) =>
+  !e || isUnsure(e) ? false : iceAllowed != null && e.ice_number != null ? e.ice_number > iceAllowed : e.within_allocation === false;
 const overEvents = s.ice_events.filter((e) => isOver(e)).length;
+const unsure = s.ice_events.filter((e) => e.ice_number == null);
 const iceOverDrivers = rows.filter((d) => d.exceed.includes('ICE')).length;
 const iceRows = rows.map((d) => ({
   id: `${d.constructor_id}|${d.driver_id}`,
@@ -143,35 +146,69 @@ const iceRows = rows.map((d) => ({
   team: d.team,
   teamStart: d.first,
   ice: d.by.ICE ?? Array(n).fill(null),
-  fresh: Array.from({ length: n }, (_, i) => eventAt(d, i)?.ice_number ?? null),
+  // 투입 순번. 문서끼리 어긋나 순번이 비었으면 -1(투입은 있었고 순번 미확정)
+  fresh: Array.from({ length: n }, (_, i) => {
+    const e = eventAt(d, i);
+    return e ? (e.ice_number ?? -1) : null;
+  }),
   over: Array.from({ length: n }, (_, i) => isOver(eventAt(d, i))),
 }));
 const iceRead = hasData
   ? `${season} 시즌 FIA 선언 문서에 적힌 새 ICE 투입은 ${n0(s.ice_events.length)}건이다. 시즌 첫 ICE는 세지 않는다.` +
+    (unsure.length ? ` 이 가운데 ${unsure.length}건은 문서끼리 이전 사용 개수나 순서가 어긋나 순번을 정하지 않았다(순번 미확정).` : '') +
     (iceAllowed != null ? ` 이 가운데 허용 개수(${iceAllowed}개)를 넘은 투입은 ${overEvents}건이다.` : '') +
     (iceOverDrivers > 0 && iceAllowed != null
       ? ` 누적 문서로는 ICE가 ${iceAllowed}개를 넘은 드라이버가 ${iceOverDrivers}명이다. 허용을 넘은 교체가 선언 문서에 실리지 않고 그 차량의 처분 문서(Infringement)에만 나오는 경우가 있어, 그런 교체는 투입 목록에 빠지고 누적 문서의 개수에만 반영된다. 선언 문서가 없거나 검수 대기인 라운드의 투입도 목록에 없다.`
       : '')
   : '';
+const iceNumberHtml = (e: (typeof s.ice_events)[number]) => {
+  if (e.ice_number != null) return `${e.ice_number}번째`;
+  const why = e.conflict_ko ?? '문서끼리 값이 어긋난다.';
+  return `<span class="nw">순번 미확정</span><span class="rnote ev-why">${esc(why)}</span>`;
+};
 const eventCols: Column[] = [
   { label: '라운드', render: (e) => `${e.round}`, num: true },
   { label: '대회', render: (e) => esc(roundName(e.round)) },
   { label: '드라이버', render: (e) => `<span lang="en">${esc(e.name ?? '')}</span>`, cls: 'who' },
   { label: '팀', render: (e) => `<span lang="en">${esc(e.team ?? '')}</span>`, cls: 'hide-sm' },
-  { label: 'ICE 번호', render: (e) => (e.ice_number == null ? '결측' : `${e.ice_number}번째`), num: true },
+  { label: 'ICE 번호', render: iceNumberHtml },
   {
     label: '허용',
-    render: (e) => (isOver(e) ? badgeHtml('exceed', '허용 초과') : iceAllowed != null || e.within_allocation ? '허용 범위 안' : '결측'),
+    render: (e) => (isUnsure(e) ? '미확정' : isOver(e) ? badgeHtml('exceed', '허용 초과') : iceAllowed != null || e.within_allocation ? '허용 범위 안' : '결측'),
   },
   { label: '원문', render: (e) => (e.url ? extHtml(e.url) : '') },
 ];
 
-// 허용 개수 근거
+// 허용 개수 근거: 규정 조항이면 읽은 판과 그 판이 시즌 마지막 판인지, 그리고 선언 문서의 배정 문장이 같은 값을 적는지
+const issueText = (issue: string | null, version: string | null) => (issue ? nw(`Issue ${esc(issue)}${version ? ` (${esc(version)})` : ''}`) : version ? nw(esc(version)) : '');
+const statementText = (() => {
+  const st = s.allocation_statements ?? {};
+  const els = s.elements.filter((el) => (st[el] ?? []).length);
+  if (!els.length) return '';
+  const agree = els.every((el) => st[el].length === 1 && st[el][0].allowed === allowed(el));
+  if (agree) {
+    const first = Math.min(...els.map((el) => st[el][0].first_round));
+    const docsN = els.map((el) => st[el][0].documents);
+    const range = Math.min(...docsN) === Math.max(...docsN) ? `${Math.min(...docsN)}건` : `${Math.min(...docsN)}-${Math.max(...docsN)}건`;
+    return ` FIA 선언 문서의 배정 문장도 ${els.length}개 구성요소 모두 같은 값을 적는다(${first}라운드 문서부터, 구성요소마다 ${range}). ${extHtml(st[els[0]][0].url ?? '', 'FIA 원문 PDF (첫 선언 문서)')}`;
+  }
+  const parts = els.map((el) => `${esc(el)} ${st[el].map((x) => `${x.allowed}개(${x.first_round}라운드부터 ${x.documents}건)`).join(', ')}`);
+  return ` FIA 선언 문서의 배정 문장이 적은 값은 ${parts.join('; ')}이다.`;
+})();
 const allocNote = (() => {
   const a = s.allocation[firstEl] ?? Object.values(s.allocation).find(Boolean) ?? null;
   if (!a) return '이 시즌 허용 개수 자료는 아직 없다. 허용 초과 표시를 하지 않는다.';
-  if (a.basis === 'regulation')
-    return `${season} 스포팅 규정 ${esc(a.clause_no ?? '')}조${a.page ? `(${a.page}쪽)` : ''}의 값이다. ${a.url ? extHtml(a.url) : ''}`;
+  if (a.basis === 'regulation') {
+    const from = `${season} 스포팅 규정 ${issueText(a.issue, a.version_key)} ${esc(a.clause_no ?? '')}조${a.page ? `(${a.page}쪽)` : ''}에서 읽은 값이다. ${a.url ? extHtml(a.url) : ''}`;
+    if (a.is_final_issue === false) {
+      const fin = a.final_issue;
+      const finName = fin ? issueText(fin.issue, fin.version) : '마지막 판';
+      const state = fin?.status === 'needs_review' ? '검수 대기라 읽지 않았다' : '아직 받지 않았다';
+      const why = fin?.review_reasons?.length ? ` ${esc(fin.review_reasons[0])}` : '';
+      return `${badgeHtml('review', '검수 대기')} ${from} 시즌 마지막 판이 아니다. 마지막 판 ${finName}은 ${state}.${why}${statementText}`;
+    }
+    return `${from}${statementText}`;
+  }
   return `FIA 선언 문서의 배정 문장(${en('one of the four new ... allowed')} 꼴)에서 읽은 값이다. 이 시즌 규정 조항 값은 아직 정리하지 않았다. ${a.url ? extHtml(a.url, 'FIA 원문 PDF (첫 문서)') : ''}`;
 })();
 
@@ -199,7 +236,7 @@ const coverageCols: Column[] = [
   { label: '선언 문서', render: (c) => `${docCount(c.documents, 'pu_new', 'ok')}`, num: true, cls: 'hide-sm' },
   { label: '검수 대기 문서', render: (c) => `${c.review_documents}`, num: true },
   { label: '두 문서가 어긋난 칸', render: (c) => n0(c.inconsistencies), num: true, cls: 'hide-sm' },
-  { label: '새 ICE 투입', render: (c) => n0(c.ice_events), num: true },
+  { label: '새 ICE 투입', render: (c) => `${n0(c.ice_events)}${c.ice_unsure ? `<span class="sub-line nw">순번 미확정 ${c.ice_unsure}</span>` : ''}`, num: true },
 ];
 
 // 브라우저 자료
@@ -369,7 +406,7 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
             rowClass={breakRow}
           />
         </Figure>
-        <Expand summary={`새 ICE 투입 ${n0(s.ice_events.length)}건 목록 보기`}>
+        <Expand summary={`새 ICE 투입 ${n0(s.ice_events.length)}건 목록 보기${unsure.length ? `, 순번 미확정 ${unsure.length}건 포함` : ''}`}>
           <DataTable caption={`${season} 새 ICE 투입 목록`} columns={eventCols} rows={s.ice_events} />
           <SourceLine source={PU_SOURCE} asof={asof} />
         </Expand>
@@ -406,6 +443,10 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
   .eng-seg { max-width: 100%; overflow-x: auto; padding: 3px; margin: -3px; }
   .eng-empty { margin-top: var(--sp-4); }
   .eng-key { display: flex; align-items: center; gap: 6px; margin-bottom: var(--sp-2); }
+</style>
+
+<style is:global>
+  .ev-why { display: block; margin-top: 2px; font-size: var(--fs-micro); color: var(--ink-3); min-width: 13rem; max-width: 24rem; white-space: normal; }
 </style>
 
 <style is:global>

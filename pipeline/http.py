@@ -40,6 +40,19 @@ class SourceBlocked(RuntimeError):
     """서버가 요청을 거부했다. 기다린 뒤에도 풀리지 않으면 사람에게 알린다."""
 
 
+class SourceUnavailable(RuntimeError):
+    """서버에 닿지 못했다(연결 실패, 시간 초과 같은 전송 오류). 서버가 거부한 것과는 다르다.
+
+    재시도를 다 쓰고도 응답을 받지 못했거나, PIPELINE_OFFLINE=1이라 캐시에 없는 자료를 요청하지
+    않았을 때 낸다. RuntimeError의 하위 클래스이므로 RuntimeError를 잡던 곳은 그대로 동작한다.
+    """
+
+
+def offline() -> bool:
+    """PIPELINE_OFFLINE=1이면 캐시만 쓰고 실제 네트워크 요청을 보내지 않는다."""
+    return os.environ.get("PIPELINE_OFFLINE") == "1"
+
+
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -100,6 +113,9 @@ class PoliteClient:
         self.lock_path = (raw_dir or RAW_DIR) / "_locks" / f"{source}.json"
         self.max_retries = max_retries
         self.block_cooldowns = block_cooldowns
+        # 실제 네트워크로 나가는 클라이언트인가. 테스트처럼 transport를 주면 네트워크가 아니므로
+        # PIPELINE_OFFLINE=1이어도 막지 않는다.
+        self.uses_network = transport is None
         self._client = httpx.Client(
             headers={"User-Agent": user_agent},
             timeout=timeout,
@@ -217,6 +233,8 @@ class PoliteClient:
             )
             if not stale:
                 return FetchResult(url, path, content, sha256_bytes(content), True, None)
+        if offline() and self.uses_network:
+            raise SourceUnavailable(f"{self.source}: PIPELINE_OFFLINE=1이라 요청하지 않는다: {url}")
 
         last_error: Exception | None = None
         blocks = 0
@@ -269,6 +287,10 @@ class PoliteClient:
                 content = resp.content
             write_atomic(path, content)
             return FetchResult(url, path, content, sha256_bytes(content), False, utc_now_iso())
+        if isinstance(last_error, httpx.TransportError):
+            # 응답을 한 번도 받지 못했다. 네트워크가 막힌 환경과 서버 오류(5xx)를 구분한다.
+            message = f"요청 실패({self.source}, 서버에 닿지 못함): {url}"
+            raise SourceUnavailable(message) from last_error
         raise RuntimeError(f"요청 실패({self.source}): {url}") from last_error
 
 
@@ -298,6 +320,8 @@ def main(argv: list[str]) -> int:
         out.update(ok=False, status=exc.response.status_code)
     except SourceBlocked as exc:
         out.update(ok=False, blocked=True, error=str(exc))
+    except SourceUnavailable as exc:
+        out.update(ok=False, unavailable=True, error=str(exc))
     except RuntimeError as exc:
         out.update(ok=False, error=str(exc))
     print(json.dumps(out, ensure_ascii=False))

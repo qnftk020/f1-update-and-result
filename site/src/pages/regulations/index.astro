@@ -20,6 +20,7 @@ import {
   decadeGroups,
   gradeBadge,
   gradeHtml,
+  issueName,
   regulations,
   yearHref,
   type RegCell,
@@ -37,7 +38,10 @@ const missing = cells.filter((c) => !c.found).length;
 const yearsWithDocs = years.filter((y) => y.technical.found || y.sporting.found).length;
 const missYears = years.filter((y) => !y.technical.found || !y.sporting.found);
 const gradeYears = (g: string) => years.filter((y) => y.grade === g).length;
-const comps = R ? [...R.comparisons].sort((a, b) => b.to_season - a.to_season || a.section.localeCompare(b.section)) : [];
+// 표에는 이웃 시즌의 마지막으로 파싱한 판끼리의 비교만 둔다. 같은 해 판 사이 비교는 연도 쪽에 있다.
+const comps = R ? R.comparisons.filter((c) => c.kind === 'season').sort((a, b) => b.to_season - a.to_season || a.section.localeCompare(b.section)) : [];
+const issueComps = R ? R.comparisons.filter((c) => c.kind === 'issue') : [];
+const reviewComps = R ? R.comparisons.filter((c) => c.review) : [];
 const changed = (c: RegComparison) => (c.added ?? 0) + (c.removed ?? 0) + (c.modified ?? 0);
 const biggest = comps.length ? comps.reduce((a, c) => (changed(c) > changed(a) ? c : a)) : null;
 const asof = R?.as_of ? `${nw(R.as_of)} 확인` : '확인일 기록 부재';
@@ -53,7 +57,7 @@ const facts: [string, string][] = R
       ['등급 B', `${gradeYears('B')}개 연도`],
       ['등급 C', `${gradeYears('C')}개 연도`],
       ['확인 안 된 칸', `${missing}칸`],
-      ['조항 비교', `${comps.length}쌍`],
+      ['조항 비교', `시즌 사이 ${comps.length}쌍, 같은 해 판 사이 ${issueComps.length}쌍`],
     ]
   : [];
 
@@ -92,9 +96,16 @@ const cmpCols: Column<RegComparison>[] = [
   { label: `${CHANGE_KO.removed.mark} 삭제`, render: (c) => n0(c.removed), num: true },
   { label: `${CHANGE_KO.modified.mark} 수정`, render: (c) => n0(c.modified), num: true },
   { label: '그대로', render: (c) => n0(c.unchanged), num: true, cls: 'hide-xs' },
+  {
+    label: '건너뛴 판',
+    render: (c) =>
+      c.review
+        ? `<span class="rcell">${badgeHtml('review', '검수 대기')}<span>${c.skipped_versions.map((k) => esc(`${k.season} ${issueName(k.issue, k.version)}`)).join(', ')}</span></span>`
+        : '없음',
+  },
 ];
 const cmpRead = biggest
-  ? `조항을 파싱한 판은 연도와 규정마다 하나씩이라, 비교는 앞 해와 뒤 해의 파싱한 판끼리 한다. ` +
+  ? `시즌 사이 비교는 앞 해와 뒤 해의 마지막으로 파싱한 판끼리 한다. ` +
     `바뀐 조항이 가장 많은 비교는 ${biggest.from_season} → ${biggest.to_season} ${SECTION_KO[biggest.section]}로 ${n0(changed(biggest))}개다` +
     `(추가 ${n0(biggest.added)}, 삭제 ${n0(biggest.removed)}, 수정 ${n0(biggest.modified)}).`
   : '';
@@ -158,10 +169,10 @@ const matrixRead =
                 <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 파싱(조항 번호, 제목, 변경 유형)" asof={asof} />
               </div>
               <aside class="notes" aria-label="조항 비교 주석">
-                <Note head="읽는 법" body="규정 이름을 누르면 바뀐 조항 목록이 나온다. 수정은 같은 조항 번호의 글이 달라진 것, 추가와 삭제는 조항 번호가 생기거나 없어진 것이다. 조항 번호가 바뀌어 옮겨진 조항은 삭제와 추가로 함께 잡힌다." />
+                <Note head="읽는 법" body="규정 이름을 누르면 바뀐 조항 목록이 나온다. 조항은 같은 번호로 먼저 맞추고, 번호가 바뀐 조항은 같은 글이나 비슷한 글(낱말 유사도 0.8 이상)로 찾아 짝짓는다. 수정은 짝지은 조항이 달라진 것, 추가와 삭제는 짝이 없는 조항이다." />
                 <Note
                   head="자료 범위"
-                  body={`fia.com에는 연도마다 Issue가 여럿 있지만 조항을 파싱한 판은 연도와 규정마다 하나다. 같은 해 Issue 사이 비교는 아직 하지 않는다.${reviewYears.length ? ` 검수 대기 판이 있는 연도(${reviewYears.map((y) => y.year).join(', ')})는 그 판을 비교에 넣지 않았다.` : ''}`}
+                  body={`같은 해 판 사이 비교 ${issueComps.length}쌍은 연도 쪽에 있다.${reviewYears.length ? ` 검수 대기 판이 있는 연도(${reviewYears.map((y) => y.year).join(', ')})는 그 판을 비교에 넣지 않고 앞뒤 판끼리 비교했다. 그런 비교 ${reviewComps.length}쌍에는 검수 대기 표시와 건너뛴 판을 적었다.` : ''}`}
                 />
               </aside>
             </div>

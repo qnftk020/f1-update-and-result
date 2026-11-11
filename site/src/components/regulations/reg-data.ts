@@ -40,6 +40,11 @@ export interface RegDocument {
   note_ko: string | null;
   pages: number | null;
   clauses: number | null;
+  version_key: string | null;
+  /** 검수 대기 판: 파서가 적은 문제 */
+  problems: string[];
+  /** 검수 대기 판: 사람이 읽을 한국어 설명 */
+  review_reasons: string[];
 }
 
 export interface RegChange {
@@ -48,6 +53,8 @@ export interface RegChange {
   top_title: string | null;
   heading: string | null;
   change: 'added' | 'removed' | 'modified' | string;
+  renumbered: boolean;
+  from_clause_no: string | null;
   page_from: number | null;
   page_to: number | null;
 }
@@ -69,7 +76,44 @@ export interface RegComparison {
   removed: number | null;
   modified: number | null;
   unchanged: number | null;
+  renumbered: number | null;
+  /** 비교가 건너뛴 판(검수 대기, 받지 않음). 하나라도 있으면 review가 참이다 */
+  skipped_versions: SkippedVersion[];
+  review: boolean;
   changes: RegChange[];
+}
+
+export interface SkippedVersion {
+  season: number;
+  version: string;
+  issue: string | null;
+  url: string | null;
+  status: string | null;
+  review_reasons: string[];
+}
+
+export interface FinalIssue {
+  issue: string | null;
+  version: string | null;
+  status: string;
+  url: string | null;
+  review_reasons: string[];
+}
+
+/** 규정에서 읽은 수치(pu_allocation_rules.csv, fuel_rules.csv). 인용문은 싣지 않는다 */
+export interface RegFact {
+  kind: 'pu_allocation' | 'fuel';
+  section: Section;
+  rule: string;
+  element: string | null;
+  value: string;
+  clause_no: string | null;
+  page: number | null;
+  url: string | null;
+  version_key: string | null;
+  issue: string | null;
+  is_final_issue: boolean | null;
+  final_issue: FinalIssue | null;
 }
 
 export interface Regulations {
@@ -81,6 +125,7 @@ export interface Regulations {
   documents: Record<string, RegDocument[]>;
   summaries: Record<string, { section: Section; summary_ko: string; source_url: string | null; source_host: string | null; verified_on: string | null }[]>;
   comparisons: RegComparison[];
+  facts: Record<string, RegFact[]>;
 }
 
 export const regulations = getOptional<Regulations>('regulations');
@@ -125,4 +170,39 @@ export const decadeGroups = (years: number[], current?: number) => {
   return [...groups.entries()]
     .sort((a, b) => b[0] - a[0])
     .map(([dec, ys]) => ({ label: `${dec}년대`, links: ys.map((y) => ({ href: yearHref(y), text: String(y), current: y === current })) }));
+};
+
+/** 판 이름: "Issue 5 (2025-04-30)", Issue 번호가 없으면 판 날짜 */
+export const issueName = (issue: string | null, version: string | null) =>
+  issue ? `Issue ${issue}${version ? ` (${version})` : ''}` : version ? `${version} 판` : '판';
+
+/** 비교가 건너뛴 판 목록 문장(HTML). 판마다 원문 링크와 상태를 적는다 */
+export function skippedHtml(c: RegComparison, esc: (s: string) => string): string {
+  if (!c.skipped_versions.length) return '';
+  const items = c.skipped_versions.map((k) => {
+    const name = esc(`${k.season} ${issueName(k.issue, k.version)}`);
+    const linked = k.url ? `<a href="${esc(k.url)}" rel="noopener">${name}</a>` : name;
+    const state = k.status === 'needs_review' ? '검수 대기' : k.status === 'listed' ? '받지 않음' : esc(k.status ?? '상태 기록 없음');
+    return `${linked}(${state})`;
+  });
+  // 판의 상태를 그대로 적는다. 검수 대기 판은 조항을 읽었지만 확인을 마치지 않은 판이라 "파싱하지 못한 판"이 아니다
+  const statuses = new Set(c.skipped_versions.map((k) => k.status));
+  const kinds = [statuses.has('needs_review') && '검수 대기', statuses.has('listed') && '받지 않은'].filter(Boolean);
+  const known = [...statuses].every((s) => s === 'needs_review' || s === 'listed');
+  const kind = !known
+    ? '비교에 넣지 않은'
+    : kinds.length === 2
+      ? '검수 대기이거나 받지 않은'
+      : kinds[0] === '검수 대기'
+        ? '검수 대기인'
+        : '받지 않은';
+  const n = c.skipped_versions.length;
+  const those = n === 1 ? '그 판에서' : '그 판들에서';
+  return `이 비교는 ${kind} 판 ${n}개를 건너뛰었다: ${items.join(', ')}. ${those} 바뀐 내용은 앞뒤 두 판의 차이로 한꺼번에 나온다.`;
+}
+
+export const FACT_KO: Record<string, string> = {
+  pu_allocation: 'PU 구성요소 할당 수',
+  race_fuel_mass: '결승 연료 질량 상한',
+  max_fuel_mass_flow: '최대 연료 유량',
 };

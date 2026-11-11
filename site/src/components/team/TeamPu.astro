@@ -10,7 +10,7 @@ import Notice from '../Notice.astro';
 import Seg from '../Seg.astro';
 import SourceLine from '../SourceLine.astro';
 import { getOptional } from '../../lib/data.ts';
-import { iconSvg } from '../../lib/markup.ts';
+import { badgeHtml, extHtml, iconSvg } from '../../lib/markup.ts';
 import { routes } from '../../lib/paths.ts';
 import { JOLPICA, asofJolpica } from '../../lib/sources.ts';
 import { en, esc, keepNames, nw } from '../../lib/typeset.ts';
@@ -28,7 +28,21 @@ interface EngineSeason {
   season: number;
   rounds: number;
   elements: string[];
-  allocation?: Record<string, { allowed: number | null } | undefined>;
+  allocation?: Record<
+    string,
+    | {
+        allowed: number | null;
+        basis?: string;
+        clause_no?: string | null;
+        page?: number | null;
+        url?: string | null;
+        issue?: string | null;
+        version_key?: string | null;
+        is_final_issue?: boolean | null;
+        final_issue?: { issue: string | null; version: string | null; status: string; review_reasons: string[] } | null;
+      }
+    | undefined
+  >;
   parsed_rounds: number[];
   missing_rounds: number[];
   partial_rounds?: number[];
@@ -171,6 +185,19 @@ if (ok && iceVals.length) {
   if (iceAllow != null) read += ` 시즌 허용 개수는 ${iceAllow}개이고, 이를 넘긴 드라이버는 ${iceOver}명이다.`;
 }
 const missingText = missing.length ? `${missing.join(', ')}라운드는 문서가 없거나 일부만 읽어 값을 비워 둔다. ` : '';
+// 허용 개수의 출처: 규정 조항이면 읽은 판, 시즌 마지막 판이 아니면 마지막 판의 상태를 적는다.
+const alloc = season?.allocation?.ICE ?? els.map((e) => season?.allocation?.[e]).find(Boolean) ?? null;
+const allocSource = (() => {
+  if (!alloc || alloc.allowed == null) return '';
+  if (alloc.basis !== 'regulation') return `허용 개수는 FIA 선언 문서의 배정 문장에서 읽었다.${alloc.url ? ` ${extHtml(alloc.url, 'FIA 원문 PDF (첫 문서)')}` : ''}`;
+  const name = alloc.issue ? nw(`Issue ${esc(alloc.issue)}${alloc.version_key ? ` (${esc(alloc.version_key)})` : ''}`) : nw(esc(alloc.version_key ?? ''));
+  const from = `허용 개수는 ${yr} 스포팅 규정 ${name} ${esc(alloc.clause_no ?? '')}조${alloc.page ? `(${alloc.page}쪽)` : ''}에서 읽었다.${alloc.url ? ` ${extHtml(alloc.url)}` : ''}`;
+  if (alloc.is_final_issue !== false) return from;
+  const fin = alloc.final_issue;
+  const finName = fin?.issue ? nw(`Issue ${esc(fin.issue)}${fin.version ? ` (${esc(fin.version)})` : ''}`) : '마지막 판';
+  const state = fin?.status === 'needs_review' ? '검수 대기라 읽지 않았다' : '아직 받지 않았다';
+  return `${badgeHtml('review', '검수 대기')} ${from} 시즌 마지막 판이 아니다. 마지막 판 ${finName}은 ${state}.`;
+})();
 ---
 
 {
@@ -241,6 +268,7 @@ const missingText = missing.length ? `${missing.join(', ')}라운드는 문서�
             head="자료 범위"
             body={`${yr}년 문서를 읽은 라운드는 ${season!.parsed_rounds.length}개다. ${missingText}툴팁에서 누적 문서가 없는 라운드는 "문서 미수집", 문서에 이 팀 드라이버 값이 없는 라운드는 "미출전"으로 적는다. 문서는 대회 전 상태를 적으므로 문서의 라운드가 결승 출전 라운드와 하나씩 어긋날 수 있다. 결승 출전 라운드는 Jolpica 결승 결과에서 센다.`}
           />
+          {allocSource && <Note head="허용 개수" body={allocSource} />}
           <Note
             head="주의"
             caution

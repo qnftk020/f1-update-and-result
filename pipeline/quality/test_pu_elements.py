@@ -1146,6 +1146,46 @@ def test_replace_failures_keeps_other_parsers_and_first_dates(tmp_path, monkeypa
     ]
 
 
+def test_replace_failures_waits_for_lock_and_writes_atomically(tmp_path, monkeypatch):
+    """replace_failures는 잠금을 잡은 채 읽고 쓰며, 쓰다 실패하면 이전 파일을 그대로 둔다."""
+    import threading
+
+    from pipeline import http
+
+    monkeypatch.setattr(manifest, "MANIFEST_DIR", tmp_path / "manifests")
+    monkeypatch.setattr(manifest, "RAW_DIR", tmp_path / "raw")
+    fields = manifest.FAILURE_FIELDS
+    row = dict(zip(fields, [2025, 3, "E", "pu_used", "u", "p", "2026-01-01"], strict=True))
+    manifest.replace_failures(["pu_used"], [row])
+    path = tmp_path / "manifests" / manifest.FAILURES
+    before = path.read_bytes()
+    assert (tmp_path / "raw" / "_locks" / "parse_failures.lock").exists()
+
+    done = threading.Event()
+    other = {**row, "doc_type": "car_presentation", "url": "c"}
+    with manifest.failures_lock():  # 다른 파서가 잠금을 쥐고 있다
+        writer = threading.Thread(
+            target=lambda: (manifest.replace_failures(["car_presentation"], [other]), done.set())
+        )
+        writer.start()
+        assert not done.wait(0.3)  # 잠금이 풀릴 때까지 기다린다
+        assert path.read_bytes() == before
+    writer.join(5)
+    assert done.is_set()
+    assert [r["url"] for r in manifest.read_rows(manifest.FAILURES)] == ["c", "u"]
+
+    written = path.read_bytes()
+
+    def broken_replace(src, dst):
+        raise OSError("디스크가 가득 찼다")
+
+    monkeypatch.setattr(http.os, "replace", broken_replace)
+    with pytest.raises(OSError):
+        manifest.replace_failures(["pu_used"], [])
+    assert path.read_bytes() == written  # 반쯤 쓴 파일이 남지 않는다
+    assert sorted(p.name for p in path.parent.iterdir()) == [manifest.FAILURES]
+
+
 def test_superseded_documents_point_to_a_later_document_of_the_same_event(documents):
     by_url = documents.set_index("url")
     old = documents[documents["status"] == "superseded"]
