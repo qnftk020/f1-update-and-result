@@ -132,7 +132,7 @@ export function gridToFinish(data, { width, label = "출발 순위와 결승 순
       Plot.gridX({ stroke: C.grid, strokeOpacity: 1, ticks: [1, 5, 10, 15, 20] }),
       Plot.link(data, { x1: "grid", x2: "pos", y1: "code", y2: "code", stroke: C.ink3, strokeWidth: 1.5 }),
       Plot.dot(data, { x: "grid", y: "code", r: 4, fill: C.paper, stroke: C.ink2, strokeWidth: 1.5 }),
-      Plot.dot(data, { x: "pos", y: "code", r: 4, fill: C.ink, stroke: C.paper, strokeWidth: 1.5 }),
+      Plot.dot(data, { x: "pos", y: "code", r: 4.5, fill: C.s1, stroke: C.paper, strokeWidth: 1.5 }),
       Plot.text(data.filter((d) => Math.abs(d.grid - d.pos) >= 5), {
         x: (d) => Math.max(d.grid, d.pos), y: "code", dx: 9, textAnchor: "start", fill: C.ink2, fontVariant: "tabular-nums",
         text: (d) => (d.grid > d.pos ? `+${d.grid - d.pos}` : `${MINUS}${d.pos - d.grid}`),
@@ -148,7 +148,7 @@ export function gridToFinish(data, { width, label = "출발 순위와 결승 순
     head: `${d.name} (${d.team})`,
     rows: [
       { value: `${d.grid}위`, label: "출발", key: { type: "ring", color: C.ink2 } },
-      { value: `${d.pos}위`, label: "결승", key: { type: "dot", color: C.ink } },
+      { value: `${d.pos}위`, label: "결승", key: { type: "dot", color: C.s1 } },
       { value: d.grid === d.pos ? "0" : d.grid > d.pos ? `+${d.grid - d.pos}` : `${MINUS}${d.pos - d.grid}`, label: "순위 변화" },
     ],
   }));
@@ -220,7 +220,8 @@ export function upgradeUnits(data, { width, onSelect, selected, label = "업그�
       let k = 0;
       for (const c of CAT_ORDER) for (let i = 0; i < d.cats[c]; i++) pts.push({ round: d.round, y: k++ + 0.62, cat: c });
     }
-    const unit = narrow ? 3.4 : 4.4;
+    // 기호 크기는 라운드 칸 폭을 따른다(좁은 화면에서 너무 작아지지 않게 칸의 30%, 3.4~4.4px)
+    const unit = Math.max(3.4, Math.min(4.4, step * 0.3));
     const h = (maxN + 1.6) * unit * 2.55 + 26;
     const nodoc = runs(rows, (d) => d.status === "nodoc");
     const sel = selected && selected.season === s ? selected.round : null;
@@ -474,11 +475,16 @@ export function raceTrend(rounds, { width, cid, team, rail = [], label }) {
  * 세 줄 모두 막히면 그 이름은 빼고 위의 계보 목록에 맡긴다. 줄 수는 그림 위 여백(marginTop) 계산에 쓴다.
  */
 function eraLayout(eras, from, to, xPx, maxRows = 3) {
-  const vis = eras.filter((e) => e.to >= from && e.from <= to).map((e) => ({ ...e, a: Math.max(e.from, from), b: Math.min(e.to, to) }));
+  const xMax = xPx(to + 0.5);
+  const vis = eras.filter((e) => e.to >= from && e.from <= to).map((e) => ({ ...e, a: Math.max(e.from, from), b: Math.min(e.to, to), end: to + 0.5 }));
   const ends = [];
   for (const e of vis) {
-    const x0 = xPx(e.a - 0.5) + 3;
-    const x1 = x0 + textWidth(e.team, 12) + 8;
+    const tw = textWidth(e.team, 12) + 8;
+    let x0 = xPx(e.a - 0.5) + 3;
+    // 오른쪽 끝 가까이에서 시작하는 이름이 그림 영역을 넘으면 영역 오른쪽 끝에 맞춰 적는다(좁은 화면)
+    e.flip = x0 + tw > xMax;
+    if (e.flip) x0 = xMax - tw;
+    const x1 = x0 + tw;
     let row = ends.findIndex((end) => end <= x0);
     if (row < 0 && ends.length < maxRows) { row = ends.length; ends.push(0); }
     if (row >= 0) ends[row] = x1;
@@ -491,7 +497,8 @@ function eraMarks(layout, rowsY, base = 15) {
   const { vis, rows } = layout;
   return [
     Plot.ruleX(vis.slice(1), { x: (e) => e.a - 0.5, stroke: C.axis }),
-    ...Array.from({ length: rows }, (_, k) => Plot.text(vis.filter((e) => e.row === k), { x: (e) => e.a - 0.5, frameAnchor: "top", dy: -(base + 15 * (rows - 1 - k)), dx: 3, textAnchor: "start", text: "team", fill: C.ink, fontWeight: 600, fontSize: 12 })),
+    ...Array.from({ length: rows }, (_, k) => Plot.text(vis.filter((e) => e.row === k && !e.flip), { x: (e) => e.a - 0.5, frameAnchor: "top", dy: -(base + 15 * (rows - 1 - k)), dx: 3, textAnchor: "start", text: "team", fill: C.ink, fontWeight: 600, fontSize: 12 })),
+    ...Array.from({ length: rows }, (_, k) => Plot.text(vis.filter((e) => e.row === k && e.flip), { x: (e) => e.end, frameAnchor: "top", dy: -(base + 15 * (rows - 1 - k)), dx: 0, textAnchor: "end", text: "team", fill: C.ink, fontWeight: 600, fontSize: 12 })),
     Plot.tickX(vis, { x: (e) => e.a - 0.5, y1: rowsY[0], y2: rowsY[1], stroke: C.axis }),
   ];
 }
@@ -657,10 +664,13 @@ export function pointsRace(series, { width, rounds, highlight = [], unit = "점"
   const H = narrow ? 280 : 340;
   const mt = 12;
   const mb = 30;
-  const mr = narrow ? 84 : 150;
   const flat = [];
   for (const s of series) s.pts.forEach((p, i) => flat.push({ id: s.id, round: i + 1, p }));
   const hi = highlight.map((id, k) => ({ ...series.find((s) => s.id === id), color: SLOTS[k] })).filter((s) => s.id);
+  const endText = (s) => (narrow ? `${s.short || s.label}` : `${s.label} ${int(s.pts[n - 1])}${unit}`);
+  // 오른쪽 여백은 가장 긴 끝 라벨에 맞춘다(연결선 25px + 글자). 좁은 화면에서는 폭의 40%를 넘기지 않는다
+  const need = Math.max(0, ...hi.map((s) => textWidth(endText(s), 12.5))) + 30;
+  const mr = narrow ? Math.min(Math.max(64, need), Math.round(width * 0.4)) : Math.max(150, need);
   const max = Math.max(...flat.map((d) => d.p ?? 0));
   const yPx = (p) => mt + (1 - p / (max * 1.04)) * (H - mt - mb);
   const ends = hi.map((s) => ({ ...s, end: s.pts[n - 1], y: yPx(s.pts[n - 1]) })).sort((a, b) => a.y - b.y);
@@ -697,7 +707,7 @@ export function pointsRace(series, { width, rounds, highlight = [], unit = "점"
     t.setAttribute("fill", C.ink);
     t.setAttribute("text-anchor", "start");
     t.setAttribute("font-weight", "650");
-    t.textContent = narrow ? `${e.short || e.label}` : `${e.label} ${int(e.end)}${unit}`;
+    t.textContent = endText(e);
     g.append(ln, t);
   }
   svg.append(g);

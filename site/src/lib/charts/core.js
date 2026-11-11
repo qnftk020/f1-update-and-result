@@ -275,7 +275,16 @@ export function readout(wrap, svg, stops, { axis = "x", label, onSelect, band = 
     return best;
   };
   svg.addEventListener("pointermove", (e) => show(nearest(e), false));
-  svg.addEventListener("pointerleave", () => { if (document.activeElement !== wrap) hide(); });
+  // 터치: 누르면 그 자리 값을 띄우고, 가로로 끌면 따라간다(세로 끌기는 페이지 스크롤로 남긴다).
+  // 손을 떼도 툴팁을 남기고, 그림 밖을 누르면 닫는다.
+  svg.style.touchAction = "pan-y";
+  svg.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") show(nearest(e), false); });
+  svg.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse" && document.activeElement !== wrap) hide(); });
+  const outside = (e) => {
+    if (!wrap.isConnected) { document.removeEventListener("pointerdown", outside); return; } // 다시 그려 떨어져 나간 그림
+    if (e.pointerType !== "mouse" && !wrap.contains(e.target) && document.activeElement !== wrap) hide();
+  };
+  document.addEventListener("pointerdown", outside, { passive: true });
   svg.addEventListener("click", (e) => {
     const i = nearest(e);
     if (onSelect && stops[i]) onSelect(stops[i], i);

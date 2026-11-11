@@ -1,12 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <style>
-    rect { fill: #f8f7f3; stroke: #141413; }
-    path { stroke: #2a78d6; }
-    @media (prefers-color-scheme: dark) {
-      rect { fill: #171716; stroke: #efeee9; }
-      path { stroke: #3987e5; }
-    }
-  </style>
-  <rect x="2" y="2" width="28" height="28" rx="3" stroke-width="2" />
-  <path d="M7 22 13 15 18 18 25 9" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <rect x="1" y="1" width="30" height="30" rx="5" fill="#0b1a3d" />
+  <path d="M7 22 13 15 18 18 25 9" fill="none" stroke="#3a80e6" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="25" cy="9" r="3" fill="#ff7ab8" />
 </svg>
