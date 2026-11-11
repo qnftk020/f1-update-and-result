@@ -457,17 +457,9 @@ def build() -> dict[str, int]:
     pd.DataFrame(doc_rows).sort_values(["season", "round"]).to_csv(
         out / "car_presentation_documents.csv", index=False
     )
-    # 실패 목록은 문서 유형별로 갈아 끼운다(다른 파서의 기록은 건드리지 않는다)
-    fields = ["season", "round", "event", "doc_type", "url", "problems", "recorded_at"]
-    existing = manifest.read_rows("parse_failures.csv")
-    others = [r for r in existing if r["doc_type"] != "car_presentation"]
-    # 이미 적힌 실패는 처음 기록한 날짜를 유지한다.
-    first_seen = {
-        r["url"]: r["recorded_at"] for r in existing if r["doc_type"] == "car_presentation"
-    }
-    for failure in failures:
-        failure["recorded_at"] = first_seen.get(failure["url"], failure["recorded_at"])
-    manifest.write_rows("parse_failures.csv", others + failures, fields)
+    # 실패 목록은 문서 유형별로 갈아 끼운다(다른 파서의 기록은 건드리지 않고, 처음 기록한 날짜는
+    # 유지한다)
+    manifest.replace_failures(["car_presentation"], failures)
     return {"documents": len(doc_rows), "teams": len(team_rows), "rows": len(items),
             "failures": len(failures)}  # fmt: skip
 

@@ -150,7 +150,7 @@ const iceRead = hasData
   ? `${season} 시즌 FIA 선언 문서에 적힌 새 ICE 투입은 ${n0(s.ice_events.length)}건이다. 시즌 첫 ICE는 세지 않는다.` +
     (iceAllowed != null ? ` 이 가운데 허용 개수(${iceAllowed}개)를 넘은 투입은 ${overEvents}건이다.` : '') +
     (iceOverDrivers > 0 && iceAllowed != null
-      ? ` 누적 문서로는 ICE가 ${iceAllowed}개를 넘은 드라이버가 ${iceOverDrivers}명이다. 선언 문서의 투입과 누적 문서의 개수가 어긋나는 것은 처분 문서에만 나오는 교체와 선언 문서가 없는 라운드 때문일 수 있다.`
+      ? ` 누적 문서로는 ICE가 ${iceAllowed}개를 넘은 드라이버가 ${iceOverDrivers}명이다. 허용을 넘은 교체가 선언 문서에 실리지 않고 그 차량의 처분 문서(Infringement)에만 나오는 경우가 있어, 그런 교체는 투입 목록에 빠지고 누적 문서의 개수에만 반영된다. 선언 문서가 없거나 검수 대기인 라운드의 투입도 목록에 없다.`
       : '')
   : '';
 const eventCols: Column[] = [
