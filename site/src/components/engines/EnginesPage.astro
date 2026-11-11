@@ -1,0 +1,520 @@
+---
+// 엔진 페이지 한 시즌(/engines/는 마지막 시즌, /engines/<연도>/는 그 밖의 시즌).
+// DESIGN.md "엔진 /engines/": PU 공급사와 팀, 구성요소 사용 현황(표 + 팀별 작은 다중), 새 ICE 투입, ADUO 안내.
+// 문장, 표, 표 보기, 출처 줄은 모두 빌드 때 engines.json에서 만든다. 차트만 브라우저에서 그린다.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import DataTable, { type Column } from '../DataTable.astro';
+import EmptyState from '../EmptyState.astro';
+import Expand from '../Expand.astro';
+import Figure from '../Figure.astro';
+import JsonData from '../JsonData.astro';
+import LinkPick from '../LinkPick.astro';
+import Note from '../Note.astro';
+import Notice from '../Notice.astro';
+import PageHead from '../PageHead.astro';
+import Section from '../Section.astro';
+import Seg from '../Seg.astro';
+import SourceLine from '../SourceLine.astro';
+import { routes, url } from '../../lib/paths.ts';
+import { F1DB, asofF1db } from '../../lib/sources.ts';
+import { esc, en, nw } from '../../lib/typeset.ts';
+import { badgeHtml, extHtml, iconSvg } from '../../lib/markup.ts';
+import { n0 } from '../../lib/format.ts';
+import { docCount, driverRows, engineYears, engines, roundList, type EngineSeason } from './engines-data.ts';
+
+interface Props {
+  season: number;
+}
+const { season } = Astro.props;
+const E = engines!;
+const s: EngineSeason = E.seasons[String(season)];
+const n = s.rounds;
+const href = (y: number) => (y === E.last_season ? routes.engines() : url(`/engines/${y}/`));
+const hasData = s.teams.length > 0;
+const rows = driverRows(s);
+const allowed = (el: string) => s.allocation[el]?.allowed ?? null;
+const lastParsed = s.parsed_rounds.at(-1) ?? null;
+const roundNames = s.round_labels.map((r) => r.short_ko);
+const roundName = (r: number) => s.round_labels.find((x) => x.round === r)?.short_ko ?? '';
+const asof = E.as_of ? `${nw(E.as_of)} 수집` : '수집일 기록 부재';
+const docsOk = docCount(s.documents, 'pu_used', 'ok') + docCount(s.documents, 'pu_new', 'ok');
+const PU_SOURCE = `FIA ${en('PU elements used per driver up to now')}, ${en('New PU elements')} 문서 ${n0(docsOk)}건, 이 사이트 파싱`;
+
+// 리드
+const maxTeams = Math.max(0, ...s.suppliers.map((p) => p.teams.length));
+const tops = s.suppliers.filter((p) => p.teams.length === maxTeams);
+const teamCount = s.suppliers.reduce((a, p) => a + p.teams.length, 0);
+const topText =
+  tops.length === 1
+    ? `${esc(tops[0].name)} PU를 쓰는 팀이 ${maxTeams}개로 가장 많다.`
+    : `${tops.map((p) => esc(p.name)).join(', ')} PU를 쓰는 팀이 각각 ${maxTeams}개로 가장 많다.`;
+const over = rows.filter((d) => d.exceed.length > 0);
+const hasAlloc = s.elements.some((el) => allowed(el) != null);
+let lead = `${season} 시즌 PU 공급사는 ${s.suppliers.length}곳이다. ${topText}`;
+if (hasData) {
+  lead += ` FIA 누적 문서를 읽은 라운드는 ${n}개 라운드 가운데 ${s.parsed_rounds.length}개다.`;
+  if (hasAlloc) lead += ` 시즌 허용 개수를 넘은 구성요소가 하나라도 있는 드라이버는 ${over.length}명이다.`;
+} else {
+  lead += ` 이 시즌 PU 구성요소 문서는 아직 읽지 않았다.`;
+}
+const facts: [string, string][] = [
+  ['라운드', `${n}개`],
+  ['누적 문서를 읽은 라운드', `${s.parsed_rounds.length}개`],
+  ['새 ICE 투입', `${n0(s.ice_events.length)}건`],
+];
+if (hasAlloc) {
+  facts.push([
+    '허용 개수',
+    s.elements
+      .filter((el) => allowed(el) != null)
+      .map((el) => nw(`${el} ${allowed(el)}`))
+      .join(' · '),
+  ]);
+}
+
+// PU 공급사 표
+const supplierCols: Column[] = [
+  { label: '공급사', render: (p) => `<span lang="en">${esc(p.name)}</span>`, cls: 'who' },
+  { label: '팀', render: (p) => p.teams.map((t: { team: string }) => `<span lang="en" class="nw">${esc(t.team)}</span>`).join(', ') },
+  { label: '팀 수', render: (p) => `${p.teams.length}`, num: true },
+];
+
+// 구성요소 표
+const valueHtml = (d: (typeof rows)[number], el: string) => {
+  const v = d.final[el];
+  if (v == null) return '결측';
+  // 넘친 값이 많아 글자 배지 대신 아이콘 + 숨은 글자로 적고, 표 위에 표시 뜻을 적는다.
+  return d.exceed.includes(el)
+    ? `<span class="xv"><b>${v}</b>${iconSvg('exceed', 'ic xmark')}<span class="sr-only"> 허용 초과</span></span>`
+    : String(v);
+};
+const usageCols: Column[] = [
+  { label: '드라이버', render: (d) => `<span lang="en">${esc(d.name)}</span>`, cls: 'stick' },
+  { label: '팀', render: (d) => `<span lang="en">${esc(d.team)}</span>`, cls: 'who' },
+  { label: '라운드', render: (d) => `${d.rounds.length}`, num: true },
+  ...s.elements.map(
+    (el): Column => ({
+      label: allowed(el) != null ? `${esc(el)}<span class="sub-line">허용 ${allowed(el)}</span>` : esc(el),
+      labelHtml: true,
+      render: (d) => valueHtml(d, el),
+      num: true,
+    }),
+  ),
+];
+const breakRow = (d: (typeof rows)[number]) => (d.last && d.teamIndex < s.teams.length - 1 ? 'break' : '');
+
+// 라운드 x 드라이버 표 보기(정적은 ICE)
+const firstEl = s.elements[0] ?? 'ICE';
+const roundCols = (el: string, bold?: (d: (typeof rows)[number], i: number) => boolean): Column[] => [
+  { label: '드라이버', render: (d) => `<span lang="en">${esc(d.name)}</span>`, cls: 'stick' },
+  { label: '팀', render: (d) => `<span lang="en">${esc(d.team)}</span>` },
+  ...Array.from({ length: n }, (_, i): Column => ({
+    label: `${i + 1}`,
+    num: true,
+    render: (d) => {
+      const v = d.by[el]?.[i];
+      if (v == null) return s.missing_rounds.includes(i + 1) ? '' : '';
+      return bold && bold(d, i) ? `<b>${v}</b>` : String(v);
+    },
+  })),
+];
+
+// 새 ICE 투입: 이벤트를 (팀, 드라이버, 라운드)로 찾는다. 팀이 맞지 않으면 드라이버와 라운드로.
+const evKey = (c: string | null, d: string | null, r: number) => `${c}|${d}|${r}`;
+const evMap = new Map(s.ice_events.map((e) => [evKey(e.constructor_id, e.driver_id, e.round), e]));
+const evByDriver = new Map(s.ice_events.map((e) => [`${e.driver_id}|${e.round}`, e]));
+const eventAt = (d: (typeof rows)[number], i: number) =>
+  d.rounds.includes(i + 1)
+    ? evMap.get(evKey(d.constructor_id, d.driver_id, i + 1)) ??
+      (s.teams.filter((t) => t.drivers.some((x) => x.driver_id === d.driver_id)).length === 1
+        ? evByDriver.get(`${d.driver_id}|${i + 1}`)
+        : undefined)
+    : undefined;
+const iceAllowed = allowed('ICE');
+// 허용 초과 투입: 허용 개수가 있으면 ICE 번호가 그보다 큰 투입, 없으면 문서 문장의 판정(within_allocation)을 따른다.
+const isOver = (e: { ice_number: number | null; within_allocation: boolean | null } | undefined) =>
+  !e ? false : iceAllowed != null && e.ice_number != null ? e.ice_number > iceAllowed : e.within_allocation === false;
+const overEvents = s.ice_events.filter((e) => isOver(e)).length;
+const iceOverDrivers = rows.filter((d) => d.exceed.includes('ICE')).length;
+const iceRows = rows.map((d) => ({
+  id: `${d.constructor_id}|${d.driver_id}`,
+  label: d.name,
+  code: d.code,
+  team: d.team,
+  teamStart: d.first,
+  ice: d.by.ICE ?? Array(n).fill(null),
+  fresh: Array.from({ length: n }, (_, i) => eventAt(d, i)?.ice_number ?? null),
+  over: Array.from({ length: n }, (_, i) => isOver(eventAt(d, i))),
+}));
+const iceRead = hasData
+  ? `${season} 시즌 FIA 선언 문서에 적힌 새 ICE 투입은 ${n0(s.ice_events.length)}건이다. 시즌 첫 ICE는 세지 않는다.` +
+    (iceAllowed != null ? ` 이 가운데 허용 개수(${iceAllowed}개)를 넘은 투입은 ${overEvents}건이다.` : '') +
+    (iceOverDrivers > 0 && iceAllowed != null
+      ? ` 누적 문서로는 ICE가 ${iceAllowed}개를 넘은 드라이버가 ${iceOverDrivers}명이다. 선언 문서의 투입과 누적 문서의 개수가 어긋나는 것은 처분 문서에만 나오는 교체와 선언 문서가 없는 라운드 때문일 수 있다.`
+      : '')
+  : '';
+const eventCols: Column[] = [
+  { label: '라운드', render: (e) => `${e.round}`, num: true },
+  { label: '대회', render: (e) => esc(roundName(e.round)) },
+  { label: '드라이버', render: (e) => `<span lang="en">${esc(e.name ?? '')}</span>`, cls: 'who' },
+  { label: '팀', render: (e) => `<span lang="en">${esc(e.team ?? '')}</span>`, cls: 'hide-sm' },
+  { label: 'ICE 번호', render: (e) => (e.ice_number == null ? '결측' : `${e.ice_number}번째`), num: true },
+  {
+    label: '허용',
+    render: (e) => (isOver(e) ? badgeHtml('exceed', '허용 초과') : iceAllowed != null || e.within_allocation ? '허용 범위 안' : '결측'),
+  },
+  { label: '원문', render: (e) => (e.url ? extHtml(e.url) : '') },
+];
+
+// 허용 개수 근거
+const allocNote = (() => {
+  const a = s.allocation[firstEl] ?? Object.values(s.allocation).find(Boolean) ?? null;
+  if (!a) return '이 시즌 허용 개수 자료는 아직 없다. 허용 초과 표시를 하지 않는다.';
+  if (a.basis === 'regulation')
+    return `${season} 스포팅 규정 ${esc(a.clause_no ?? '')}조${a.page ? `(${a.page}쪽)` : ''}의 값이다. ${a.url ? extHtml(a.url) : ''}`;
+  return `FIA 선언 문서의 배정 문장(${en('one of the four new ... allowed')} 꼴)에서 읽은 값이다. 이 시즌 규정 조항 값은 아직 정리하지 않았다. ${a.url ? extHtml(a.url, 'FIA 원문 PDF (첫 문서)') : ''}`;
+})();
+
+// 자료 범위 안내
+const coverageBits: string[] = [];
+if (s.missing_rounds.length) {
+  coverageBits.push(
+    `누적 문서가 없는 라운드는 ${roundList(s.missing_rounds)}라운드다(문서를 받지 않았거나 검수 대기다).` +
+      (s.partial_rounds.length ? ` 이 가운데 ${roundList(s.partial_rounds)}라운드는 선언 문서에 적힌 일부 드라이버 값만 있다.` : ''),
+  );
+}
+if (s.unknown_new_rounds.length) {
+  coverageBits.push(`선언 문서가 없는 ${roundList(s.unknown_new_rounds)}라운드는 대회 시작 전 누적 값을 적었다.`);
+}
+const reviewHtml = s.review_documents
+  .map((d) => `${d.round}라운드 ${esc(d.event_short_ko)} ${d.doc_type === 'pu_used' ? '누적' : '선언'} 문서 ${d.url ? extHtml(d.url) : ''}`)
+  .join(', ');
+
+// 문서 범위 표(모든 시즌)
+const coverageCols: Column[] = [
+  { label: '시즌', render: (c) => (c.season === season ? `<b>${c.season}</b>` : `<a href="${href(c.season)}">${c.season}</a>`), cls: 'pos' },
+  { label: '라운드', render: (c) => `${c.rounds}`, num: true },
+  { label: '누적 문서를 읽은 라운드', render: (c) => `${c.parsed_rounds}`, num: true },
+  { label: '누적 문서가 없는 라운드', render: (c) => (c.missing_rounds.length ? roundList(c.missing_rounds) : '0개') },
+  { label: '선언 문서', render: (c) => `${docCount(c.documents, 'pu_new', 'ok')}`, num: true, cls: 'hide-sm' },
+  { label: '검수 대기 문서', render: (c) => `${c.review_documents}`, num: true },
+  { label: '두 문서가 어긋난 칸', render: (c) => n0(c.inconsistencies), num: true, cls: 'hide-sm' },
+  { label: '새 ICE 투입', render: (c) => n0(c.ice_events), num: true },
+];
+
+// 브라우저 자료
+const yMax: Record<string, number> = {};
+for (const el of s.elements) {
+  yMax[el] = Math.max(1, allowed(el) ?? 0, ...rows.flatMap((d) => (d.by[el] ?? []).filter((v): v is number => v != null)));
+}
+const clientData = {
+  season,
+  rounds: n,
+  roundNames,
+  elements: s.elements,
+  allowed: Object.fromEntries(s.elements.map((el) => [el, allowed(el)])),
+  yMax,
+  missing: s.missing_rounds,
+  unknown: s.unknown_new_rounds,
+  teams: s.teams.map((t) => ({
+    team: t.team,
+    pu: t.pu?.name ?? null,
+    rows: t.drivers.map((d) => ({ label: d.name, code: d.code, by: d.by })),
+  })),
+  twin: rows.map((d) => ({ name: d.name, team: d.team, by: d.by, brk: breakRow(d) })),
+  ice: iceRows,
+};
+const pickGroups = [{ label: '2020년대', links: [...engineYears].reverse().map((y) => ({ href: href(y), text: String(y), current: y === season })) }];
+const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
+---
+
+<BaseLayout title={title} description={`${season} 시즌 PU 공급사와 드라이버별 PU 구성요소 누적 사용 개수, 새 ICE 투입. FIA 문서에서 읽었다.`} current="engines">
+  <PageHead kicker={['엔진', 'PU', `${season} 시즌`]} title="PU 공급사와 구성요소 사용 현황" lead={lead} facts={facts}>
+    <div class="eng-pick">
+      <LinkPick summary="다른 시즌 고르기" navLabel="엔진 시즌" groups={pickGroups} />
+    </div>
+  </PageHead>
+
+  <Section id="suppliers" title="PU 공급사와 팀" read={`${season} 시즌 ${teamCount}개 팀이 쓴 PU를 공급사별로 묶었다. 많은 팀이 쓴 공급사부터 적었다.`}>
+    <div class="fig-row">
+      <div class="fig">
+        <DataTable caption={`${season} PU 공급사와 팀`} columns={supplierCols} rows={s.suppliers} />
+        <SourceLine source={`${F1DB} 시즌 엔트런트와 엔진 제조사, 이 사이트의 계보 테이블`} asof={asofF1db()} />
+      </div>
+      <aside class="notes" aria-label="PU 공급사와 팀 주석">
+        <Note head="읽는 법" body="PU 공급사는 팀과 따로 적는 차원이다. 팀 이름에 공급사 이름이 들어 있지 않아도 이 표의 공급사를 따른다. 공급사 이름은 F1DB의 엔진 제조사 이름이다." />
+      </aside>
+    </div>
+  </Section>
+
+  <Section
+    id="usage"
+    title="구성요소 사용 현황"
+    meta={lastParsed ? `${season} ${lastParsed}라운드 종료` : `${season} 시즌`}
+    read={hasData
+      ? `표의 값은 FIA 기술 대표가 대회마다 낸 누적 문서(${en('PU elements used per driver up to now')})의 개수에 그 대회 선언 문서의 새 구성요소를 더한 시즌 누적 개수다. 허용 개수를 넘은 값에는 허용 초과 표시를 붙였다.`
+      : undefined}
+  >
+    {
+      hasData ? (
+        <Fragment>
+          {(coverageBits.length > 0 || s.review_documents.length > 0) && (
+            <div class="eng-notice">
+              <Notice badges={s.review_documents.length ? [['review', `검수 대기 ${s.review_documents.length}건`]] : []}>
+                <b>자료 범위.</b> <Fragment set:html={coverageBits.join(' ')} />
+                {s.review_documents.length > 0 && <Fragment set:html={` 검수 대기 문서: ${reviewHtml}.`} />}
+              </Notice>
+            </div>
+          )}
+          <div class="fig-row">
+            <div class="fig">
+              {hasAlloc && (
+                <p class="axis-note eng-key">
+                  <Fragment set:html={iconSvg('exceed', 'ic xmark')} /> 표시와 굵은 값은 시즌 허용 개수를 넘은 값이다(허용 초과).
+                </p>
+              )}
+              <DataTable caption={`${season} 드라이버별 PU 구성요소 시즌 누적 사용 개수`} columns={usageCols} rows={rows} rowClass={breakRow} />
+              <SourceLine source={PU_SOURCE} asof={asof} />
+            </div>
+            <aside class="notes" aria-label="구성요소 사용 현황 주석">
+              <Note head="읽는 법" body="누적 개수는 드라이버가 아니라 팀의 차량 좌석에 붙는다. 대체 드라이버는 원래 드라이버의 개수를 이어받는다. 라운드 열은 누적 문서에 그 드라이버가 나온 라운드 수다." />
+              <Note head="허용 개수" body={allocNote} />
+              <Note
+                head="주의"
+                caution
+                body={`처분 문서에만 나오는 교체는 더하지 않았다. 앞뒤 누적 문서가 맞지 않는 칸 ${n0(s.inconsistencies)}개는 고치지 않고 원자료(pu_inconsistencies.csv)에 남겼다.`}
+              />
+            </aside>
+          </div>
+
+          <div class="eng-ctrl" data-js-only>
+            <span class="lab" id="pu-seg-lab">구성요소</span>
+            <div class="eng-seg">
+              <Seg label="PU 구성요소 고르기" attr="el" id="pu-seg" cols4 items={s.elements.map((el, i) => ({ value: el, label: el, pressed: i === 0 }))} />
+            </div>
+          </div>
+          <Figure
+            id="f-pu"
+            wide
+            title={`<span id="pu-el">${esc(firstEl)}</span> 누적 사용 개수`}
+            scope={`${season} · 팀마다 한 칸 · 모든 칸이 같은 세로축`}
+            sub="라운드가 끝났을 때까지 쓴 개수다. 위로 갈수록 많이 썼고, 가로선은 시즌 허용 개수다. 선 끝의 글자는 드라이버 약어다."
+            legend={[
+              { type: 'line', color: 's1', label: '팀 안 첫째 드라이버' },
+              { type: 'line', color: 's2', label: '둘째' },
+              { type: 'line', color: 's3', label: '셋째' },
+              { type: 'zero', label: '허용 개수' },
+              ...(s.missing_rounds.length ? [{ type: 'ring' as const, color: 'ink-3', label: '누적 문서가 없는 라운드' }] : []),
+            ]}
+            manual
+            ariaLabel={`${season} PU 구성요소 누적 사용 개수, 팀별`}
+            source={PU_SOURCE}
+            asof={asof}
+          >
+            <DataTable
+              slot="twin"
+              compact
+              caption={`${season} 라운드별 ${firstEl} 누적 사용 개수`}
+              columns={roundCols(firstEl)}
+              rows={rows}
+              rowClass={breakRow}
+            />
+            {s.missing_rounds.length > 0 && (
+              <p slot="below" class="axis-note">
+                누적 문서가 없는 {roundList(s.missing_rounds)}라운드는 선을 끊고 축 위에 빈 점을 찍었다. 표 보기에서는 빈칸이다.
+              </p>
+            )}
+          </Figure>
+        </Fragment>
+      ) : (
+        <EmptyState title={`${season} 시즌 PU 구성요소 문서는 아직 읽지 않았다.`}>
+          FIA 문서 목록에는 이 시즌 문서가 있다. 문서를 받아 읽으면 이 자리에 표와 차트가 들어간다.
+        </EmptyState>
+      )
+    }
+  </Section>
+
+  {
+    hasData && (
+      <Section id="ice" title="새 ICE 투입" read={iceRead}>
+        <Figure
+          id="f-ice"
+          title="새 ICE 투입"
+          scope={`${season} · 드라이버 × 라운드 · FIA 선언 문서 기준`}
+          sub="채운 점은 FIA 선언 문서에 새 ICE가 적힌 라운드다. 작은 점은 누적 문서에 나온 라운드, 오른쪽 숫자는 시즌 누적 개수다. 시즌 첫 ICE에는 점을 찍지 않는다."
+          legend={[
+            { type: 'dot', color: 's1', label: '새 ICE 투입' },
+            { type: 'ring', color: 'ink', label: '허용 개수를 넘은 투입' },
+            { type: 'dot', color: 'axis', label: '누적 문서에 나온 라운드' },
+          ]}
+          manual
+          ariaLabel={`${season} 새 ICE 투입 점 행렬`}
+          source={PU_SOURCE}
+          asof={asof}
+          notes={[
+            { head: '읽는 법', body: '행은 드라이버(팀 순서, 팀 경계에 가는 선), 열은 라운드다. 표 보기의 굵은 값이 새 ICE를 투입한 라운드의 누적 개수다.' },
+            {
+              head: '주의',
+              caution: true,
+              body: '점은 선언 문서에 적힌 투입만 찍었다. 선언 문서가 없거나 검수 대기인 라운드, 처분 문서에만 나오는 교체는 점이 없다. 새 ICE 투입과 성적의 관계는 이 차트로 판단하지 않는다.',
+            },
+          ]}
+        >
+          <DataTable
+            slot="twin"
+            compact
+            caption={`${season} 라운드별 ICE 누적 개수, 굵은 값은 새 ICE 투입`}
+            columns={roundCols('ICE', (d, i) => Boolean(eventAt(d, i)))}
+            rows={rows}
+            rowClass={breakRow}
+          />
+        </Figure>
+        <Expand summary={`새 ICE 투입 ${n0(s.ice_events.length)}건 목록 보기`}>
+          <DataTable caption={`${season} 새 ICE 투입 목록`} columns={eventCols} rows={s.ice_events} />
+          <SourceLine source={PU_SOURCE} asof={asof} />
+        </Expand>
+      </Section>
+    )
+  }
+
+  <Section id="coverage" title="문서 범위" read={`${E.first_season}-${E.last_season} 시즌마다 FIA PU 문서를 몇 건 읽었는지 적었다. 읽지 못한 문서의 값은 추측으로 채우지 않는다.`}>
+    <div class="fig-row">
+      <div class="fig">
+        <DataTable caption="시즌별 PU 문서 범위" columns={coverageCols} rows={E.coverage} rowClass={(c) => (c.season === season ? 'hl' : '')} />
+        <SourceLine source={`FIA 결정 문서 목록(PU elements), 이 사이트 파싱`} asof={asof} />
+      </div>
+      <aside class="notes" aria-label="문서 범위 주석">
+        <Note head="읽는 법" body="누적 문서는 대회마다 나오는 PU elements used per driver up to now, 선언 문서는 그 대회에 새로 쓴 구성요소를 적은 문서다. 어긋난 칸은 앞 누적 값에 그 사이 선언된 개수를 더한 값이 다음 누적 값과 다른 칸이다." />
+      </aside>
+    </div>
+  </Section>
+
+  <Section id="aduo" title="ADUO 판정">
+    <div class="eng-empty">
+      <EmptyState title="2026 시즌 범위에서 추가 예정이다.">FIA의 성능 지수는 비공개라 추정하지 않고 판정 결과만 싣는다.</EmptyState>
+    </div>
+  </Section>
+
+  {hasData && <JsonData id="pu-data" data={clientData} />}
+</BaseLayout>
+
+<style>
+  .eng-pick { margin-top: var(--sp-4); }
+  .eng-notice { margin-top: var(--sp-4); max-width: 60rem; }
+  .eng-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-top: var(--sp-6); }
+  .eng-ctrl .lab { font-size: var(--fs-micro); font-weight: 600; color: var(--ink-2); }
+  .eng-seg { max-width: 100%; overflow-x: auto; padding: 3px; margin: -3px; }
+  .eng-empty { margin-top: var(--sp-4); }
+  .eng-key { display: flex; align-items: center; gap: 6px; margin-bottom: var(--sp-2); }
+</style>
+
+<style is:global>
+  /* 표 안의 .sr-only(절대 위치)가 가로 스크롤 감싸개 밖으로 새어 페이지 폭을 넓히지 않게 한다 */
+  .tbl-wrap { position: relative; }
+  .pu-mult { --cols: 2; }
+  .xv { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .xmark { width: 13px; height: 13px; flex: none; }
+  @media (max-width: 640px) { .pu-mult { --cols: 1; } }
+</style>
+
+<script>
+  import { figureFallback, mount, ready, readJson, tableTwin } from '../../lib/charts/mount.ts';
+  import { newIceMatrix, puTeamSteps } from './pu-charts.js';
+
+  interface ClientData {
+    season: number;
+    rounds: number;
+    roundNames: string[];
+    elements: string[];
+    allowed: Record<string, number | null>;
+    yMax: Record<string, number>;
+    missing: number[];
+    unknown: number[];
+    teams: { team: string; pu: string | null; rows: { label: string; code: string | null; by: Record<string, (number | null)[]> }[] }[];
+    twin: { name: string; team: string; by: Record<string, (number | null)[]>; brk: string }[];
+    ice: unknown[];
+  }
+
+  ready.then(() => {
+    if (!document.getElementById('pu-data')) return;
+    const data = readJson<ClientData>('pu-data');
+    const puSlot = document.querySelector<HTMLElement>('#f-pu .viz');
+    const handles: { redraw: (d?: unknown, o?: Record<string, unknown>) => void }[] = [];
+    let element = data.elements[0];
+    const optsFor = (team: string) => ({
+      rounds: data.rounds,
+      element,
+      yMax: data.yMax[element],
+      allowed: data.allowed[element],
+      missing: data.missing,
+      unknown: data.unknown,
+      roundNames: data.roundNames,
+      team,
+      label: `${team} ${element} 누적 사용 개수`,
+    });
+    if (puSlot) {
+      try {
+        const grid = document.createElement('div');
+        grid.className = 'multiples pu-mult';
+        puSlot.replaceChildren(grid);
+        for (const t of data.teams) {
+          const cell = document.createElement('div');
+          const head = document.createElement('p');
+          head.className = 'mini-head';
+          const b = document.createElement('b');
+          b.lang = 'en';
+          b.textContent = t.team;
+          const sp = document.createElement('span');
+          sp.lang = 'en';
+          sp.textContent = t.pu ? `${t.pu} PU` : 'PU 확인 안 됨';
+          head.append(b, sp);
+          const slot = document.createElement('div');
+          cell.append(head, slot);
+          grid.append(cell);
+          handles.push(mount(slot, puTeamSteps, t.rows, optsFor(t.team)));
+        }
+      } catch (err) {
+        figureFallback(puSlot, err);
+      }
+    }
+    const twin = document.querySelector<HTMLElement>('#f-pu .twin');
+    const label = document.getElementById('pu-el');
+    const swapTwin = () => {
+      if (!twin) return;
+      const columns = [
+        { key: 'name', label: '드라이버' },
+        { key: 'team', label: '팀' },
+        ...Array.from({ length: data.rounds }, (_, i) => ({ key: `r${i + 1}`, label: String(i + 1), num: true })),
+      ];
+      const rows = data.twin.map((d) => {
+        const r: Record<string, unknown> = { name: d.name, team: d.team, brk: d.brk };
+        (d.by[element] ?? []).forEach((v, i) => (r[`r${i + 1}`] = v ?? ''));
+        return r;
+      });
+      const node = tableTwin({ caption: `${data.season} 라운드별 ${element} 누적 사용 개수`, columns, rows, rowClass: (r: { brk: string }) => r.brk || null });
+      node.querySelectorAll('tbody tr').forEach((tr) => tr.firstElementChild?.classList.add('stick'));
+      node.querySelector('thead th')?.classList.add('stick');
+      twin.replaceChildren(node);
+    };
+    document.querySelectorAll<HTMLButtonElement>('#pu-seg [data-el]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        element = btn.dataset.el || element;
+        document.querySelectorAll<HTMLButtonElement>('#pu-seg [data-el]').forEach((x) => x.setAttribute('aria-pressed', String(x === btn)));
+        if (label) label.textContent = element;
+        handles.forEach((h, i) => h.redraw(null, optsFor(data.teams[i].team)));
+        swapTwin();
+      });
+    });
+
+    const iceSlot = document.querySelector<HTMLElement>('#f-ice .viz');
+    if (iceSlot) {
+      mount(iceSlot, newIceMatrix, data.ice, {
+        rounds: data.rounds,
+        missing: data.missing,
+        allowed: data.allowed.ICE ?? null,
+        roundNames: data.roundNames,
+        label: `${data.season} 새 ICE 투입`,
+      });
+    }
+  });
+</script>

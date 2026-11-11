@@ -1,0 +1,29 @@
+---
+// 대회 고르기(팀 페이지 업그레이드 기록): 선택 상자 + 이전 대회 + 다음 대회. data-js-only라 스크립트가
+// 없으면 숨는다(정적으로는 고른 대회의 항목 목록만 싣는다). 움직임은 페이지 스크립트가 잇는다:
+//   #{id}-select change, #{id}-prev / #{id}-next click. 끝에 닿으면 disabled 대신 aria-disabled="true"로 둔다.
+// options는 최근 대회가 먼저다. value는 "2025-20"처럼 시즌-라운드.
+interface Props {
+  id?: string;
+  label?: string;
+  options: { value: string; label: string; selected?: boolean }[];
+}
+const { id = 'ev', label = '신고가 있는 대회 고르기', options } = Astro.props;
+---
+
+<div class="ev-picker" data-js-only>
+  <div class="field">
+    <label for={`${id}-select`}>{label}</label>
+    <select id={`${id}-select`}>
+      {options.map((o) => <option value={o.value} selected={o.selected}>{o.label}</option>)}
+    </select>
+  </div>
+  <div class="field">
+    <span class="lab" aria-hidden="true">&nbsp;</span>
+    <button class="btn" type="button" id={`${id}-prev`}>이전 대회</button>
+  </div>
+  <div class="field">
+    <span class="lab" aria-hidden="true">&nbsp;</span>
+    <button class="btn" type="button" id={`${id}-next`}>다음 대회</button>
+  </div>
+</div>

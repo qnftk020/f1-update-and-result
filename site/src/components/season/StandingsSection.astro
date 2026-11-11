@@ -1,0 +1,140 @@
+---
+// 순위 추이 절: 드라이버 누적 점수(강조 칩 최대 3명) + 컨스트럭터 누적 점수(1958년부터, 그 전은 빈 상태).
+// 칩과 범례 글자는 페이지 스크립트(seasons/[year].astro)가 잇는다.
+import EmptyState from '../EmptyState.astro';
+import Figure from '../Figure.astro';
+import Section from '../Section.astro';
+import type { Column } from '../DataTable.astro';
+import { JOLPICA, asofJolpica } from '../../lib/sources.ts';
+import { roundLabels } from '../../lib/chart-data.ts';
+import type { Season } from '../../lib/types.ts';
+import { esc, keepNames } from '../../lib/typeset.ts';
+import { EMPTY, constructorLeadRead, driverLeadRead, pointsCell, posCell, shortName } from './season-text.ts';
+
+interface Props {
+  season: Season;
+}
+const { season: s } = Astro.props;
+const year = s.season;
+const rounds = roundLabels(s);
+const n = s.rounds.length;
+
+const drivers = s.drivers.map((d) => ({ id: d.id, label: d.name, short: shortName(d), team: d.team, pts: d.points }));
+const hlDrivers = drivers.slice(0, 3).map((d) => d.id);
+const chipDrivers = s.drivers.slice(0, Math.min(8, s.drivers.length));
+
+const cons = s.has_constructor_standings
+  ? s.constructors.filter((c) => c.points).map((c) => ({ id: c.id, label: c.name, short: c.name, pos: c.position, pts: c.points as (number | null)[] }))
+  : [];
+const hlCons = cons.slice(0, 3);
+
+function ptsColumns(nameKey: string): Column[] {
+  return [
+    { label: '순위', num: true, render: (r) => posCell(r) },
+    { label: '이름', cls: 'stick', render: (r) => esc(r[nameKey]) },
+    ...Array.from({ length: n }, (_, i): Column => ({ label: String(i + 1), num: true, render: (r) => pointsCell(r.points[i]) })),
+  ];
+}
+
+const sprintNote = s.facts.sprints.length ? '(스프린트 포함)' : '';
+const keys = ['s1', 's2', 's3'];
+const driverLegend = [
+  ...hlDrivers.map((id, k) => ({
+    type: 'line' as const,
+    color: keys[k],
+    label: `<span id="lg-d${k}">${esc(drivers.find((d) => d.id === id)?.label ?? '')}</span>`,
+  })),
+  { type: 'line' as const, color: 'ctx', label: '나머지 드라이버' },
+];
+const consLegend = [
+  ...hlCons.map((c, k) => ({ type: 'line' as const, color: keys[k], label: esc(c.label) })),
+  { type: 'line' as const, color: 'ctx', label: '나머지 팀' },
+];
+const emptyNote = s.drivers.some((d) => d.points.some((p) => p == null))
+  ? ' 빈 칸은 그 라운드까지 순위표에 오르지 않은 경우다.'
+  : '';
+const unranked = s.drivers.filter((d) => d.position == null).length;
+const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명은 "순위 미부여"로 적었다.` : '';
+---
+
+<Section id="standings" title="순위 추이" read={driverLeadRead(s)}>
+  <div class="chips-row" role="group" aria-label="강조할 드라이버 (최대 3명)" id="hl-drivers" data-js-only>
+    {
+      chipDrivers.map((d, i) => (
+        <button type="button" class="chip-link" aria-pressed={String(i < 3)} data-id={d.id}>
+          {d.name}
+        </button>
+      ))
+    }
+  </div>
+  <Figure
+    id="f-drivers"
+    title="드라이버 누적 점수"
+    scope={`${year} · 라운드별 누적 · 강조 ${hlDrivers.length}명`}
+    sub={`라운드가 끝난 뒤의 누적 점수다${sprintNote}. 강조한 드라이버는 색 선, 나머지는 회색 가는 선이다.`}
+    legend={driverLegend}
+    chart="pointsRace"
+    data={drivers}
+    opts={{ rounds, highlight: hlDrivers, unit: '점' }}
+    source={`${JOLPICA} 드라이버 순위(라운드별)`}
+    asof={asofJolpica()}
+    twin={{
+      caption: '드라이버 라운드별 누적 점수',
+      columns: ptsColumns('name'),
+      rows: s.drivers,
+      rowClass: (r) => (r.position === 3 && s.drivers.length > 3 ? 'break' : ''),
+    }}
+    notes={[
+      { head: '읽는 법', body: '색은 강조한 순서대로 1, 2, 3번 색을 쓴다. 팀 색이 아니다. 끝 라벨이 겹치면 짧은 연결선으로 띄운다.' },
+      { head: '전체 값', body: `${s.drivers.length}명 모두의 라운드별 점수는 표 보기에 있다.${emptyNote}${unrankedNote}` },
+    ]}
+  />
+  {
+    cons.length > 0 ? (
+      <Fragment>
+        <p class="read con-read" set:html={keepNames(constructorLeadRead(s))} />
+        <Figure
+          id="f-constructors"
+          title="컨스트럭터 누적 점수"
+          scope={`${year} · 라운드별 누적 · 강조 ${hlCons.length}팀`}
+          sub={`강조한 팀은 색 선, 나머지 ${Math.max(0, cons.length - hlCons.length)}팀은 회색 가는 선이다.`}
+          legend={consLegend}
+          chart="pointsRace"
+          data={cons}
+          opts={{ rounds, highlight: hlCons.map((c) => c.id), unit: '점' }}
+          source={`${JOLPICA} 컨스트럭터 순위(라운드별)`}
+          asof={asofJolpica()}
+          twin={{
+            caption: '컨스트럭터 라운드별 누적 점수',
+            columns: [
+              { label: '순위', num: true, render: (r) => posCell(r) },
+              { label: '이름', cls: 'stick', render: (r) => esc(r.label) },
+              ...Array.from({ length: n }, (_, i): Column => ({ label: String(i + 1), num: true, render: (r) => pointsCell(r.pts[i]) })),
+            ],
+            rows: cons.map((c) => ({ ...c, position: c.pos })),
+            rowClass: (r) => (r.position === 3 && cons.length > 3 ? 'break' : ''),
+          }}
+          notes={[
+            {
+              head: '읽는 법',
+              body: `${cons.length}개 팀에 색을 하나씩 주지 않는다. 최종 상위 ${hlCons.length}팀만 ${hlCons.map((_, k) => k + 1).join(', ')}번 색으로 강조한다.`,
+            },
+          ]}
+        />
+      </Fragment>
+    ) : (
+      <EmptyState title={EMPTY.constructors} class="con-empty">
+        {year}년에는 컨스트럭터 순위가 없어 드라이버 순위만 싣는다.
+      </EmptyState>
+    )
+  }
+</Section>
+
+<style>
+  .con-read {
+    margin-top: var(--sp-6);
+  }
+  :global(.con-empty) {
+    margin-top: var(--sp-6);
+  }
+</style>

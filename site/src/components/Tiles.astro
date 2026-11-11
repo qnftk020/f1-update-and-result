@@ -1,0 +1,27 @@
+---
+// 수치 타일 줄(dl.tiles, 4칸 -> 900px 아래 2칸 -> 340px 아래 1칸). 한 화면에 한 줄만 둔다.
+// items: [{ label: '우승 기록', value: '1:26:07.469', who: 'Max Verstappen', team: 'Red Bull' }]
+// 값은 비례 숫자다. who와 team은 글자 그대로 넣는다(라틴 이름).
+interface Props {
+  items: { label: string; value: string; who?: string; team?: string }[];
+}
+const { items } = Astro.props;
+---
+
+<dl class="tiles">
+  {
+    items.map((t) => (
+      <div class="tile">
+        <dt>{t.label}</dt>
+        <dd>
+          <span class="val">{t.value}</span>
+          {t.who && (
+            <span class="who">
+              {t.who} {t.team && <span>{t.team}</span>}
+            </span>
+          )}
+        </dd>
+      </div>
+    ))
+  }
+</dl>

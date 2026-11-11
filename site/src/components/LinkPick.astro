@@ -1,0 +1,33 @@
+---
+// 링크 목록을 접은 고르기(details.pick): "다른 시즌 고르기"(연대별 연도 링크), 좁은 화면의 "이 쪽의 절" 목차.
+// 선택 상자로 페이지를 옮기지 않는다. 현재 항목은 aria-current="page"로 굵게 표시된다.
+// groups: [{ label: '2020년대', links: [{ href, text, current }] }]. label이 없으면 한 줄 목록이다.
+interface Props {
+  summary: string;
+  navLabel: string;
+  groups: { label?: string; links: { href: string; text: string; current?: boolean }[] }[];
+}
+const { summary, navLabel, groups } = Astro.props;
+---
+
+<details class="pick">
+  <summary>{summary}</summary>
+  <nav aria-label={navLabel}>
+    <ul class="pick-list">
+      {
+        groups.map((g) => (
+          <li>
+            <span class="dec">{g.label ?? ''}</span>
+            <span class="yrs">
+              {g.links.map((l) => (
+                <a href={l.href} aria-current={l.current ? 'page' : undefined}>
+                  {l.text}
+                </a>
+              ))}
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+</details>

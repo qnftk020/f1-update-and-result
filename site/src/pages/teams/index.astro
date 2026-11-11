@@ -1,0 +1,123 @@
+---
+// 팀 목록 /teams/. DESIGN.md "팀" 목록 와이어프레임: 2025 그리드 10개 팀을 계보로 묶은 표. 행 전체가 그 팀 페이지 링크다.
+// 리드와 표의 수치는 teams.json에서 센다.
+import DataTable, { type Column } from '../../components/DataTable.astro';
+import PageHead from '../../components/PageHead.astro';
+import Section from '../../components/Section.astro';
+import SourceLine from '../../components/SourceLine.astro';
+import { lineageShort, ro } from '../../components/team/model.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { meta, teams } from '../../lib/data.ts';
+import { formatPoints, josa, num, pct } from '../../lib/format.ts';
+import { routes } from '../../lib/paths.ts';
+import { JOLPICA, asofQualiIndex } from '../../lib/sources.ts';
+import type { TeamSummary } from '../../lib/types.ts';
+import { aside, b, en, esc } from '../../lib/typeset.ts';
+
+const last = meta.last_season;
+const rows = [...teams].sort((a, c) => (a.last?.position ?? 99) - (c.last?.position ?? 99));
+const oldest = [...teams].sort((a, c) => a.since - c.since)[0];
+const youngest = [...teams].sort((a, c) => c.since - a.since)[0];
+const mostNames = [...teams].sort((a, c) => c.names.length - a.names.length)[0];
+const single = teams.filter((t) => t.names.length === 1);
+// 한국어 계보 이름 + 괄호 안 컨스트럭터 + 조사. 조사는 한국어 이름의 받침으로 고른다.
+const nameRef = (t: TeamSummary, particle: (w: string) => string) => {
+  const ko = lineageShort(t.name_ko);
+  return `${b(esc(ko))}${aside(esc(t.constructor.name))}${particle(ko).slice(ko.length)}`;
+};
+
+const lead =
+  `${last} 그리드 ${teams.length}개 팀을 이름이 바뀌어도 조직이 이어진 흐름(계보)으로 묶었다. ` +
+  `가장 오래된 계보는 ${oldest.since}년부터 이어진 ${nameRef(oldest, (w) => `${w}이고`)}, 가장 짧은 계보는 ${youngest.since}년에 출발한 ${nameRef(youngest, (w) => josa(w, '이다', '다'))}. ` +
+  `이름이 가장 많이 바뀐 계보는 ${nameRef(mostNames, ro)} 이름 ${mostNames.names.length}개를 거쳤고, ${single.length}개 계보는 처음 이름 그대로다.`;
+
+const maxQ = Math.max(...teams.map((t) => t.last?.quali_index_mean ?? 0));
+const cols: Column<TeamSummary>[] = [
+  {
+    label: '계보 (거점)',
+    cls: 'who',
+    render: (t) =>
+      `<a class="row-link" href="${routes.team(t.lineage_id)}"><b>${esc(t.name_ko)}</b></a><span class="sub-line" lang="en">${esc(t.base)}</span>`,
+  },
+  { label: `${last} 컨스트럭터`, cls: 'hide-sm', render: (t) => `<span class="nw" lang="en">${esc(t.constructor.name)}</span>` },
+  { label: 'PU', cls: 'hide-sm', render: (t) => (t.pu ? `<span class="nw" lang="en">${esc(t.pu.name)}</span>` : '결측') },
+  { label: '이름', num: true, cls: 'hide-xs', render: (t) => `${t.names.length}개` },
+  { label: '첫 시즌', num: true, render: (t) => String(t.since) },
+  { label: `${last} 순위`, num: true, cls: 'pos', render: (t) => (t.last?.position ? `${t.last.position}위` : '미부여') },
+  { label: '점수', num: true, cls: 'hide-sm', render: (t) => formatPoints(t.last?.points ?? 0) },
+  {
+    label: `${last} 예선 지수 (%)`,
+    num: true,
+    render: (t) => num(t.last?.quali_index_mean),
+  },
+  {
+    label: '',
+    cls: 'meter-cell hide-sm',
+    render: (t) =>
+      t.last?.quali_index_mean != null
+        ? `<span class="meter" aria-hidden="true" style="width:${((t.last.quali_index_mean / maxQ) * 100).toFixed(1)}%"></span>`
+        : '',
+  },
+  { label: '업그레이드 항목', num: true, cls: 'hide-sm', render: (t) => `${t.upgrade_items}건` },
+];
+const fastest = rows.filter((t) => t.last?.quali_index_mean != null).sort((a, c) => a.last!.quali_index_mean! - c.last!.quali_index_mean!)[0];
+const read =
+  `표는 ${last} 컨스트럭터 순위 순서다. 예선 평균 지수는 마른 예선에서 팀 최고 랩이 세션 최고 랩보다 평균 몇 % 느렸는지이며, ` +
+  `${en(esc(fastest.constructor.name))} 팀이 ${b(pct(fastest.last!.quali_index_mean))}로 가장 작다. 행을 누르면 그 계보의 팀 페이지로 간다.`;
+---
+
+<BaseLayout title="팀" description={`${last} 그리드 ${teams.length}개 팀의 계보, 순위, 예선 지수, 업그레이드 항목 수`} current="teams">
+  <PageHead kicker={['팀', `${last} 그리드의 ${teams.length}개 계보`]} title="팀" lead={lead} />
+  <Section id="list" title="계보 목록" read={read} meta={`${last} 컨스트럭터 순위 순`}>
+    <div class="fig-row wide">
+      <div class="fig">
+        <DataTable class="team-list" caption={`${last} 그리드 ${teams.length}개 계보`} columns={cols} rows={rows} />
+        <SourceLine
+          source={`이 사이트의 계보 테이블(F1DB chronology에서 출발), 순위와 점수는 ${JOLPICA}, 예선 지수는 이 사이트 계산, 업그레이드 항목은 FIA Car Presentation Submissions(2023-${last})`}
+          asof={asofQualiIndex()}
+        />
+      </div>
+      <aside class="notes" aria-label="계보 목록 주석">
+        <div class="note">
+          <p class="note-h">읽는 법</p>
+          <p>
+            계보는 참가 명칭과 컨스트럭터 이름이 바뀌어도 같은 공장과 조직이 이어진 흐름이다. 이름 수는 계보 안에서 쓴 컨스트럭터 이름의 개수다. 연결
+            근거는 팀 페이지의 "구간별 표와 연결 근거 보기"에 있다.
+          </p>
+        </div>
+        <div class="note caution">
+          <p class="note-h">주의</p>
+          <p>막대는 예선 평균 지수의 크기다. 길수록 느리다. 순위 열과 방향이 반대다.</p>
+        </div>
+      </aside>
+    </div>
+  </Section>
+</BaseLayout>
+
+<style>
+  /* 행 전체를 팀 페이지 링크로: 첫 칸의 링크가 행을 덮는다 */
+  :global(.team-list) tbody tr {
+    position: relative;
+  }
+  :global(.team-list) tbody tr:hover {
+    background: var(--paper-2);
+  }
+  :global(.team-list .row-link) {
+    color: inherit;
+    text-decoration: none;
+  }
+  :global(.team-list .row-link)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  :global(.team-list .row-link:hover b),
+  :global(.team-list .row-link:focus-visible b) {
+    text-decoration: underline;
+  }
+  :global(.team-list .who .sub-line) {
+    display: block;
+    font-size: var(--fs-micro);
+    color: var(--ink-3);
+  }
+</style>

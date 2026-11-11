@@ -1,0 +1,18 @@
+---
+// 안내 상자: 종이 2 바탕, 왼쪽 3px 잉크 선. icon을 주면 상자 머리 아이콘(예: review), badges를 주면 배지 줄을 앞에 둔다.
+// <Notice icon="review"><b>검수 대기 1건.</b> 2024년 22라운드 …</Notice>
+import { type BadgeKind, type IconName, badgesHtml, iconSvg } from '../lib/markup.ts';
+
+interface Props {
+  icon?: IconName;
+  badges?: [BadgeKind, string][];
+  class?: string;
+}
+const { icon, badges = [], class: cls } = Astro.props;
+---
+
+<p class:list={['notice', cls]}>
+  {icon && <Fragment set:html={iconSvg(icon)} />}
+  {badges.length > 0 && <Fragment set:html={badgesHtml(badges)} />}
+  <span><slot /></span>
+</p>

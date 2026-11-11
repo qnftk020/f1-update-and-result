@@ -1,0 +1,38 @@
+---
+// 꼬리말: 4px 잉크 괘선. 왼쪽 비공식 고지 세 문단, 오른쪽 데이터 기준일 표(데이터원, 쓰는 범위, 기준일, 라이선스).
+// 기준일은 모두 meta.json에서 온다(lib/sources.ts footerRows()).
+import { esc } from '../lib/typeset.ts';
+import { routes } from '../lib/paths.ts';
+import { footerRows } from '../lib/sources.ts';
+import DataTable from './DataTable.astro';
+
+const rows = footerRows();
+const columns = [
+  { label: '데이터원', render: (r: (typeof rows)[number]) => (r.latin ? `<span lang="en">${esc(r.src)}</span>` : esc(r.src)) },
+  { label: '쓰는 범위', key: 'use', cls: 'hide-sm' },
+  { label: '기준일', render: (r: (typeof rows)[number]) => r.asof },
+  { label: '라이선스', key: 'license', cls: 'hide-sm' },
+];
+---
+
+<footer class="site-foot">
+  <div class="wrap foot-grid">
+    <div>
+      <h2>비공식 고지</h2>
+      <p>
+        이 사이트는 비영리 비공식 팬 프로젝트다. Formula 1, F1, FIA와 각 팀의 이름과 상표는 그 권리자의 것이며, 이
+        사이트는 그들과 관계가 없다. 로고, 엠블럼, 차량 사진과 공식 이미지를 쓰지 않는다. 광고와 후원, 유료 기능이
+        없다.
+      </p>
+      <p>
+        업그레이드와 성적의 관계는 원인과 결과가 아니라 추정된 연관으로만 적고, 불확실성 구간을 함께 보인다. 데이터는
+        자동 갱신되며 갱신이 늦을 수 있다.
+      </p>
+      <p>코드 MIT, 데이터 CC BY-NC-SA 4.0. 출처와 계산 방법은 <a href={routes.about()}>데이터와 방법론</a> 페이지에 있다.</p>
+    </div>
+    <div>
+      <h2>데이터 기준일</h2>
+      <DataTable caption="데이터원별 기준일" columns={columns} rows={rows} />
+    </div>
+  </div>
+</footer>

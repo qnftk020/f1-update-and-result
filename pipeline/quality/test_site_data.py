@@ -88,13 +88,18 @@ def test_index_values_match_curated_tables(site):
     season = site("season/2025.json")
     teams = {c["id"]: c for c in season["constructors"]}
     quali = con.execute(
-        "select round, constructor_id, index_pct"
+        "select round, constructor_id, index_pct, team_best_ms, session_best_ms"
         f" from '{CURATED_DIR}/pace/qualifying_index.parquet' where season = 2025"
     ).fetchall()
     assert len(quali) == 240
-    for rnd, cid, value in quali:
+    for rnd, cid, value, team_ms, session_ms in quali:
         exported = teams[cid]["quali_index"][rnd - 1]
-        assert exported == (None if value is None else round(value, 3)), (rnd, cid)
+        if value is None:
+            assert exported is None, (rnd, cid)
+            continue
+        # 화면 값은 ms 기록에서 다시 계산한 지수다. 정제 테이블의 넷째 자리 값과 반올림 차이만 난다.
+        assert exported == round((team_ms / session_ms - 1) * 100, 9), (rnd, cid)
+        assert abs(exported - value) <= 0.00005 + 1e-12, (rnd, cid)
     race = con.execute(
         "select round, constructor_id, index_pct, ci_low_pct, ci_high_pct, clean_laps"
         f" from '{CURATED_DIR}/pace/race_index.parquet' where season = 2025"
@@ -105,11 +110,109 @@ def test_index_values_match_curated_tables(site):
             assert exported is None, (rnd, cid)
         else:
             assert exported == {
-                "v": round(value, 3),
-                "lo": round(low, 3),
-                "hi": round(high, 3),
+                "v": round(value, 6),
+                "lo": round(low, 6),
+                "hi": round(high, 6),
                 "n": laps,
             }, (rnd, cid)
+
+
+def test_quali_index_keeps_the_third_decimal(site):
+    """2025 R24 McLaren: 82408 / 82207 - 1 = 0.24450...%. 넷째 자리 저장값(0.2445)을 셋째 자리로
+    한 번 더 반올림하면 0.244가 되어 화면 문장(0.245%)과 어긋난다."""
+    home = site("home.json")
+    mclaren = next(q for q in home["quali"] if q["constructor_id"] == "mclaren")
+    assert mclaren["team_best_ms"] == 82408
+    assert mclaren["gap_s"] == 0.201
+    assert 0.2445 < mclaren["v"] < 0.24451
+    assert [q["constructor_id"] for q in home["quali"]][:2] == ["red_bull", "mclaren"]
+    assert home["quali_meta"]["session_best"] == "1:22.207"
+    assert [r["constructor_id"] for r in home["race_index"]][0] == "mclaren"
+
+
+def test_round_fields_match_the_teams_of_that_round(site):
+    season = site("season/2025.json")
+    for i, rnd in enumerate(season["rounds"]):
+        values = sorted(
+            c["quali_index"][i]
+            for c in season["constructors"]
+            if c["quali_index"] and c["quali_index"][i] is not None
+        )
+        field = rnd["quali"]["field"]
+        assert rnd["quali"]["teams"] == len(values) == 10
+        assert abs(field["med"] - statistics.median(values)) < 1e-8
+        assert field["q1"] <= field["med"] <= field["q3"]
+
+
+def test_season_facts(site):
+    facts = site("season/2025.json")["facts"]
+    assert facts["races"] == 24
+    assert facts["winners"] == 4
+    assert facts["sprints"] == [2, 6, 13, 19, 21, 23]
+    assert facts["quali_wet"] == [17, 22]
+    assert facts["race_wet"] == [1, 12, 13]
+    assert facts["driver_lead"]["leader_id"] == "norris"
+    old = site("season/2004.json")["facts"]
+    assert old["quali_reference"] == list(range(1, 19))
+    assert old["quali_unclassified"] == list(range(1, 19))
+    assert old["quali_reference_formats"] == ["원랩"]
+    assert old["race_index_rounds"] == 0
+    assert site("season/1957.json")["facts"]["constructor_lead"] is None
+
+
+def test_team_page_fields(site):
+    """팀 페이지 리드와 계보 수치: 엔스톤 2025는 10위 22점, 마른 예선 22개 평균 1.337%로 8번째다."""
+    enstone = site("team/enstone.json")
+    last = enstone["seasons"][-1]
+    assert (last["position"], last["points"], last["quali_rounds"]) == (10, 22, 22)
+    assert round(last["quali_index_mean"], 3) == 1.337
+    assert (last["quali_rank"], last["quali_teams"]) == (8, 10)
+    assert enstone["totals"] == {
+        "seasons": 45,
+        "races": 786,
+        "wins": 50,
+        "podiums": enstone["totals"]["podiums"],
+        "best_position": 1,
+        "titles": [1995, 2005, 2006],
+    }
+    assert enstone["current_from"] == 2021
+    assert enstone["totals_current"]["seasons"] == 5
+    assert [d["id"] for d in enstone["drivers_last"]] == ["gasly", "doohan", "colapinto"]
+    timeline = enstone["upgrades"]["timeline"]
+    assert sorted(timeline) == ["2023", "2024", "2025"]
+    assert sum(r["n"] for rows in timeline.values() for r in rows) == enstone["upgrades"]["items"]
+    assert enstone["upgrades"]["items"] == 62
+    bahrain_2024 = next(r for r in timeline["2024"] if r["round"] == 1)
+    assert bahrain_2024["status"] == "nodoc"
+    vegas = next(
+        r for r in site("team/grove.json")["upgrades"]["timeline"]["2024"] if r["round"] == 22
+    )
+    assert vegas["status"] == "needs_review" and vegas["doc_review"]
+
+
+def test_home_tiles_and_round_counts(site):
+    home = site("home.json")
+    assert home["pole"]["id"] == "max_verstappen" and home["pole"]["time"] == "1:22.207"
+    assert home["fastest_lap"]["id"] == "leclerc"
+    assert (home["fastest_lap"]["lap"], home["fastest_lap"]["time"]) == (45, "1:26.725")
+    counts = home["round_counts"]
+    assert len(counts) == 24
+    assert max(counts, key=lambda c: c["n"])["round"] == 1
+    assert sum(c["n"] for c in counts) == sum(
+        1 for i in site("upgrades.json")["items"] if i["season"] == 2025
+    )
+    assert [d["position"] for d in home["drivers"]] == list(range(1, len(home["drivers"]) + 1))
+    assert home["drivers"][0]["team"] == "McLaren"
+    assert len(home["constructors"]) == 10
+
+
+def test_meta_has_as_of_dates_per_source(site):
+    meta = site("meta.json")
+    jolpica = meta["sources"]["jolpica"]
+    assert jolpica["dump"] == "2026-10-27"
+    assert set(meta["sources"]) == {"jolpica", "f1db", "openf1", "fia", "pace"}
+    assert all(len(s["as_of"]) == 10 for s in meta["sources"].values())
+    assert [(d["season"], d["round"]) for d in meta["review_documents"]] == [(2024, 22)]
 
 
 def test_flags_are_exported(site):
@@ -388,3 +491,53 @@ def manifest_rows(name):
 
     with (MANIFEST_DIR / name).open(newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def test_engines_export_follows_pu_tables(site):
+    engines = site("engines.json")
+    usage = pd.read_parquet(CURATED_DIR / "fia" / "pu_usage.parquet")
+    assert sorted(engines["seasons"]) == [str(s) for s in range(2020, LAST_SEASON + 1)]
+    for key, s in engines["seasons"].items():
+        season = int(key)
+        assert s["rounds"] == len(s["round_labels"])
+        for team in s["teams"]:
+            for d in team["drivers"]:
+                for el, series in d["by"].items():
+                    assert len(series) == s["rounds"]
+                    known = [v for v in series if v is not None]
+                    assert d["final"][el] == (known[-1] if known else None)
+        # 누적 값은 원자료의 used_after_event, 비어 있으면 used_before_event다.
+        rows = usage[(usage["season"] == season) & (usage["element"] == "ICE")]
+        for r in rows.head(30).itertuples():
+            team = next(t for t in s["teams"] if t["constructor_id"] == r.constructor_id)
+            d = next(x for x in team["drivers"] if x["driver_id"] == r.driver_id)
+            expected = r.used_before_event if pd.isna(r.used_after_event) else r.used_after_event
+            assert d["by"]["ICE"][int(r.round) - 1] == int(expected)
+        for d in (d for t in s["teams"] for d in t["drivers"]):
+            for el in d["exceed"]:
+                assert d["final"][el] > s["allocation"][el]["allowed"]
+
+
+def test_regulations_matrix_covers_every_year(site):
+    reg = site("regulations.json")
+    years = [y["year"] for y in reg["years"]]
+    assert years == list(range(1982, LAST_SEASON + 1))
+    for y in reg["years"]:
+        expected = "A" if y["year"] >= 2008 else "B" if y["year"] >= 2001 else "C"
+        assert y["grade"] == expected
+        for section in ("technical", "sporting"):
+            cell = y[section]
+            assert cell["found"] == (cell["count"] > 0)
+            assert (cell["url"] is not None) == cell["found"]
+    for c in reg["comparisons"]:
+        assert len(c["changes"]) == c["added"] + c["removed"] + c["modified"]
+        # 조항 비교에는 본문을 싣지 않는다(번호, 제목, 변경 유형, 쪽만).
+        for ch in c["changes"]:
+            assert set(ch) == {
+                "clause_no", "top_article", "top_title", "heading", "change", "page_from", "page_to"
+            }  # fmt: skip
+    # 등급 C 문서의 설명(스캔 내용을 옮긴 문장)은 싣지 않는다.
+    for docs in reg["documents"].values():
+        for d in docs:
+            if d["grade"] == "C":
+                assert d["note_ko"] is None

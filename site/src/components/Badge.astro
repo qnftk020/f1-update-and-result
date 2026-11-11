@@ -1,0 +1,13 @@
+---
+// 배지(DESIGN.md "배지"). kind: wet 우천 · ref 참고용 · unclassified 미분류 · review 검수 대기 · sprint 스프린트 ·
+// sample 표본 값 (디자인용) · unverified 원본 미검증 · scan 스캔본 · exceed 허용 초과. 글자는 언제나 함께 적는다.
+import { type BadgeKind, badgeHtml } from '../lib/markup.ts';
+
+interface Props {
+  kind: BadgeKind;
+  text: string;
+}
+const { kind, text } = Astro.props;
+---
+
+<Fragment set:html={badgeHtml(kind, text)} />

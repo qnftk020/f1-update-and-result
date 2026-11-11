@@ -1,0 +1,33 @@
+---
+// 절: 위 2px 잉크 괘선, h2와 오른쪽 메타(div.sec-meta: 범위 글, 분할 전환, 링크), 데이터 문장(p.read).
+// read는 HTML 문자열이고 keepNames()로 라틴 이름과 괄호 보조 정보를 묶는다. 번호를 붙이지 않는다.
+// meta는 HTML 문자열이나 slot="meta". 문장을 브라우저에서 바꿀 일이 있으면 readId를 준다(기본 `${id}-read`).
+import { keepNames } from '../lib/typeset.ts';
+
+interface Props {
+  id: string;
+  title: string;
+  read?: string;
+  meta?: string;
+  readId?: string;
+  class?: string;
+}
+const { id, title, read, meta, readId, class: cls } = Astro.props;
+const hasMeta = Boolean(meta) || Astro.slots.has('meta');
+---
+
+<section class:list={['sec', cls]} id={id} aria-labelledby={`${id}-h`}>
+  <div class="sec-head">
+    <h2 id={`${id}-h`}>{title}</h2>
+    {
+      hasMeta && (
+        <div class="sec-meta">
+          {meta && <Fragment set:html={meta} />}
+          <slot name="meta" />
+        </div>
+      )
+    }
+  </div>
+  {read && <p class="read" id={readId ?? `${id}-read`} set:html={keepNames(read)} />}
+  <slot />
+</section>

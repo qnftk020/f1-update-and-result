@@ -1,0 +1,179 @@
+---
+// 규정 아카이브: 연도 x (기술, 스포팅) 문서 행렬(1982-2025, 등급 A/B/C, 결측 칸 명시)과 2018년 이후 조항 비교 목록.
+// 연도 머리는 그 연도 쪽(/regulations/<연도>/)으로 가는 링크다. 칸 안에는 등급, 배지, PDF 링크 하나만 둔다.
+// 차트가 없는 쪽이라 모든 내용이 정적 HTML이다.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import DataTable, { type Column } from '../../components/DataTable.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import LinkPick from '../../components/LinkPick.astro';
+import Note from '../../components/Note.astro';
+import PageHead from '../../components/PageHead.astro';
+import Section from '../../components/Section.astro';
+import SourceLine from '../../components/SourceLine.astro';
+import RegStyle from '../../components/regulations/RegStyle.astro';
+import { roundList } from '../../components/engines/engines-data.ts';
+import {
+  CHANGE_KO,
+  GRADE_RANGE,
+  SECTIONS,
+  SECTION_KO,
+  decadeGroups,
+  gradeBadge,
+  gradeHtml,
+  regulations,
+  yearHref,
+  type RegCell,
+  type RegComparison,
+  type RegYear,
+} from '../../components/regulations/reg-data.ts';
+import { esc, nw } from '../../lib/typeset.ts';
+import { badgeHtml, extHtml } from '../../lib/markup.ts';
+import { n0 } from '../../lib/format.ts';
+
+const R = regulations;
+const years = R ? [...R.years].sort((a, b) => b.year - a.year) : [];
+const cells = years.flatMap((y) => SECTIONS.map((s) => y[s]));
+const missing = cells.filter((c) => !c.found).length;
+const yearsWithDocs = years.filter((y) => y.technical.found || y.sporting.found).length;
+const missYears = years.filter((y) => !y.technical.found || !y.sporting.found);
+const gradeYears = (g: string) => years.filter((y) => y.grade === g).length;
+const comps = R ? [...R.comparisons].sort((a, b) => b.to_season - a.to_season || a.section.localeCompare(b.section)) : [];
+const changed = (c: RegComparison) => (c.added ?? 0) + (c.removed ?? 0) + (c.modified ?? 0);
+const biggest = comps.length ? comps.reduce((a, c) => (changed(c) > changed(a) ? c : a)) : null;
+const asof = R?.as_of ? `${nw(R.as_of)} 확인` : '확인일 기록 부재';
+
+const lead = R
+  ? `기술 규정과 스포팅 규정 문서를 ${yearsWithDocs}개 연도에 걸쳐 모았다. 조항 단위로 비교할 수 있는 것은 2018년 이후 문서다. ` +
+    `${R.first_year}-${R.last_year}년 연도 × 규정 ${cells.length}칸 가운데 문서를 확인하지 못한 칸은 ${missing}칸이다.`
+  : '규정 아카이브 자료를 준비하고 있다.';
+const facts: [string, string][] = R
+  ? [
+      ['범위', `${R.first_year}-${R.last_year}`],
+      ['등급 A', `${gradeYears('A')}개 연도`],
+      ['등급 B', `${gradeYears('B')}개 연도`],
+      ['등급 C', `${gradeYears('C')}개 연도`],
+      ['확인 안 된 칸', `${missing}칸`],
+      ['조항 비교', `${comps.length}쌍`],
+    ]
+  : [];
+
+const cellHtml = (y: RegYear, c: RegCell) => {
+  if (!c.found) {
+    return `<span class="rmiss">확인 안 됨</span>`;
+  }
+  const parts = [gradeHtml(y.grade), gradeBadge(y.grade, c.scan)];
+  if (c.review) parts.push(badgeHtml('review', '검수 대기'));
+  if (c.url) parts.push(extHtml(c.url, 'PDF'));
+  if (c.count > 1) parts.push(`<span class="n">${c.count}건</span>`);
+  return `<span class="rcell">${parts.filter(Boolean).join('')}</span>`;
+};
+const remark = (y: RegYear) => {
+  const out: string[] = [];
+  const parsed = y.technical.parsed + y.sporting.parsed;
+  if (parsed) out.push(`조항 파싱 ${parsed}건`);
+  if (y.summaries) out.push(`변경 요약 ${y.summaries}건`);
+  if (!out.length && y.year >= 2008 && y.year < 2018) out.push('링크 목록');
+  return out.join(' · ');
+};
+const matrixCols: Column<RegYear>[] = [
+  { label: '연도', render: (y) => `<a href="${yearHref(y.year)}">${y.year}</a>`, cls: 'pos' },
+  { label: '기술 규정', render: (y) => cellHtml(y, y.technical) },
+  { label: '스포팅 규정', render: (y) => cellHtml(y, y.sporting) },
+  { label: '비고', render: (y) => remark(y), cls: 'hide-sm' },
+];
+const gradeBreak = (y: RegYear, i: number) => (years[i + 1] && years[i + 1].grade !== y.grade ? 'break' : '');
+
+const vlabel = (issue: string | null, version: string) => (issue ? `Issue ${esc(issue)} (${nw(esc(version))})` : nw(esc(version)));
+const cmpCols: Column<RegComparison>[] = [
+  { label: '규정', render: (c) => `<a href="${yearHref(c.to_season)}#cmp-${c.section}">${SECTION_KO[c.section]} ${c.from_season} → ${c.to_season}</a>`, cls: 'who' },
+  { label: '앞 판', render: (c) => (c.from_url ? `<a href="${esc(c.from_url)}" rel="noopener">${vlabel(c.from_issue, c.from_version)}</a>` : vlabel(c.from_issue, c.from_version)), cls: 'hide-sm' },
+  { label: '뒤 판', render: (c) => (c.to_url ? `<a href="${esc(c.to_url)}" rel="noopener">${vlabel(c.to_issue, c.to_version)}</a>` : vlabel(c.to_issue, c.to_version)), cls: 'hide-sm' },
+  { label: `${CHANGE_KO.added.mark} 추가`, render: (c) => n0(c.added), num: true },
+  { label: `${CHANGE_KO.removed.mark} 삭제`, render: (c) => n0(c.removed), num: true },
+  { label: `${CHANGE_KO.modified.mark} 수정`, render: (c) => n0(c.modified), num: true },
+  { label: '그대로', render: (c) => n0(c.unchanged), num: true, cls: 'hide-xs' },
+];
+const cmpRead = biggest
+  ? `조항을 파싱한 판은 연도와 규정마다 하나씩이라, 비교는 앞 해와 뒤 해의 파싱한 판끼리 한다. ` +
+    `바뀐 조항이 가장 많은 비교는 ${biggest.from_season} → ${biggest.to_season} ${SECTION_KO[biggest.section]}로 ${n0(changed(biggest))}개다` +
+    `(추가 ${n0(biggest.added)}, 삭제 ${n0(biggest.removed)}, 수정 ${n0(biggest.modified)}).`
+  : '';
+const reviewYears = years.filter((y) => y.year >= 2018 && SECTIONS.some((s) => y[s].review > 0));
+const allYears = years.map((y) => y.year);
+const missCells = years.flatMap((y) => SECTIONS.filter((sec) => !y[sec].found).map((sec) => ({ year: y.year, grade: y.grade, sec })));
+const allCSporting = missCells.length > 0 && missCells.every((m) => m.grade === 'C' && m.sec === 'sporting');
+const missNotes = [...new Set(missCells.map((m) => years.find((y) => y.year === m.year)![m.sec].note).filter(Boolean))];
+const missNote =
+  `목록과 아카이브에서 찾지 못한 칸이다. 문서가 없다고 단정하지 않는다.` +
+  (missCells.length ? ` 해당 칸: ${roundList([...new Set(missCells.map((m) => m.year))].sort((a, b) => a - b))}년 ${[...new Set(missCells.map((m) => SECTION_KO[m.sec]))].join(', ')}.` : '') +
+  (missNotes.length ? ` ${missNotes.map((t) => esc(t)).join(' ')}` : '');
+const matrixRead =
+  `칸마다 등급과 원문 링크를 적었다. 확인 안 된 칸은 ${missYears.length}개 연도에 걸쳐 ${missing}칸이다.` +
+  (allCSporting ? ` 모두 등급 C 시기(${GRADE_RANGE.C})의 스포팅 규정이다.` : '') +
+  ' 연도를 누르면 그 연도의 문서 목록과 변경 요약이 나온다.';
+---
+
+<BaseLayout title="규정 아카이브" description="1982-2025 F1 기술 규정과 스포팅 규정 문서의 연도별 존재 여부, 등급, 원문 링크와 2018년 이후 조항 비교." current="regulations">
+  <RegStyle />
+  <PageHead kicker={['규정 아카이브', R ? `${R.first_year}-${R.last_year}` : '']} title="연도별 규정 문서와 조항 비교" lead={lead} facts={facts}>
+    {R && (
+      <div class="reg-block">
+        <LinkPick summary="연도 고르기" navLabel="규정 아카이브 연도" groups={decadeGroups(allYears)} />
+      </div>
+    )}
+  </PageHead>
+
+  {
+    R ? (
+      <Fragment>
+        <Section
+          id="matrix"
+          title="연도별 문서"
+          meta="최근 연도부터"
+          read={matrixRead}
+        >
+          <ul class="reg-legend" aria-label="등급 표시">
+            <li><span set:html={gradeHtml('A')} /><span>등급 A, FIA 텍스트 PDF ({GRADE_RANGE.A})</span></li>
+            <li><span set:html={gradeHtml('B')} /><span>등급 B, 제3자 미러 ({GRADE_RANGE.B})</span></li>
+            <li><span set:html={gradeHtml('C')} /><span>등급 C, <span lang="en">historicdb.fia.com</span> 스캔본 ({GRADE_RANGE.C})</span></li>
+          </ul>
+          <div class="fig-row">
+            <div class="fig">
+              <DataTable caption="연도별 기술 규정과 스포팅 규정 문서" columns={matrixCols} rows={years} rowClass={gradeBreak} />
+              <SourceLine source="fia.com 규정 아카이브, argent.fia.com, historicdb.fia.com, Wayback Machine과 제3자 미러(링크 목록), 이 사이트 정리" asof={asof} />
+            </div>
+            <aside class="notes" aria-label="연도별 문서 주석">
+              <Note head="등급 읽는 법" body="등급 A는 FIA가 낸 텍스트 PDF다. 2018년 이후 판은 조항 단위로 파싱했고, 2008-2017년 판은 링크만 모았다. 등급 B는 제3자 미러나 웹 아카이브 사본이라 FIA 원본과 동일성을 검증하지 않았다. 등급 C는 historicdb.fia.com 스캔본(또는 웹 아카이브 사본)이고, OCR 결과는 사실 근거로 쓰지 않는다." />
+              <Note head="주의" caution body="규정 본문은 싣지 않는다. 원문 링크, 문서 목록, 조항 번호와 제목, 이 사이트가 정리한 주요 변경 요약만 싣는다. 색으로 등급을 나타내지 않는다." />
+              <Note head="확인 안 됨" body={missNote} />
+            </aside>
+          </div>
+        </Section>
+
+        <Section id="compare" title="조항 비교 (2018-2025)" read={cmpRead}>
+          {comps.length ? (
+            <div class="fig-row">
+              <div class="fig">
+                <DataTable caption="연도 사이 조항 비교 요약" columns={cmpCols} rows={comps} />
+                <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 파싱(조항 번호, 제목, 변경 유형)" asof={asof} />
+              </div>
+              <aside class="notes" aria-label="조항 비교 주석">
+                <Note head="읽는 법" body="규정 이름을 누르면 바뀐 조항 목록이 나온다. 수정은 같은 조항 번호의 글이 달라진 것, 추가와 삭제는 조항 번호가 생기거나 없어진 것이다. 조항 번호가 바뀌어 옮겨진 조항은 삭제와 추가로 함께 잡힌다." />
+                <Note
+                  head="자료 범위"
+                  body={`fia.com에는 연도마다 Issue가 여럿 있지만 조항을 파싱한 판은 연도와 규정마다 하나다. 같은 해 Issue 사이 비교는 아직 하지 않는다.${reviewYears.length ? ` 검수 대기 판이 있는 연도(${reviewYears.map((y) => y.year).join(', ')})는 그 판을 비교에 넣지 않았다.` : ''}`}
+                />
+              </aside>
+            </div>
+          ) : (
+            <EmptyState title="조항 비교 자료는 아직 없다.">2018년 이후 문서를 파싱하면 이 자리에 비교가 들어간다.</EmptyState>
+          )}
+        </Section>
+      </Fragment>
+    ) : (
+      <Section id="matrix" title="연도별 문서">
+        <EmptyState title="규정 아카이브 자료는 준비 중이다.">규정 문서 목록을 정리한 정제 테이블이 생기면 이 자리에 행렬이 들어간다.</EmptyState>
+      </Section>
+    )
+  }
+</BaseLayout>

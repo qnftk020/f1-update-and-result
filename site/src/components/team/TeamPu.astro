@@ -1,0 +1,303 @@
+---
+// 팀 페이지 PU 절의 안쪽: 마지막 시즌의 드라이버별 PU 구성요소 누적 사용 개수(표)와 구성요소별 계단 차트(puTeamSteps).
+// 결승 출전 라운드와 드라이버 수는 Jolpica 결승 결과(race_drivers)에서 세고, PU 값만 FIA 문서에서 가져온다.
+// 자료는 engines.json(pipeline/site_data_extra.py)에서 읽는다. 자료가 없거나 모양이 맞지 않으면 "준비 중" 안내만 둔다.
+// 표본 값이나 추정 값은 싣지 않는다.
+import DataTable, { type Column } from '../DataTable.astro';
+import Figure from '../Figure.astro';
+import Note from '../Note.astro';
+import Notice from '../Notice.astro';
+import Seg from '../Seg.astro';
+import SourceLine from '../SourceLine.astro';
+import { getOptional } from '../../lib/data.ts';
+import { iconSvg } from '../../lib/markup.ts';
+import { routes } from '../../lib/paths.ts';
+import { JOLPICA, asofJolpica } from '../../lib/sources.ts';
+import { en, esc, keepNames, nw } from '../../lib/typeset.ts';
+
+interface Driver {
+  driver_id: string;
+  name: string;
+  code: string | null;
+  rounds: number[];
+  by: Record<string, (number | null)[]>;
+  final: Record<string, number | null>;
+  exceed?: string[];
+}
+interface EngineSeason {
+  season: number;
+  rounds: number;
+  elements: string[];
+  allocation?: Record<string, { allowed: number | null } | undefined>;
+  parsed_rounds: number[];
+  missing_rounds: number[];
+  partial_rounds?: number[];
+  teams: {
+    constructor_id: string;
+    team: string;
+    lineage_id: string | null;
+    pu: { name: string } | null;
+    drivers: Driver[];
+    /** Jolpica 결승 결과에서 센 결승 출전 드라이버와 라운드 */
+    race_drivers?: { driver_id: string; name: string; code: string | null; rounds: number[] }[];
+  }[];
+}
+interface Engines {
+  last_season: number;
+  as_of: string;
+  seasons: Record<string, EngineSeason>;
+}
+
+interface Props {
+  lineage: string;
+  /** 계보 짧은 이름(표 캡션) */
+  short: string;
+}
+const { lineage, short } = Astro.props;
+
+const engines = getOptional<Engines>('engines');
+let season: EngineSeason | null = null;
+let entry: EngineSeason['teams'][number] | null = null;
+try {
+  season = engines?.seasons?.[String(engines.last_season)] ?? null;
+  entry = season?.teams?.find((t) => t.lineage_id === lineage) ?? null;
+  if (entry && (!Array.isArray(entry.drivers) || !entry.drivers.every((d) => d.by && d.final))) entry = null;
+} catch {
+  entry = null;
+}
+const ok = Boolean(engines && season && entry && entry.drivers.length);
+
+const els = season?.elements ?? [];
+const yr = season?.season ?? 0;
+const nR = season?.rounds ?? 0;
+const drivers = entry?.drivers ?? [];
+// 라운드 목록을 이어진 구간으로 적는다: [1..6] -> "1~6라운드", [2] -> "2라운드", [1..6, 8] -> "1~6, 8라운드".
+const roundsText = (r: number[]) => {
+  if (!r.length) return '결승 출전 없음';
+  const sorted = [...new Set(r)].sort((a, c) => a - c);
+  const runs: [number, number][] = [];
+  for (const x of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && x === last[1] + 1) last[1] = x;
+    else runs.push([x, x]);
+  }
+  if (runs.length > 3) return `${sorted.length}개 라운드`;
+  return `${runs.map(([a, b]) => (a === b ? `${a}` : `${a}~${b}`)).join(', ')}라운드`;
+};
+// 표의 행: 결승 출전 드라이버(Jolpica)를 기준으로 하고 PU 값은 engines.json에서 붙인다.
+// PU 문서에만 있고 이 팀으로 결승에 나가지 않은 드라이버는 뒤에 붙인다.
+interface PuRow {
+  driver_id: string;
+  name: string;
+  race: number[];
+  pu: Driver | null;
+}
+const raceDrivers = entry?.race_drivers ?? null;
+const hasRace = Array.isArray(raceDrivers) && raceDrivers.length > 0;
+const puById = new Map(drivers.map((d) => [d.driver_id, d]));
+const tableRows: PuRow[] = hasRace
+  ? [
+      ...raceDrivers!.map((r) => ({ driver_id: r.driver_id, name: r.name, race: r.rounds, pu: puById.get(r.driver_id) ?? null })),
+      ...drivers
+        .filter((d) => !raceDrivers!.some((r) => r.driver_id === d.driver_id))
+        .map((d) => ({ driver_id: d.driver_id, name: d.name, race: [], pu: d })),
+    ]
+  : drivers.map((d) => ({ driver_id: d.driver_id, name: d.name, race: d.rounds, pu: d }));
+const noDoc = tableRows.filter((r) => !r.pu);
+const notRaced = tableRows.filter((r) => r.pu && !r.race.length);
+const exceedMark = `${iconSvg('exceed', 'ic xmark')}<span class="sr-only"> 허용 초과</span>`;
+const finalCols: Column[] = [
+  { label: '드라이버', cls: 'stick', render: (d: PuRow) => en(esc(d.name)) },
+  {
+    label: hasRace ? '결승 출전' : 'PU 문서 값이 있는 라운드',
+    cls: 'hide-sm',
+    render: (d: PuRow) => nw(roundsText(d.race)),
+  },
+  ...els.map((e, i) => ({
+    label: e,
+    num: true,
+    render: (d: PuRow) => {
+      // 문서 값이 없는 행은 첫 구성요소 칸에만 글자를 보이고, 나머지 칸은 화면 읽기 프로그램에만 읽힌다(표 폭을 줄인다).
+      if (!d.pu) return i === 0 ? '<span class="nw pu-none">문서 없음</span>' : '<span class="sr-only">문서 없음</span>';
+      const v = d.pu.final[e];
+      if (v == null) return '결측';
+      return d.pu.exceed?.includes(e) ? `<span class="pu-ex"><b>${v}</b>${exceedMark}</span>` : String(v);
+    },
+  })),
+];
+const allowRow = els.map((e) => season?.allocation?.[e]?.allowed ?? null);
+const hasAllow = allowRow.some((v) => v != null);
+const anyExceed = drivers.some((d) => (d.exceed ?? []).length > 0);
+const lastParsed = season?.parsed_rounds?.length ? Math.max(...season.parsed_rounds) : nR;
+const missing = season?.missing_rounds ?? [];
+const rows = drivers.map((d) => ({ label: d.name, code: d.code, by: d.by }));
+const allowedBy = Object.fromEntries(els.map((e, i) => [e, allowRow[i]]));
+const roundNames = (season as (EngineSeason & { round_labels?: { short_ko: string }[] }) | null)?.round_labels?.map((r) => r.short_ko) ?? [];
+const twinCols = (el: string): Column[] => [
+  { label: '라운드', num: true, render: (r: { round: number }) => String(r.round) },
+  ...drivers.map((d) => ({
+    label: d.name,
+    num: true,
+    render: (r: { round: number }) => {
+      const v = d.by[el]?.[r.round - 1];
+      return v == null ? '' : String(v);
+    },
+  })),
+];
+const roundRows = Array.from({ length: nR }, (_, i) => ({ round: i + 1 }));
+const legend = drivers
+  .slice(0, 3)
+  .map((d, k) => ({ type: 'line' as const, color: ['s1', 's2', 's3'][k], label: `${en(esc(d.name))}${d.code ? ` <span lang="en">(${esc(d.code)})</span>` : ''}` }));
+if (drivers.length > 3) legend.push({ type: 'line' as const, color: 'ctx', label: '넷째 드라이버부터' });
+const src = `FIA PU elements used 문서, 이 사이트 파싱`;
+const asof = engines ? `${nw(esc(engines.as_of))} 수집` : '';
+const iceVals = drivers.map((d) => d.final.ICE).filter((v): v is number => v != null);
+const iceAllow = season?.allocation?.ICE?.allowed ?? null;
+const iceOver = drivers.filter((d) => d.exceed?.includes('ICE')).length;
+let read = '';
+if (ok && iceVals.length) {
+  const lo = Math.min(...iceVals);
+  const hi = Math.max(...iceVals);
+  const range = lo === hi ? `${lo}개` : `${lo}~${hi}개`;
+  const team = en(esc(entry!.team));
+  const same = hasRace && !noDoc.length && !notRaced.length;
+  read = same
+    ? `${yr} 시즌 ${team} 팀에서 결승에 나간 드라이버 ${raceDrivers!.length}명의 ICE 누적 사용 개수는 ${range}다.`
+    : (hasRace ? `${yr} 시즌 ${team} 팀에서 결승에 나간 드라이버는 ${raceDrivers!.length}명이다. ` : '') +
+      `${hasRace ? '' : `${yr} 시즌 `}FIA PU 문서에 이 팀 값이 있는 드라이버 ${iceVals.length}명의 ICE 누적 사용 개수는 ${range}다.` +
+      (noDoc.length
+        ? ` 결승에 나갔지만 이 팀의 PU 문서 값이 없는 드라이버는 ${noDoc.map((r) => `${en(esc(r.name))}(${nw(roundsText(r.race))})`).join(', ')}이다. 표에는 "문서 없음"으로 적는다.`
+        : '');
+  if (iceAllow != null) read += ` 시즌 허용 개수는 ${iceAllow}개이고, 이를 넘긴 드라이버는 ${iceOver}명이다.`;
+}
+const missingText = missing.length ? `${missing.join(', ')}라운드는 문서가 없거나 일부만 읽어 값을 비워 둔다. ` : '';
+---
+
+{
+  ok ? (
+    <Fragment>
+      {read && <p class="read" id="pu-read" set:html={keepNames(read)} />}
+      <div class="pair">
+        <div>
+          <h3 class="sub-title">
+            <span>{yr} {lastParsed}라운드 종료 시점 누적 사용 개수</span>
+            <span class="sec-meta"><span lang="en">{entry!.team}</span> · <span lang="en">{entry!.pu?.name ?? ''}</span> PU</span>
+          </h3>
+          {
+            anyExceed && (
+              <p class="pu-key">
+                <Fragment set:html={iconSvg('exceed', 'ic xmark')} /> 표시와 굵은 값은 시즌 허용 개수를 넘긴 구성요소다(허용 초과).
+                {hasAllow && <Fragment> 허용 개수는 {els.map((e, i) => (allowRow[i] != null ? `${e} ${allowRow[i]}개` : null)).filter(Boolean).join(', ')}다.</Fragment>}
+              </p>
+            )
+          }
+          <DataTable caption={`${short} 계보 ${yr} PU 구성요소 누적 사용 개수`} columns={finalCols} rows={tableRows} class="pu-final" />
+          <SourceLine
+            source={hasRace ? `PU 값은 ${src}, 결승 출전은 ${JOLPICA}` : src}
+            asof={hasRace ? `PU 문서 ${asof}, 결승 결과 ${asofJolpica()}` : asof}
+          />
+        </div>
+        <div>
+          <div class="pu-seg">
+            <Seg label="PU 구성요소 고르기" attr="pu-el" cols4 items={els.map((e) => ({ value: e, label: e, pressed: e === 'ICE' }))} />
+          </div>
+          <Figure
+            pair
+            id="f-pu"
+            title={`<span class="pu-el">ICE</span> 누적 사용 개수`}
+            scope={`${yr} · 1~${nR}라운드 · <span lang="en">${esc(entry!.team)}</span>`}
+            sub={`드라이버별로 새 구성요소를 투입한 라운드에서 계단이 오른다. 위로 갈수록 많이 썼다.${hasAllow ? ' 가로선은 시즌 허용 개수다.' : ''}`}
+            legend={legend}
+            chart="puTeamSteps"
+            data={rows}
+            opts={{
+              rounds: nR,
+              element: 'ICE',
+              allowedBy,
+              missing,
+              unknown: (season as (EngineSeason & { unknown_new_rounds?: number[] }) | null)?.unknown_new_rounds ?? [],
+              roundNames,
+              team: entry!.team,
+              label: `${entry!.team} ICE 누적 사용 개수`,
+            }}
+            source={src}
+            asof={asof}
+          >
+            <Fragment slot="twin">
+              {
+                els.map((e) => (
+                  <div data-pu-el={e} hidden={e !== 'ICE'}>
+                    <DataTable compact caption={`${entry!.team} ${e} 누적 사용 개수, ${yr}`} columns={twinCols(e)} rows={roundRows} />
+                  </div>
+                ))
+              }
+            </Fragment>
+          </Figure>
+        </div>
+      </div>
+      <div class="fig-row wide">
+        <aside class="notes" aria-label="PU 구성요소 사용 현황 주석">
+          <Note
+            head="자료 범위"
+            body={`${yr}년 문서를 읽은 라운드는 ${season!.parsed_rounds.length}개다. ${missingText}툴팁에서 누적 문서가 없는 라운드는 "문서 미수집", 문서에 이 팀 드라이버 값이 없는 라운드는 "미출전"으로 적는다. 문서는 대회 전 상태를 적으므로 문서의 라운드가 결승 출전 라운드와 하나씩 어긋날 수 있다. 결승 출전 라운드는 Jolpica 결승 결과에서 센다.`}
+          />
+          <Note
+            head="주의"
+            caution
+            body="누적 개수는 시즌 동안 쓴 구성요소의 수다. 허용 개수를 넘긴 구성요소는 그리드 페널티 대상이지만 이 표는 페널티 적용 여부를 담지 않는다."
+          />
+        </aside>
+      </div>
+      <p class="more-link"><a class="btn" href={routes.engines()}>엔진 페이지에서 다른 시즌과 팀의 PU 사용 현황 보기</a></p>
+    </Fragment>
+  ) : (
+    <Notice>
+      <b>준비 중이다.</b> FIA의 PU elements 문서에서 읽은 드라이버별 누적 사용 개수를 사이트용 자료로 아직 내보내지 않았다. 자료가 들어오면 이 절과{' '}
+      <a href={routes.engines()}>엔진 페이지</a>에 함께 싣는다. 그 전까지 표본 값이나 추정 값은 싣지 않는다.
+    </Notice>
+  )
+}
+
+<style>
+  .pu-key :global(.xmark) {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    margin-right: 4px;
+    vertical-align: -2px;
+  }
+  .pu-key {
+    margin-top: var(--sp-3);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+  /* 허용 초과: 굵은 값과 아이콘을 한 덩어리로 묶어 옆 칸 숫자와 붙지 않게 한다. 좁으면 표가 가로로 스크롤된다. */
+  :global(table.pu-final) {
+    min-width: 30rem;
+  }
+  :global(table.pu-final td.num),
+  :global(table.pu-final th.num) {
+    padding-left: 8px;
+  }
+  :global(.pu-ex) {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  :global(.pu-ex .xmark) {
+    width: 13px;
+    height: 13px;
+    flex: none;
+  }
+  :global(.pu-none) {
+    color: var(--ink-3);
+  }
+  .pu-seg {
+    margin-bottom: var(--sp-3);
+    padding: 3px;
+  }
+  .more-link {
+    margin-top: var(--sp-3);
+  }
+</style>

@@ -1,0 +1,35 @@
+---
+// 페이지 머리: 갈래 줄(kicker) -> h1(+ 원어 latin, lang="en") -> 리드 -> 사실 줄(facts) -> slot(계보 칩, 시즌 이동, 안내 상자).
+// kicker 항목과 title, lead, facts 값은 HTML 문자열이다. lead는 keepNames()를 거친다.
+// facts: [['예선 노면', '마른 노면 (OpenF1 판정)'], ['결승', '58랩']]
+import { keepNames } from '../lib/typeset.ts';
+
+interface Props {
+  kicker: string[];
+  title: string;
+  latin?: string;
+  lead: string;
+  leadId?: string;
+  facts?: [string, string][];
+}
+const { kicker, title, latin, lead, leadId, facts } = Astro.props;
+---
+
+<header class="page-head">
+  <p class="kicker">{kicker.map((k) => <span set:html={k} />)}</p>
+  <h1><Fragment set:html={title} />{latin && <Fragment> <span class="latin" lang="en">{latin}</span></Fragment>}</h1>
+  <p class="lead" id={leadId} set:html={keepNames(lead)} />
+  {
+    facts && facts.length > 0 && (
+      <dl class="facts">
+        {facts.map(([dt, dd]) => (
+          <div>
+            <dt set:html={dt} />
+            <dd set:html={dd} />
+          </div>
+        ))}
+      </dl>
+    )
+  }
+  <slot />
+</header>

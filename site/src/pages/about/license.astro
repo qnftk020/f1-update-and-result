@@ -1,0 +1,56 @@
+---
+// 데이터와 방법론 > 라이선스. 원고 briefs/about_copy.md "라이선스": 코드, 정제 데이터, FIA 문서의 권리,
+// 다시 쓸 때 밝힐 출처. 데이터원 이름과 라이선스는 meta.json에서 읽는다.
+import AboutLayout from '../../components/about/AboutLayout.astro';
+import Section from '../../components/Section.astro';
+import { meta } from '../../lib/data.ts';
+import { aboutRoutes } from '../../lib/paths.ts';
+
+const S = meta.sources;
+const toc = [
+  { id: 'code', title: '코드' },
+  { id: 'data', title: '정제 데이터' },
+  { id: 'fia', title: 'FIA 문서의 권리' },
+  { id: 'credit', title: '다시 쓸 때 밝힐 출처' },
+];
+---
+
+<AboutLayout
+  page="license"
+  title="라이선스"
+  description="사이트와 파이프라인 코드, 정제 데이터, FIA 문서의 권리와 다시 쓸 때 밝힐 출처"
+  lead="이 사이트의 코드와 데이터를 다시 쓸 때 따르는 조건을 적는다."
+  toc={toc}
+>
+  <Section id="code" title="코드">
+    <ul class="bul">
+      <li>사이트와 파이프라인의 코드는 MIT 라이선스다.</li>
+    </ul>
+  </Section>
+
+  <Section id="data" title="정제 데이터">
+    <ul class="bul">
+      <li>
+        이 저장소가 만든 정제 데이터는 CC BY-NC-SA 4.0으로 공개한다. 원자료인 <span lang="en" class="nw">{S.jolpica.name}</span>과
+         <span lang="en" class="nw">{S.openf1.name}</span>의 조건(저작자 표시, 비영리, 동일 조건 변경 허락)을 그대로 따른 것이다.
+      </li>
+    </ul>
+  </Section>
+
+  <Section id="fia" title="FIA 문서의 권리">
+    <ul class="bul">
+      <li>FIA 문서의 원문과 문서에 실린 문장의 권리는 FIA와 각 팀에 있다.</li>
+      <li>이 사이트는 원문 PDF를 다시 싣지 않는다. 원문 링크와, 원문에서 뽑은 구조화 정보만 싣는다. 영어 원문 문장은 번역하지 않고 그대로 인용한다.</li>
+    </ul>
+  </Section>
+
+  <Section id="credit" title="다시 쓸 때 밝힐 출처">
+    <ul class="bul">
+      <li>
+        데이터를 다시 쓸 때는 원자료의 출처(<span lang="en" class="nw">{S.jolpica.name}</span>, <span lang="en" class="nw">{S.f1db.name}</span>,
+         <span lang="en" class="nw">{S.openf1.name}</span>, FIA)와 이 사이트를 함께 밝혀야 한다.
+      </li>
+      <li>데이터원별 범위와 기준일은 <a href={aboutRoutes.sources()}>출처</a> 쪽에 있다.</li>
+    </ul>
+  </Section>
+</AboutLayout>

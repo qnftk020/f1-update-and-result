@@ -1,0 +1,532 @@
+---
+// 팀 페이지 /teams/<계보 ID>/. DESIGN.md "팀"과 design/final/team.html을 따른다.
+// 절: 계보, 업그레이드 기록, 시즌 안의 페이스, 긴 흐름, 시즌별 기록, PU 구성요소 사용 현황.
+// 문장, 사실 줄, 표, 표 보기, 출처 줄은 모두 빌드 때 만든다(components/team/model.ts). 차트만 브라우저에서 그린다.
+import DataTable, { type Column } from '../../components/DataTable.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import EventPicker from '../../components/EventPicker.astro';
+import Figure from '../../components/Figure.astro';
+import JsonData from '../../components/JsonData.astro';
+import PageHead from '../../components/PageHead.astro';
+import Section from '../../components/Section.astro';
+import Seg from '../../components/Seg.astro';
+import SourceLine from '../../components/SourceLine.astro';
+import UpgradeItem from '../../components/UpgradeItem.astro';
+import LineageRibbon from '../../components/team/LineageRibbon.astro';
+import TeamPu from '../../components/team/TeamPu.astro';
+import { CATS, buildTeam } from '../../components/team/model.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getTeam, labels, lineageIds, teams } from '../../lib/data.ts';
+import { formatPoints, n0, num } from '../../lib/format.ts';
+import { badgeHtml, badgesHtml, extHtml, type BadgeKind } from '../../lib/markup.ts';
+import { routes, upgradesWith } from '../../lib/paths.ts';
+import {
+  F1DB,
+  FIA_CP,
+  JOLPICA,
+  OPENF1,
+  OPENF1_LICENSE,
+  asofF1db,
+  asofFia,
+  asofJolpica,
+  asofQualiIndex,
+  asofRaceIndex,
+} from '../../lib/sources.ts';
+import type { TeamSeasonRow } from '../../lib/types.ts';
+import { en, esc, keepNames, nw, typeset } from '../../lib/typeset.ts';
+
+export function getStaticPaths() {
+  return lineageIds.map((lineage) => ({ params: { lineage } }));
+}
+
+const { lineage } = Astro.params as { lineage: string };
+const team = getTeam(lineage);
+const M = buildTeam(team);
+const { C, Ce, short, last, curFrom, hasSwitch } = M;
+
+// ------------------------------------------------------------------ 머리
+const chips = teams.map((t) => ({ href: routes.team(t.lineage_id), text: t.name_ko, current: t.lineage_id === lineage }));
+const description = `${team.name_ko} 계보(${[...new Set(team.segments.map((s) => s.team_name))].join(', ')})의 업그레이드 기록과 페이스 추이`;
+
+// ------------------------------------------------------------------ 계보
+const stats = (t: typeof M.totLin) => [String(t.seasons), n0(t.races), String(t.wins), `${t.titles.length}번`];
+const statsOn = stats(M.totLin);
+const statsOff = stats(M.totCur);
+const segCols: Column[] = [
+  { label: '기간', render: (s) => nw(s.from === s.to ? String(s.from) : `${s.from}-${s.to}`) },
+  { label: '팀', render: (s) => en(esc(s.team_name)) },
+  { label: '연결', render: (s) => esc(s.link_type_ko) },
+  { label: 'Jolpica ID', render: (s) => `<span class="mono">${esc(s.constructor_id)}</span>` },
+  { label: '메모', cls: 'hide-sm', render: (s) => (s.note ? esc(s.note) : '') },
+];
+const KIND: Record<string, string> = { link: '연결', exclusion: '제외' };
+const evCols: Column[] = [
+  { label: '시즌', render: (e) => String(e.season_from) },
+  { label: 'Jolpica ID', render: (e) => `<span class="mono">${esc(e.constructor_id)}</span>` },
+  { label: '근거', render: (e) => esc(KIND[e.kind] ?? e.kind) },
+  { label: '원문 인용', render: (e) => `<q lang="en">${esc(e.quote)}</q>` },
+  {
+    label: '출처',
+    render: (e) => {
+      let host = e.url;
+      try {
+        host = new URL(e.url).hostname;
+      } catch {
+        /* 주소가 아니면 그대로 적는다 */
+      }
+      return extHtml(e.url, host);
+    },
+  },
+  { label: '확인일', cls: 'hide-sm', render: (e) => nw(esc(e.verified_on)) },
+];
+
+// ------------------------------------------------------------------ 업그레이드
+const status = (r: (typeof M.tlRows)[number]) => {
+  if (r.status === 'needs_review') return badgeHtml('review', labels.team_status.needs_review);
+  const s = esc(labels.team_status[r.status] ?? r.status);
+  return r.doc_review ? `${s} ${badgeHtml('review', '검수 대기 문서')}` : s;
+};
+const tlCols: Column[] = [
+  { label: '시즌', render: (r) => String(r.season) },
+  { label: '라운드', num: true, render: (r) => String(r.round) },
+  { label: '대회', render: (r) => esc(r.short) },
+  { label: '상태', render: status },
+  ...CATS.map((c) => ({ label: labels.reason_categories[c], num: true, render: (r: (typeof M.tlRows)[number]) => (r.cats[c] ? String(r.cats[c]) : '') })),
+];
+const unitNotes = [{ head: '자료 범위', body: M.scopeNote }];
+if (M.reviewNote) unitNotes.push({ head: '검수 대기', body: M.reviewNote, caution: true } as { head: string; body: string; caution: boolean });
+const docsN = new Set(M.tlRows.filter((r) => r.status !== 'nodoc').map((r) => `${r.season}-${r.round}`)).size;
+const unitsLabel = `${C} 대회별 업그레이드 항목`;
+
+// ------------------------------------------------------------------ 시즌 안의 페이스
+const years = M.paceYears.map(String);
+const yr0 = years[years.length - 1];
+const p0 = M.pace[yr0];
+for (const y of years) {
+  const p = M.pace[y];
+  const f1db = p.f1dbRounds.length ? `, ${y} ${p.f1dbRounds.map((r) => `R${r}`).join(', ')}는 ${F1DB}` : '';
+  p.src = `${JOLPICA} 예선 기록${f1db}. 우천 판정 ${OPENF1}. 지수는 이 사이트 계산`;
+}
+const wetBadge = badgeHtml('wet', '우천');
+const qCols = (y: string): Column[] => [
+  { label: '라운드', num: true, render: (r) => String(r.round) },
+  { label: '대회', render: (r) => esc(r.short) },
+  { label: M.pace[y].team, num: true, render: (r) => num(r.teams[M.pace[y].cid]) },
+  { label: '필드 중앙값', num: true, render: (r) => (r.field ? num(r.field.med) : '') },
+  { label: '가운데 절반', num: true, render: (r) => (r.field ? `${num(r.field.q1)} ~ ${num(r.field.q3)}` : '') },
+  { label: '노면', render: (r) => (r.wet === 'wet' ? wetBadge : '마른 노면') },
+  { label: '업그레이드 신고', num: true, render: (r) => (M.pace[y].railBy[r.round] ? `${M.pace[y].railBy[r.round]}건` : '') },
+];
+const rCols = (y: string): Column[] => [
+  { label: '라운드', num: true, render: (r) => String(r.round) },
+  { label: '대회', render: (r) => esc(r.short) },
+  { label: '지수', num: true, render: (r) => (r.teams[M.pace[y].cid] ? num(r.teams[M.pace[y].cid][0], 2, { sign: true }) : '결측') },
+  {
+    label: '95% 구간',
+    num: true,
+    render: (r) => {
+      const x = r.teams[M.pace[y].cid];
+      return x ? `${num(x[1], 2, { sign: true })} ~ ${num(x[2], 2, { sign: true })}` : '';
+    },
+  },
+  { label: '클린 랩', num: true, render: (r) => (r.teams[M.pace[y].cid] ? String(r.teams[M.pace[y].cid][3]) : '') },
+  { label: '노면', render: (r) => (r.wet ? wetBadge : '마른 노면') },
+  { label: '업그레이드 신고', num: true, render: (r) => (M.pace[y].railBy[r.round] ? `${M.pace[y].railBy[r.round]}건` : '') },
+];
+const tname = `<span class="tname">${esc(p0.team)}</span>`;
+
+// ------------------------------------------------------------------ 긴 흐름
+const linOnly = (r: { season: number }) => (hasSwitch && r.season < curFrom ? 'lin-only' : '');
+const dup = (r: TeamSeasonRow) => (M.dupSeasons.has(r.season) ? ` <span class="mono">${esc(r.constructor_id)}</span>` : '');
+const stepCols: Column[] = [
+  { label: '시즌', render: (r) => String(r.season) },
+  { label: '팀', render: (r) => `${en(esc(r.team_name))}${dup(r)}` },
+  { label: '순위', num: true, render: (r) => (r.position ? `${r.position}위` : '미부여') },
+  { label: '점수', num: true, render: (r) => formatPoints(r.points ?? 0) },
+  { label: '우승', num: true, render: (r) => String(r.race_wins) },
+];
+const qflags = (r: TeamSeasonRow) => {
+  if (r.quali_index_mean == null) return '';
+  const list: [BadgeKind, string][] = [];
+  if (r.quali_reference) list.push(['ref', '참고용']);
+  if (r.season <= 2022) list.push(['unclassified', '미분류']);
+  else if (r.quali_wet_rounds) list.push(['wet', `우천 ${r.quali_wet_rounds}개 제외`]);
+  return badgesHtml(list);
+};
+const trendRows = team.seasons.filter((r) => r.quali_index_mean != null);
+const trendCols: Column[] = [
+  { label: '시즌', render: (r) => String(r.season) },
+  { label: '팀', render: (r) => `${en(esc(r.team_name))}${dup(r)}` },
+  { label: '시즌 평균 (%)', num: true, render: (r) => num(r.quali_index_mean) },
+  { label: '필드 중앙값', num: true, render: (r) => (r.quali_field ? num(r.quali_field.med) : '') },
+  { label: '예선 수', num: true, render: (r) => String(r.quali_rounds) },
+  { label: '표시', render: qflags },
+];
+const trendLegend = [
+  { type: 'line' as const, color: 's1', label: hasSwitch ? '<span data-lin-legend>계보의 시즌 평균</span>' : `${Ce}의 시즌 평균` },
+  { type: 'line' as const, color: 'ctx', label: '필드 중앙값' },
+  { type: 'band' as const, label: '가운데 절반의 팀' },
+  ...(M.refRows ? [{ type: 'ring' as const, color: 's1', label: `<span data-ref-key>참고용 형식 (${M.refRange})</span>` }] : []),
+];
+const refOff = team.seasons.some((r) => r.quali_reference && r.season >= curFrom);
+const trendNotes = [
+  ...(M.refRows
+    ? [{ head: '참고용 형식', body: `${M.refRange}년 예선은 결승 연료를 싣고 달리거나 두 세션 기록을 합산한 형식이라 참고용이다. 빈 고리로만 찍고 선에 잇지 않는다.` }]
+    : []),
+  ...(M.qFirst <= 2022
+    ? [{ head: '우천 미분류', body: '2022년 이전은 우천 여부를 판정할 자료가 없어 미분류다. 우천 예선이 평균에 섞여 있을 수 있다. 2023년부터는 우천 예선을 뺀 평균이다.' }]
+    : []),
+  { head: '주의', body: '서킷 구성과 규정이 해마다 달라 시즌 평균의 절대 크기를 해끼리 비교하는 데는 한계가 있다. 필드 중앙값과의 거리가 더 안정적인 비교다.', caution: true },
+];
+const trendFrom = Math.min(...team.seasons.filter((r) => r.quali_index_mean != null).map((r) => r.season));
+const trendSrc =
+  trendFrom <= 2005
+    ? `2006-${last} ${JOLPICA} 예선 기록, ${trendFrom}-2005 ${F1DB}. 지수는 이 사이트 계산`
+    : `${JOLPICA} 예선 기록. 지수는 이 사이트 계산`;
+
+// ------------------------------------------------------------------ 시즌별 기록
+const recCols: Column[] = [
+  { label: '시즌', render: (r) => String(r.season) },
+  { label: '팀', cls: 'who', render: (r) => `${en(esc(r.team_name))}${dup(r)}` },
+  { label: 'PU', cls: 'hide-sm', render: (r) => (r.pu ? en(esc(r.pu.name)) : '결측') },
+  { label: '순위', num: true, render: (r) => (r.position ? `${r.position}위` : '<span class="muted">미부여</span>') },
+  { label: '점수', num: true, render: (r) => formatPoints(r.points ?? 0) },
+  { label: '우승', num: true, render: (r) => String(r.race_wins) },
+  { label: '포디움', num: true, cls: 'hide-sm', render: (r) => String(r.podiums) },
+  {
+    label: '예선 지수 평균<span class="sub-line">2023년부터 마른 예선만</span>',
+    labelHtml: true,
+    num: true,
+    render: (r) => (r.quali_index_mean != null ? num(r.quali_index_mean) : '<span class="muted">지수 이전</span>'),
+  },
+  { label: '표시', render: qflags },
+];
+const recRowClass = (r: TeamSeasonRow) =>
+  [M.eraStarts.has(r.season) && r.season !== M.first ? 'break' : '', linOnly(r)].filter(Boolean).join(' ');
+
+// ------------------------------------------------------------------ PU 공급사 구간
+const puCols: Column[] = [
+  { label: '기간', render: (s) => nw(s.from === s.to ? String(s.from) : `${s.from}-${s.to}`) },
+  { label: '팀', render: (s) => s.teams.map((t: string) => en(esc(t))).join(', ') },
+  { label: 'PU 공급사', render: (s) => en(esc(s.pu)) },
+];
+
+// ------------------------------------------------------------------ 브라우저 자료
+const pageData = {
+  timeline: team.upgrades.timeline,
+  items: M.items,
+  labels: { component_areas: labels.component_areas, reason_categories: labels.reason_categories },
+  selected: M.sel ? { season: M.sel.season, round: M.sel.round } : null,
+  unitsLabel,
+  pace: Object.fromEntries(
+    years.map((y) => {
+      const p = M.pace[y];
+      return [y, { quali: p.quali, race: p.race, cid: p.cid, team: p.team, rail: p.rail, q: typeset(keepNames(p.q)), r: typeset(keepNames(p.r)), src: typeset(p.src) }];
+    }),
+  ),
+  lin: {
+    has: hasSwitch,
+    first: M.first,
+    curFrom,
+    qFirst: M.qFirst,
+    qCur: M.qCur,
+    C,
+    scopeOn: typeset(M.scopeOn),
+    scopeOff: typeset(M.scopeOff),
+    longOn: typeset(keepNames(M.longOn)),
+    longOff: typeset(keepNames(M.longOff)),
+    steps: M.linScope.steps,
+    trend: M.linScope.trend,
+    meta: M.linScope.meta,
+    refOff,
+    legend: { on: '계보의 시즌 평균', off: `${C}의 시즌 평균` },
+    statsOn,
+    statsOff,
+  },
+};
+---
+
+<BaseLayout title={team.name_ko} description={description} current="teams">
+  <PageHead
+    kicker={['팀', `${last} 그리드의 ${teams.length}개 계보`, `계보 ID <span class="mono">${esc(lineage)}</span>`]}
+    title={esc(team.name_ko)}
+    latin={M.latin}
+    lead={M.lead}
+    facts={M.facts}
+  >
+    <nav class="chips-row" aria-label="다른 계보">
+      {chips.map((c) => <a class="chip-link" href={c.href} aria-current={c.current ? 'page' : undefined}>{c.text}</a>)}
+    </nav>
+  </PageHead>
+
+  <div class="scope-bar">
+    <div class="wrap">
+      {
+        hasSwitch && (
+          <button class="switch" type="button" role="switch" aria-checked="true" id="lineage-switch" data-js-only>
+            <span class="track" aria-hidden="true" />
+            계보 보기
+          </button>
+        )
+      }
+      <p class="scope-text" id="scope-text" aria-live="polite" set:html={M.scopeOn} />
+      <nav class="jump" aria-label="이 페이지의 절">
+        <a href="#lineage">계보</a><a href="#upgrades">업그레이드</a><a href="#pace">시즌 안의 페이스</a><a href="#long">긴 흐름</a><a href="#record">시즌별 기록</a><a href="#pu">PU</a>
+      </nav>
+    </div>
+  </div>
+
+  <Section id="lineage" title="계보" read={M.linRead}>
+    <div class="fig-row">
+      <div class="fig">
+        <LineageRibbon eras={M.eras} first={M.first} last={M.lastTo} />
+        <dl class="stat-row" id="lin-stats">
+          <div><dt>시즌</dt><dd>{statsOn[0]}</dd></div>
+          <div><dt>출전 대회</dt><dd>{statsOn[1]}</dd></div>
+          <div><dt>우승</dt><dd>{statsOn[2]}</dd></div>
+          <div><dt>컨스트럭터 챔피언</dt><dd>{statsOn[3]}</dd></div>
+        </dl>
+        <details class="more">
+          <summary>구간별 표와 연결 근거 보기</summary>
+          <h3 class="sub-title"><span>계보 구간</span><span class="sec-meta">{team.segments.length}개 행</span></h3>
+          <DataTable caption={`${short} 계보 구간`} columns={segCols} rows={team.segments} />
+          <h3 class="sub-title"><span>연결 근거</span><span class="sec-meta">{team.evidence.length}건</span></h3>
+          {
+            team.evidence.length ? (
+              <DataTable caption={`${short} 계보 연결 근거`} columns={evCols} rows={team.evidence} />
+            ) : (
+              <EmptyState title="연결 근거가 0건이다">이 계보의 근거 행이 계보 테이블에 아직 들어 있지 않다.</EmptyState>
+            )
+          }
+        </details>
+        <SourceLine
+          source={`이 사이트의 계보 테이블(F1DB chronology에서 출발, 연결 근거는 위 표), 출전과 우승은 ${JOLPICA}`}
+          asof={`${asofJolpica()}${M.evidenceOn ? `, 계보 근거 ${nw(M.evidenceOn)} 확인` : ''}`}
+        />
+      </div>
+      <aside class="notes" aria-label="계보 주석">
+        {
+          M.linNotes.map((n) => (
+            <div class:list={['note', { caution: n.caution }]}>
+              <p class="note-h">{n.head}</p>
+              <p set:html={n.body} />
+            </div>
+          ))
+        }
+      </aside>
+    </div>
+  </Section>
+
+  <Section id="upgrades" title="업그레이드 기록" read={M.upRead} meta={M.upMeta}>
+    <Figure
+      id="f-units"
+      title="대회별 업그레이드 항목"
+      scope={`${M.paceYears[0]}-${M.paceYears[M.paceYears.length - 1]} · 항목 1건이 기호 하나`}
+      sub="모양이 변경 사유 범주다. 칸을 누르거나 Enter를 누르면 아래 목록이 그 대회로 바뀐다."
+      legend={[
+        { type: 'glyph', cat: 'performance', label: '성능' },
+        { type: 'glyph', cat: 'circuit_specific', label: '서킷 대응' },
+        { type: 'glyph', cat: 'reliability', label: '신뢰성' },
+        { type: 'glyph', cat: 'other', label: '기타' },
+        { type: 'zero', label: '변경 0건' },
+        { type: 'nodoc', label: '공개 문서가 없는 대회' },
+        { type: 'review', label: '검수 대기 문서' },
+      ]}
+      manual
+      ariaLabel={unitsLabel}
+      source={`${FIA_CP} 문서 ${docsN}건(팀별 쪽), 이 사이트 파싱`}
+      asof={asofFia()}
+      twin={{ caption: `${C} 대회별 업그레이드 항목 수`, columns: tlCols, rows: M.tlRows }}
+      notes={unitNotes}
+    />
+    <div class="sub" id="event-pick">
+      {
+        M.sel ? (
+          <Fragment>
+            <EventPicker options={M.options} />
+            <h3 class="sub-title" id="ev-title">
+              <span>
+                {M.sel.season} {M.sel.round}라운드 {M.sel.short}{' '}
+                <span class="muted" lang="en" style="font-weight:400">{M.sel.name}</span>
+              </span>
+              <span class="sec-meta">
+                {M.selItems.length}건 · 문서 게시 <span class="nw">{(M.sel.published_at ?? '').slice(0, 10)}</span> ·{' '}
+                {M.sel.doc_review && <Fragment set:html={`${badgeHtml('review', '검수 대기 문서')} `} />}
+                {M.sel.url && <Fragment set:html={extHtml(M.sel.url)} />}
+              </span>
+            </h3>
+            <div class="items" id="ev-items" aria-live="polite">
+              {M.selItems.map((i) => <UpgradeItem item={i} showTeam={false} />)}
+            </div>
+          </Fragment>
+        ) : (
+          <EmptyState title="조건에 맞는 항목이 0건이다">
+            {M.paceYears[0]}-{M.paceYears[M.paceYears.length - 1]}년 공개 문서에서 이 계보가 신고한 업그레이드 항목을 찾지 못했다.
+          </EmptyState>
+        )
+      }
+      <p class="more-link"><a class="btn" href={upgradesWith({ team: lineage })}>업그레이드 탐색기에서 {C} 항목 {M.items.length}건 모두 보기</a></p>
+    </div>
+  </Section>
+
+  <Section id="pace" title="시즌 안의 페이스" read={p0.q}>
+    <Seg slot="meta" label="시즌 고르기" attr="season" items={years.map((y) => ({ value: y, label: y, pressed: y === yr0 }))} />
+    <Figure
+      id="f-tq"
+      title={`${tname} 퀄리파잉 지수와 필드`}
+      scope={`<span id="tq-scope">${yr0} · 라운드별 · 위가 빠르다</span>`}
+      sub="세션 최고 랩 대비 팀 최고 랩의 차이(%)다. 0이 그 예선의 가장 빠른 팀이고, 위로 갈수록 빠르다. 회색 선과 띠는 그 대회 필드의 중앙값과 가운데 절반이다."
+      legend={[
+        { type: 'line', color: 's1', label: tname },
+        { type: 'line', color: 'ctx', label: '필드 중앙값' },
+        { type: 'band', label: '가운데 절반의 팀' },
+        { type: 'ring', color: 's1', label: '우천 예선 (분석 제외)' },
+        { type: 'tri', label: '업그레이드 신고 대회 (숫자는 항목 수)' },
+      ]}
+      chart="paceTrend"
+      data={p0.quali}
+      opts={{ cid: p0.cid, team: p0.team, rail: p0.rail, label: `${p0.team} 퀄리파잉 지수와 필드` }}
+      source={`<span id="tq-src">${p0.src}</span>`}
+      asof={asofQualiIndex()}
+      notes={[
+        { head: '우천 예선', body: '우천 예선은 빈 고리로만 찍고 선을 끊는다. 평균과 순위 계산에서 뺀다. 웨트 계열 타이어를 썼거나 날씨 표본의 10% 이상에서 강우가 기록된 예선이다.' },
+        {
+          head: '추정된 연관',
+          body: '아래 세모는 팀이 업그레이드를 신고한 대회와 항목 수다. 시점을 나란히 놓을 뿐이며 지수 변화와의 관계는 추정된 연관으로만 다룬다. 개별 업그레이드의 영향을 단정하지 않는다.',
+          caution: true,
+        },
+      ]}
+    >
+      <Fragment slot="twin">
+        {
+          years.map((y) => (
+            <div data-pace-year={y} hidden={y !== yr0}>
+              <DataTable compact caption={`${M.pace[y].team} 퀄리파잉 지수와 필드, ${y}`} columns={qCols(y)} rows={M.pace[y].quali} />
+            </div>
+          ))
+        }
+      </Fragment>
+    </Figure>
+    <p class="read" id="pace-race-read" set:html={keepNames(p0.r)} />
+    <Figure
+      id="f-tr"
+      title={`${tname} 레이스 지수와 95% 구간`}
+      scope={`<span id="tr-scope">${yr0} · 결승 클린 랩 · 95% 구간</span>`}
+      sub="연료 보정한 클린 랩 중앙값을 필드 중앙값(0)과 비교한 값이다. 음수가 빠르고, 위로 갈수록 빠르다. 막대가 0에 걸치면 필드 중앙값과 구별되지 않는다."
+      legend={[
+        { type: 'dot', color: 's1', label: `${tname} 지수` },
+        { type: 'line', color: 's1', label: '95% 구간' },
+        { type: 'ring', color: 's1', label: '우천 결승 (분석 제외)' },
+        { type: 'tri', label: '업그레이드 신고 대회' },
+      ]}
+      chart="raceTrend"
+      data={p0.race}
+      opts={{ cid: p0.cid, team: p0.team, rail: p0.rail, label: `${p0.team} 레이스 지수와 95% 구간` }}
+      source={`${OPENF1} 랩, 스틴트, 날씨, 레이스 컨트롤 (${OPENF1_LICENSE}), 이 사이트 계산(부트스트랩 1,000회)`}
+      asof={asofRaceIndex()}
+      notes={[
+        { head: '우천과 결측', body: '우천 결승은 빈 고리와 회색 구간으로 남기고 기본 분석에서 뺀다. 클린 랩이 8개 미만이면 지수를 내지 않고 결측으로 적는다.' },
+        {
+          head: '주의',
+          body: '구간은 랩 사이의 흩어짐만 담는다. 타이어 종류와 마모, 트래픽, 페이스 관리는 보정하지 않는다. 퀄리파잉 지수와 기준점이 달라 두 값을 비교하지 않는다.',
+          caution: true,
+        },
+      ]}
+    >
+      <Fragment slot="twin">
+        {
+          years.map((y) => (
+            <div data-pace-year={y} hidden={y !== yr0}>
+              <DataTable compact caption={`${M.pace[y].team} 레이스 지수와 95% 구간, ${y}`} columns={rCols(y)} rows={M.pace[y].race} />
+            </div>
+          ))
+        }
+      </Fragment>
+    </Figure>
+  </Section>
+
+  <Section id="long" title="긴 흐름" read={M.longOn} meta={`<span data-lin-scope="meta">${esc(M.linScope.meta.on)}</span>`}>
+    <Figure
+      id="f-steps"
+      wide
+      title="시즌 최종 컨스트럭터 순위"
+      scope={`<span data-lin-scope="steps">${esc(M.linScope.steps.on)}</span>`}
+      sub="각 시즌 마지막 라운드 뒤의 순위다. 위가 1위다. 순위가 없는 시즌(0점으로 순위표에 실리지 않은 해)에서는 선을 끊는다."
+      legend={[{ type: 'line', color: 's1', label: '시즌 최종 순위' }]}
+      chart="standingsSteps"
+      data={M.stepsData}
+      opts={{ eras: M.chartEras, from: M.first, to: M.lastTo }}
+      source={`${JOLPICA} 컨스트럭터 순위, 계보 연결은 이 사이트의 계보 테이블`}
+      asof={asofJolpica()}
+      twin={{ caption: `${short} 계보 시즌 최종 컨스트럭터 순위`, columns: stepCols, rows: team.seasons, rowClass: linOnly }}
+    />
+    <Figure
+      id="f-season"
+      wide
+      title="시즌 평균 퀄리파잉 지수와 필드"
+      scope={`<span data-lin-scope="trend">${esc(M.linScope.trend.on)}</span>`}
+      sub="그 시즌 예선들의 퀄리파잉 지수 평균(%)이다. 위가 빠르다. 회색 선과 띠는 그 시즌에 참가한 팀들의 시즌 평균에서 구한 중앙값과 가운데 절반이다."
+      legend={trendLegend}
+      chart="seasonTrend"
+      data={M.trendData}
+      opts={{ eras: M.chartEras, from: M.qFirst, to: M.lastTo, teamLabel: hasSwitch ? '계보' : C }}
+      source={trendSrc}
+      asof={asofQualiIndex()}
+      twin={{ caption: `${short} 계보 시즌 평균 퀄리파잉 지수`, columns: trendCols, rows: trendRows, rowClass: linOnly }}
+      notes={trendNotes}
+    />
+  </Section>
+
+  <Section
+    id="record"
+    title="시즌별 기록"
+    meta="최근 시즌부터"
+    read="시즌마다 팀 이름, PU, 최종 순위와 점수, 우승, 예선 지수 평균을 적었다. 예선 지수 평균은 2022년까지 우천 여부를 가르지 못한 모든 예선의 평균이고(미분류), 2023년부터는 우천 예선을 뺀 평균이다. 굵은 괘선은 계보 구간이 바뀐 시즌이다."
+  >
+    <div class="record-tbl">
+      <DataTable
+        caption={`${short} 계보 시즌별 기록, 최근 10개 행`}
+        columns={recCols}
+        rows={M.recordRows}
+        rowClass={recRowClass}
+        expand={M.firstRest ? { first: 10, summary: `${M.firstRest}년 이전 ${M.restSeasons}개 시즌 펼치기`, captionRest: `${short} 계보 시즌별 기록, ${M.firstRest}년 이전` } : undefined}
+      />
+      <SourceLine source={`${JOLPICA} 결과와 순위, ${F1DB} 엔진 제조사, 예선 지수는 이 사이트 계산`} asof={asofQualiIndex()} />
+    </div>
+  </Section>
+
+  <Section id="pu" title="PU 구성요소 사용 현황">
+    <TeamPu lineage={lineage} short={short} />
+    <h3 class="sub-title pu-spans"><span>PU 공급사 구간</span><span class="sec-meta">최근 구간부터</span></h3>
+    <DataTable caption={`${short} 계보 PU 공급사 구간`} columns={puCols} rows={M.puSpans} rowClass={(s) => (hasSwitch && s.to < curFrom ? 'lin-only' : '')} />
+    <SourceLine source={`${F1DB} 시즌 엔트런트의 엔진 제조사, 계보 연결은 이 사이트의 계보 테이블`} asof={asofF1db()} />
+  </Section>
+
+  <JsonData id="team-page" data={pageData} />
+  <script>
+    import { initTeamPage } from '../../components/team/team-client.ts';
+
+    initTeamPage();
+  </script>
+</BaseLayout>
+
+<style>
+  .more-link {
+    margin-top: var(--sp-3);
+  }
+  #pace-race-read {
+    margin-top: var(--sp-6);
+  }
+  .record-tbl {
+    margin-top: var(--sp-4);
+  }
+  .record-tbl :global(.src) {
+    margin-top: 8px;
+  }
+  .pu-spans {
+    margin-top: var(--sp-6);
+  }
+  :global(#pu .notice) {
+    margin-top: var(--sp-4);
+  }
+</style>

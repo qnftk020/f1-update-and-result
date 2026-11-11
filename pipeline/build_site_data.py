@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import math
+import statistics
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -71,6 +72,19 @@ QUALI_FORMATS_KO = {
     "ELIMINATION": "엘리미네이션",
     "SPRINT_RACE": "스프린트 주말 녹아웃",
 }
+# 업그레이드 문서의 팀 상태. "문서 부재"는 그 대회의 공개 문서를 찾지 못했다는 뜻이다.
+TEAM_STATUS_KO = {
+    "updates": "제출",
+    "no_updates": "변경 0건",
+    "needs_review": "검수 대기",
+    "nodoc": "문서 부재",
+}
+CATEGORY_ORDER = ["performance", "circuit_specific", "reliability", "other"]
+# 지수의 내보내기 자릿수. 화면은 퀄리파잉 지수를 소수 셋째 자리, 레이스 지수를 둘째 자리로 적는다.
+# 반올림을 두 번 하면 끝자리가 어긋날 수 있어(0.24451 -> 0.2445 -> 0.244)
+# 화면 자릿수보다 넉넉히 남긴다.
+QUALI_DIGITS = 9
+RACE_DIGITS = 6
 
 
 # --- 도우미 ---------------------------------------------------------------------------
@@ -99,6 +113,19 @@ def clean(value: object, digits: int | None = None) -> object:
     if pd.isna(value) if not isinstance(value, list | dict | str) else False:
         return None
     return value
+
+
+def quartiles(values: list[float]) -> dict | None:
+    """가운데 절반 띠와 중앙값. 값이 넷 미만이면 띠를 그리지 않는다(None)."""
+    vals = sorted(v for v in values if v is not None)
+    if len(vals) < 4:
+        return None
+    q = statistics.quantiles(vals, n=4, method="inclusive")
+    return {
+        "q1": round(q[0], QUALI_DIGITS),
+        "med": round(statistics.median(vals), QUALI_DIGITS),
+        "q3": round(q[2], QUALI_DIGITS),
+    }
 
 
 def kst_date(iso_utc: str) -> str:
@@ -130,6 +157,12 @@ class Tables:
         self.engines = read("f1db/engine_manufacturers.parquet")
         self.constructor_seasons = read("lineage/constructor_seasons.parquet")
         self.quali_index = read("pace/qualifying_index.parquet")
+        # 화면의 퀄리파잉 지수는 ms 기록에서 다시 계산한 값이다. 정제 테이블의 index_pct는 소수 넷째
+        # 자리로 저장되어 있어 셋째 자리 반올림이 어긋날 수 있다(2025 R24 McLaren 0.2445 -> 0.245).
+        qi = self.quali_index
+        exact = (qi["team_best_ms"] / qi["session_best_ms"] - 1) * 100
+        has_ms = qi["team_best_ms"].notna() & qi["session_best_ms"].notna()
+        self.quali_index["v"] = exact.where(has_ms, qi["index_pct"])
         self.race_index = read("pace/race_index.parquet")
         self.upgrades = read("fia/car_presentation.parquet")
         self.upgrade_teams = pd.read_csv(CURATED_DIR / "fia" / "car_presentation_teams.csv")
@@ -158,6 +191,17 @@ class Tables:
         }
         self.engine_names = {r.engine_manufacturer_id: r.name for r in self.engines.itertuples()}
         self.gp_names = {r.race_name: (r.name_ko, r.short_ko) for r in self.gp_ko.itertuples()}
+        # 시즌별 컨스트럭터의 결승 출전 대회 수, 우승, 포디움(완주 분류 3위 이내).
+        # 결승 결과에서 센다.
+        race = self.results[self.results["session_type"] == "R"]
+        self.race_tally: dict[tuple[int, str], dict[str, int]] = {}
+        for (season, cid), g in race.groupby(["season", "constructor_id"]):
+            classified = g[g["is_classified"].fillna(False).astype(bool)]
+            self.race_tally[(int(season), cid)] = {
+                "entered": int(g["round"].nunique()),
+                "wins": int(g.loc[g["position"] == 1, "round"].nunique()),
+                "podiums": int((classified["position"] <= 3).sum()),
+            }
 
     def team_name(self, season: int, constructor_id: str) -> str:
         row = self.season_team.get((season, constructor_id))
@@ -247,6 +291,11 @@ def season_rounds(t: Tables, season: int) -> list[dict]:
     }
     quali = t.quali_index[t.quali_index["season"] == season]
     quali_by_round = {int(k): g.iloc[0] for k, g in quali.groupby("round")}
+    # 그 대회 필드(지수가 있는 모든 팀)의 중앙값과 가운데 절반. 차트의 회색 선과 띠다.
+    field_by_round = {
+        int(k): (quartiles([clean(v) for v in g["v"]]), int(g["v"].notna().sum()))
+        for k, g in quali.groupby("round")
+    }
     race = t.race_index[t.race_index["season"] == season]
     race_by_round = {int(k): g.iloc[0] for k, g in race.groupby("round")}
     rounds = []
@@ -298,6 +347,8 @@ def season_rounds(t: Tables, season: int) -> list[dict]:
                     "wet": q.wet_flag,
                     "source": q.time_source,
                     "best_ms": clean(q.session_best_ms),
+                    "field": field_by_round[rnd][0],
+                    "teams": field_by_round[rnd][1],
                 },
                 "race": None if x is None else {"wet": bool(x.is_wet), "laps": clean(x.race_laps)},
             }
@@ -340,10 +391,12 @@ def build_season(t: Tables, season: int) -> dict:
     ds = t.driver_standings[t.driver_standings["season"] == season]
     driver_series = standings_series(ds, "driver_id", round_numbers)
     teams_of_driver: dict[str, list[str]] = {}
+    last_team: dict[str, str] = {}
     for row in results.sort_values("round").itertuples():
         seen = teams_of_driver.setdefault(row.driver_id, [])
         if row.constructor_id not in seen:
             seen.append(row.constructor_id)
+        last_team[row.driver_id] = row.constructor_id
     drivers = []
     for driver_id, series in driver_series.items():
         drivers.append(
@@ -353,6 +406,10 @@ def build_season(t: Tables, season: int) -> dict:
                 "constructors": [
                     t.team_name(season, c) for c in teams_of_driver.get(driver_id, [])
                 ],
+                # 마지막으로 결승에 나간 팀. 순위표의 팀 칸과 리드 문장의 괄호에 쓴다.
+                "team": t.team_name(season, last_team[driver_id])
+                if driver_id in last_team
+                else None,
                 "position": last_value(series["positions"]),
                 "final_points": last_value(series["points"]),
                 "wins": series["wins"],
@@ -371,25 +428,31 @@ def build_season(t: Tables, season: int) -> dict:
     )
     constructor_ids = list(dict.fromkeys([*constructor_series, *entered, *quali["constructor_id"]]))
     index = {rnd: i for i, rnd in enumerate(round_numbers)}
+    quali_wet = [bool(r["quali"] and r["quali"]["wet"] == "wet") for r in rounds]
+    race_wet = [bool(r["race"] and r["race"]["wet"]) for r in rounds]
     constructors = []
     for cid in constructor_ids:
         series = constructor_series.get(cid)
         qi = [None] * len(round_numbers)
         for row in quali[quali["constructor_id"] == cid].itertuples():
-            qi[index[int(row.round)]] = clean(row.index_pct, 3)
+            qi[index[int(row.round)]] = clean(row.v, QUALI_DIGITS)
         ri = [None] * len(round_numbers)
         for row in race[race["constructor_id"] == cid].itertuples():
-            value = clean(row.index_pct, 3)
+            value = clean(row.index_pct, RACE_DIGITS)
             ri[index[int(row.round)]] = (
                 None
                 if value is None
                 else {
                     "v": value,
-                    "lo": clean(row.ci_low_pct, 3),
-                    "hi": clean(row.ci_high_pct, 3),
+                    "lo": clean(row.ci_low_pct, RACE_DIGITS),
+                    "hi": clean(row.ci_high_pct, RACE_DIGITS),
                     "n": clean(row.clean_laps),
                 }
             )
+        # 시즌 평균: 우천 예선(2023년부터 판정)과 우천 결승을 뺀 대회의 평균이다. 2022년 이전 예선은
+        # 우천 여부가 미분류라 모든 예선이 들어간다. 작은 다중 칸 제목과 팀 페이지 리드에 쓴다.
+        q_vals = [v for v, wet in zip(qi, quali_wet, strict=True) if v is not None and not wet]
+        r_vals = [x["v"] for x, wet in zip(ri, race_wet, strict=True) if x is not None and not wet]
         constructors.append(
             {
                 "id": cid,
@@ -403,6 +466,10 @@ def build_season(t: Tables, season: int) -> dict:
                 "points": series["points"] if series else None,
                 "quali_index": qi if any(v is not None for v in qi) else None,
                 "race_index": ri if any(v is not None for v in ri) else None,
+                "quali_mean": round(statistics.fmean(q_vals), QUALI_DIGITS) if q_vals else None,
+                "quali_n": len(q_vals),
+                "race_mean": round(statistics.fmean(r_vals), RACE_DIGITS) if r_vals else None,
+                "race_n": len(r_vals),
             }
         )
     constructors.sort(
@@ -416,6 +483,50 @@ def build_season(t: Tables, season: int) -> dict:
         "has_constructor_standings": bool(len(cs)),
         "has_quali_index": bool(len(quali)),
         "has_race_index": bool(len(race)),
+        "facts": season_facts(rounds, drivers, constructors),
+    }
+
+
+def last_lead_change(rounds: list[dict], entries: list[dict], key: str) -> dict | None:
+    """순위표 1위가 마지막으로 바뀐 라운드와 그 뒤의 1위. 순위가 없는 라운드는 건너뛴다."""
+    leaders: list[tuple[int, str]] = []
+    for i, rnd in enumerate(rounds):
+        top = [e[key] for e in entries if e["positions"] and e["positions"][i] == 1]
+        if top:
+            leaders.append((rnd["round"], top[0]))
+    if not leaders:
+        return None
+    change = leaders[0][0]
+    for (_, prev), (rnd, cur) in zip(leaders, leaders[1:], strict=False):
+        if cur != prev:
+            change = rnd
+    return {"round": change, "leader_id": leaders[-1][1], "first_round": leaders[0][0]}
+
+
+def season_facts(rounds: list[dict], drivers: list[dict], constructors: list[dict]) -> dict:
+    """사실 줄, 캘린더 문장, 순위 추이 문장에 쓰는 시즌 집계. 모두 rounds와 순위표에서 센다."""
+    winners: list[str] = []
+    for r in rounds:
+        for w in r["winners"]:
+            if w["id"] not in winners:
+                winners.append(w["id"])
+    quali = [r for r in rounds if r["quali"]]
+    reference = [r for r in quali if r["quali"]["reference"]]
+    return {
+        "races": len(rounds),
+        "sprints": [r["round"] for r in rounds if r["has_sprint"]],
+        "winners": len(winners),
+        "quali_rounds": len(quali),
+        "quali_wet": [r["round"] for r in quali if r["quali"]["wet"] == "wet"],
+        "quali_unclassified": [r["round"] for r in quali if r["quali"]["wet"] == "unclassified"],
+        "quali_reference": [r["round"] for r in reference],
+        "quali_reference_formats": sorted({r["quali"]["format_ko"] for r in reference}),
+        "race_index_rounds": sum(1 for r in rounds if r["race"]),
+        "race_wet": [r["round"] for r in rounds if r["race"] and r["race"]["wet"]],
+        "driver_lead": last_lead_change(rounds, drivers, "id"),
+        "constructor_lead": last_lead_change(
+            rounds, [c for c in constructors if c["positions"]], "id"
+        ),
     }
 
 
@@ -459,7 +570,70 @@ def name_history(segments: list[dict]) -> list[str]:
     return [n for i, n in enumerate(names) if i == 0 or n != names[i - 1]]
 
 
-def build_team(t: Tables, lineage: object, seasons: dict[int, dict]) -> dict:
+def season_field(data: dict) -> tuple[dict | None, list[float]]:
+    """시즌 평균 퀄리파잉 지수의 필드.
+
+    그 시즌 마른(미분류 포함) 예선의 절반 이상에 지수가 있는 팀들의 시즌 평균에서 구한
+    중앙값과 가운데 절반이다. 대체 출전으로 몇 대회만 나온 팀은 뺀다.
+    """
+    rounds = sum(1 for r in data["rounds"] if r["quali"] and r["quali"]["wet"] != "wet")
+    need = max(1, rounds // 2)
+    means = [
+        c["quali_mean"]
+        for c in data["constructors"]
+        if c["quali_mean"] is not None and c["quali_n"] >= need
+    ]
+    return quartiles(means), sorted(means)
+
+
+def team_timeline(lineage_id: str, seasons: dict[int, dict], upgrades: dict) -> dict:
+    """업그레이드 단위 차트의 줄: 시즌마다 라운드별 그 팀의 상태와 범주별 항목 수."""
+    docs = {(d["season"], d["round"]): d for d in upgrades["documents"]}
+    items: dict[tuple[int, int], list[dict]] = {}
+    for i in upgrades["items"]:
+        if i["lineage_id"] == lineage_id:
+            items.setdefault((i["season"], i["round"]), []).append(i)
+    out: dict[str, list[dict]] = {}
+    for season in range(UPGRADES_FIRST_SEASON, LAST_SEASON + 1):
+        rows = []
+        for rnd in seasons[season]["rounds"]:
+            key = (season, rnd["round"])
+            doc = docs.get(key)
+            mine = items.get(key, [])
+            status = "nodoc"
+            if doc is not None:
+                team = next((x for x in doc["teams"] if x["lineage_id"] == lineage_id), None)
+                status = team["status"] if team else "nodoc"
+            rows.append(
+                {
+                    "round": rnd["round"],
+                    "short": rnd["short_ko"],
+                    "name": rnd["name"],
+                    "status": status,
+                    "doc_review": bool(doc and doc["review"]),
+                    "url": doc["url"] if doc else None,
+                    "published_at": doc["published_at"] if doc else None,
+                    "cats": {c: sum(1 for i in mine if i["category"] == c) for c in CATEGORY_ORDER},
+                    "n": len(mine),
+                }
+            )
+        out[str(season)] = rows
+    return out
+
+
+def lineage_totals(rows: list[dict]) -> dict:
+    """계보(또는 그 일부 구간)의 시즌, 출전 대회, 우승, 컨스트럭터 챔피언 시즌."""
+    return {
+        "seasons": len({r["season"] for r in rows}),
+        "races": sum(r["entered"] for r in rows),
+        "wins": sum(r["race_wins"] for r in rows),
+        "podiums": sum(r["podiums"] for r in rows),
+        "best_position": min((r["position"] for r in rows if r["position"]), default=None),
+        "titles": sorted({r["season"] for r in rows if r["position"] == 1}),
+    }
+
+
+def build_team(t: Tables, lineage: object, seasons: dict[int, dict], upgrades: dict) -> dict:
     lineage_id = lineage.lineage_id
     links = t.lineage_links[t.lineage_links["lineage_id"] == lineage_id].sort_values("season_from")
     evidence = t.lineage_evidence[t.lineage_evidence["lineage_id"] == lineage_id]
@@ -469,6 +643,9 @@ def build_team(t: Tables, lineage: object, seasons: dict[int, dict]) -> dict:
         season = int(member.season)
         data = seasons[season]
         entry = next((c for c in data["constructors"] if c["id"] == member.constructor_id), None)
+        field, field_means = season_field(data)
+        mean = entry["quali_mean"] if entry else None
+        tally = t.race_tally.get((season, member.constructor_id), {})
         # 중앙값은 정제 테이블의 원값으로 내고 한 번만 반올림한다. 시즌 JSON의 대회별 값은 이미
         # 소수 셋째 자리로 반올림되어 있어, 대회 수가 짝수면 가운데 두 값의 평균이 어긋난다.
         raw_quali = _raw_index(t.quali_index, season, member.constructor_id)
@@ -508,9 +685,33 @@ def build_team(t: Tables, lineage: object, seasons: dict[int, dict]) -> dict:
                 if race_values
                 else None,
                 "race_rounds": len(race_values),
+                # 시즌 평균(ms 기록에서 다시 계산한 지수의 평균).
+                # 시즌별 기록 표와 긴 흐름 차트가 쓴다.
+                "quali_index_mean": mean,
+                "quali_wet_rounds": len(all_quali) - len(dry_quali),
+                "quali_field": field,
+                # 필드(season_field의 팀들) 가운데 평균이 작은 순서.
+                # 자기 팀이 필드에 없으면 None이다.
+                "quali_rank": (sum(1 for m in field_means if m < mean) + 1)
+                if mean is not None and mean in field_means
+                else None,
+                "quali_teams": len(field_means),
+                "entered": tally.get("entered", 0),
+                "race_wins": tally.get("wins", 0),
+                "podiums": tally.get("podiums", 0),
             }
         )
     current = t.season_team.get((LAST_SEASON, lineage.constructor_id_2025))
+    # 현재 컨스트럭터 시기: 마지막 계보 구간. 계보 보기를 끈 화면의 범위다.
+    current_from = int(links.iloc[-1]["season_from"]) if len(links) else LAST_SEASON
+    current_rows = [r for r in rows if r["season"] >= current_from]
+    last_results = t.results[
+        (t.results["season"] == LAST_SEASON)
+        & (t.results["session_type"] == "R")
+        & (t.results["constructor_id"] == lineage.constructor_id_2025)
+    ].sort_values("round")
+    timeline = team_timeline(lineage_id, seasons, upgrades)
+    mine = [i for i in upgrades["items"] if i["lineage_id"] == lineage_id]
     return {
         "lineage_id": lineage_id,
         "name_ko": lineage.name_ko,
@@ -546,6 +747,16 @@ def build_team(t: Tables, lineage: object, seasons: dict[int, dict]) -> dict:
             for r in evidence.itertuples()
         ],
         "seasons": rows,
+        "current_from": current_from,
+        "totals": lineage_totals(rows),
+        "totals_current": lineage_totals(current_rows),
+        "drivers_last": [t.driver(d) for d in dict.fromkeys(last_results["driver_id"])],
+        "upgrades": {
+            "items": len(mine),
+            "events": len({(i["season"], i["round"]) for i in mine}),
+            "by_category": {c: sum(1 for i in mine if i["category"] == c) for c in CATEGORY_ORDER},
+            "timeline": timeline,
+        },
     }
 
 
@@ -738,7 +949,16 @@ def build_home(t: Tables, seasons: dict[int, dict], upgrades: dict) -> dict:
         return {
             **{
                 k: doc[k]
-                for k in ("season", "round", "event", "event_ko", "url", "items", "review")
+                for k in (
+                    "season",
+                    "round",
+                    "event",
+                    "event_ko",
+                    "event_short_ko",
+                    "url",
+                    "items",
+                    "review",
+                )
             },
             "published_at": doc["published_at"],
             "teams": doc["teams"],
@@ -755,17 +975,153 @@ def build_home(t: Tables, seasons: dict[int, dict], upgrades: dict) -> dict:
         "pace": pace,
         "upgrades_this_weekend": weekend(this_weekend),
         "upgrades_latest": weekend(latest_with_items),
-        "drivers_top": [
+        # 순위표는 이 대회가 끝난 뒤의 순위다(시즌이 끝났으면 최종 순위).
+        "standings_round": rnd,
+        "drivers": [
             {
-                k: d[k]
-                for k in ("id", "name", "code", "constructors", "position", "final_points", "wins")
+                **{k: d[k] for k in ("id", "name", "code", "team")},
+                "position": d["positions"][index],
+                "points": d["points"][index],
+                "wins": d["wins"],
             }
-            for d in data["drivers"][:5]
+            for d in sorted(
+                (d for d in data["drivers"] if d["positions"][index] is not None),
+                key=lambda d: d["positions"][index],
+            )
         ],
-        "constructors_top": [
-            {k: c[k] for k in ("id", "name", "lineage_id", "position", "final_points", "wins")}
-            for c in data["constructors"][:5]
+        "constructors": [
+            {
+                **{k: c[k] for k in ("id", "name", "lineage_id")},
+                "position": c["positions"][index],
+                "points": c["points"][index],
+                "wins": c["wins"],
+            }
+            for c in sorted(
+                (c for c in data["constructors"] if c["positions"] and c["positions"][index]),
+                key=lambda c: c["positions"][index],
+            )
         ],
+        **home_pace(t, season, rnd, data),
+        "pole": home_pole(t, season, rnd, last),
+        "fastest_lap": home_fastest_lap(t, season, rnd, classification),
+        "rounds_in_season": len(data["rounds"]),
+        "round_counts": [
+            {
+                "round": d["round"],
+                "name_ko": d["event_ko"],
+                "short_ko": d["event_short_ko"],
+                "n": sum(
+                    1
+                    for i in upgrades["items"]
+                    if i["season"] == season and i["round"] == d["round"]
+                ),
+                "review": d["review"],
+            }
+            for d in documents
+        ],
+    }
+
+
+def home_pace(t: Tables, season: int, rnd: int, data: dict) -> dict:
+    """페이스 스냅샷: 퀄리파잉 지수(빠른 순, ms에서 다시 계산)와 레이스 지수(빠른 순)."""
+    q = t.quali_index[(t.quali_index["season"] == season) & (t.quali_index["round"] == rnd)]
+    quali = []
+    for r in q.itertuples():
+        v = clean(r.v, QUALI_DIGITS)
+        team_ms = clean(r.team_best_ms)
+        quali.append(
+            {
+                "constructor_id": r.constructor_id,
+                "constructor": t.team_name(season, r.constructor_id),
+                "lineage_id": t.lineage_of(season, r.constructor_id),
+                "v": v,
+                "gap_s": None
+                if team_ms is None
+                else round((team_ms - float(r.session_best_ms)) / 1000, 3),
+                "team_best_ms": team_ms,
+            }
+        )
+    quali.sort(key=lambda d: (d["v"] is None, d["v"] or 0))
+    first = q.iloc[0] if len(q) else None
+    x = t.race_index[(t.race_index["season"] == season) & (t.race_index["round"] == rnd)]
+    race = [
+        {
+            "constructor_id": r.constructor_id,
+            "constructor": t.team_name(season, r.constructor_id),
+            "lineage_id": t.lineage_of(season, r.constructor_id),
+            "v": clean(r.index_pct, RACE_DIGITS),
+            "lo": clean(r.ci_low_pct, RACE_DIGITS),
+            "hi": clean(r.ci_high_pct, RACE_DIGITS),
+            "laps": clean(r.clean_laps),
+        }
+        for r in x.itertuples()
+    ]
+    race.sort(key=lambda d: (d["v"] is None, d["v"] or 0))
+    return {
+        "quali": quali,
+        "quali_meta": None
+        if first is None
+        else {
+            "wet": first.wet_flag,
+            "reference": bool(first.is_reference_format),
+            "format": first.qualifying_format,
+            "source": first.time_source,
+            "session_best_ms": clean(first.session_best_ms),
+            "session_best": format_lap(float(first.session_best_ms)),
+        },
+        "race_index": race,
+        "race_meta": None
+        if not len(x)
+        else {"wet": bool(x.iloc[0].is_wet), "laps": clean(x.iloc[0].race_laps)},
+    }
+
+
+def home_pole(t: Tables, season: int, rnd: int, race: dict) -> dict | None:
+    """폴 포지션 타일: 시즌 캘린더의 폴 시터와 그 드라이버의 마지막 예선 세션 기록."""
+    if not race["pole"]:
+        return None
+    pole = race["pole"][0]
+    q = t.qualifying[
+        (t.qualifying["season"] == season)
+        & (t.qualifying["round"] == rnd)
+        & (t.qualifying["driver_id"] == pole["id"])
+    ].dropna(subset=["best_time_ms"])
+    q = q[q["session_type"].isin(["Q1", "Q2", "Q3"])].sort_values("session_type")
+    if not len(q):
+        return {**pole, "session": None, "time": None}
+    best = q.iloc[-1]
+    return {**pole, "session": best.session_type, "time": format_lap(float(best.best_time_ms))}
+
+
+def home_fastest_lap(t: Tables, season: int, rnd: int, classification: list[dict]) -> dict | None:
+    """결승 패스티스트 랩의 기록과 랩 번호.
+
+    Jolpica는 순위만 있어 시각과 랩 번호는 OpenF1 랩에서 읽는다.
+    """
+    who = next((c for c in classification if c["fastest_lap"]), None)
+    if who is None or season < RACE_INDEX_FIRST_SEASON:
+        return None
+    meetings = pd.read_csv(CURATED_DIR / "openf1" / "meeting_map.csv")
+    hit = meetings[(meetings["season"] == season) & (meetings["round"] == rnd)]
+    drivers = pd.read_csv(CURATED_DIR / "openf1" / "driver_map.csv")
+    numbers = drivers[(drivers["season"] == season) & (drivers["driver_id"] == who["id"])]
+    if not len(hit) or not len(numbers) or pd.isna(hit.iloc[0]["race_session_key"]):
+        return None
+    con = duckdb.connect()
+    row = con.execute(
+        f"select lap_number, lap_duration from '{CURATED_DIR / 'openf1' / 'laps.parquet'}'"
+        " where session_key = ? and driver_number = ? and lap_duration is not null"
+        " order by lap_duration limit 1",
+        [int(hit.iloc[0]["race_session_key"]), int(numbers.iloc[0]["driver_number"])],
+    ).fetchall()
+    if not row:
+        return None
+    lap, duration = row[0]
+    return {
+        **{k: who[k] for k in ("id", "name", "code", "constructor_id", "constructor")},
+        "lap": int(lap),
+        "time": format_lap(round(duration * 1000)),
+        "source": "openf1",
     }
 
 
@@ -794,6 +1150,16 @@ def build_meta(t: Tables) -> dict:
     last_race = raced.sort_values("round").iloc[-1]
     car_docs = [r for r in fia if r["doc_type"] == "car_presentation"]
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    dump = next(r for r in rows if (r["source"], r["name"]) == ("jolpica", "delayed-dump-csv"))
+    api = (
+        api_rounds["version"]
+        if api_rounds and api_rounds["fetched_at"] > dump["fetched_at"]
+        else None
+    )
+    # 지수는 입력(결과, 예선, OpenF1 랩)이 바뀔 때마다 다시 계산한다(pipeline.update).
+    # 계산일은 입력 가운데 가장 늦게 받은 자료의 날짜로 적는다.
+    computed = max(datasets[s]["fetched_at"] for s in ("jolpica", "f1db", "openf1"))
+    review = t.upgrade_docs[t.upgrade_docs["status"] != "ok"].sort_values(["season", "round"])
     return {
         "generated_at": now,
         "generated_on": kst_date(now),
@@ -815,6 +1181,10 @@ def build_meta(t: Tables) -> dict:
                 if " + API" not in datasets["jolpica"]["version"]
                 else datasets["jolpica"]["version"],
                 "as_of": kst_date(datasets["jolpica"]["fetched_at"]),
+                # 화면의 Jolpica 기준일은 덤프 날짜다.
+                # API로 대회를 더 반영했으면 api에 그 범위가 있다.
+                "dump": dump["version"][:10],
+                "api": api,
             },
             "f1db": {
                 "name": "F1DB",
@@ -837,7 +1207,26 @@ def build_meta(t: Tables) -> dict:
                 "version": f"{len(car_docs)}개 Car Presentation 문서",
                 "as_of": kst_date(indexed),
             },
+            "pace": {
+                "name": "페이스 지수 (이 사이트 계산)",
+                "url": "https://github.com/qnftk020/f1-update-and-result/blob/main/docs/methodology.md",
+                "license": "CC BY-NC-SA 4.0",
+                "version": f"퀄리파잉 {QUALI_FIRST_SEASON}-{LAST_SEASON},"
+                f" 레이스 {RACE_INDEX_FIRST_SEASON}-{LAST_SEASON}",
+                "as_of": kst_date(computed),
+            },
         },
+        "review_documents": [
+            {
+                "season": int(d.season),
+                "round": int(d.round),
+                "event": d.event,
+                "event_ko": t.gp(d.event)[0],
+                "event_short_ko": t.gp(d.event)[1],
+                "url": d.url,
+            }
+            for d in review.itertuples()
+        ],
         "counts": {
             "races": int(len(t.races)),
             "seasons": int(t.races["season"].nunique()),
@@ -854,6 +1243,8 @@ def build_labels(t: Tables) -> dict:
     return {
         "component_areas": COMPONENT_AREAS_KO,
         "reason_categories": REASON_CATEGORIES_KO,
+        "category_order": CATEGORY_ORDER,
+        "team_status": TEAM_STATUS_KO,
         "link_types": LINK_TYPES_KO,
         "quali_formats": QUALI_FORMATS_KO,
         "grand_prix": {
@@ -885,7 +1276,8 @@ def main() -> None:
         write_json(f"season/{season}.json", data)
     write_json("seasons.json", [season_summary(seasons[s]) for s in sorted(seasons, reverse=True)])
 
-    teams = [build_team(t, lineage, seasons) for lineage in t.lineages.itertuples()]
+    upgrades = build_upgrades(t)
+    teams = [build_team(t, lineage, seasons, upgrades) for lineage in t.lineages.itertuples()]
     for team in teams:
         write_json(f"team/{team['lineage_id']}.json", team)
     write_json(
@@ -898,15 +1290,25 @@ def main() -> None:
                 },
                 "since": team["segments"][0]["from"],
                 "names": name_history(team["segments"]),
+                "segments_n": len(team["segments"]),
+                "last": next(
+                    (
+                        {k: s[k] for k in ("position", "points", "quali_index_mean", "quali_rank")}
+                        for s in reversed(team["seasons"])
+                        if s["season"] == LAST_SEASON
+                    ),
+                    None,
+                ),
+                "upgrade_items": team["upgrades"]["items"],
             }
             for team in teams
         ],
     )
 
-    upgrades = build_upgrades(t)
     write_json("upgrades.json", upgrades)
     write_json("home.json", build_home(t, seasons, upgrades))
     write_json("labels.json", build_labels(t))
+    write_json("references.json", build_references())
     extra = optional_builders()
     for name, payload in extra.items():
         write_json(name, payload)
@@ -922,6 +1324,25 @@ def main() -> None:
 def _relative(path: Path) -> str:
     root = MANIFEST_DIR.parents[1]
     return str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
+
+
+# --- 선행 작업 목록(데이터와 방법론 > 소개) ------------------------------------------------
+
+
+def build_references() -> dict:
+    """data/curated/references/prior_work.csv를 그대로 옮긴다. 글은 고치지 않는다."""
+    import csv
+
+    path = CURATED_DIR / "references" / "prior_work.csv"
+    with path.open(encoding="utf-8", newline="") as f:
+        rows = [
+            {
+                k: (v.strip() or None) if k != "year" else (int(v) if v.strip() else None)
+                for k, v in row.items()
+            }
+            for row in csv.DictReader(f)
+        ]
+    return {"prior_work": rows}
 
 
 if __name__ == "__main__":

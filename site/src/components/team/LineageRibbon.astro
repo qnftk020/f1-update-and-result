@@ -1,0 +1,88 @@
+---
+// 계보 띠(DESIGN.md "계보 띠"): 칸 너비가 시즌 수에 비례하는 가로 띠, 칸마다 팀 이름(라틴)과 기간.
+// 현재 컨스트럭터 칸은 파란 윗줄(.is-current). 720px 아래에서는 "기간 · 팀 · 연결 유형" 목록(.era-list)으로 바뀐다.
+// 아래 눈금은 연도 위치에 비례해 놓는다(10년 단위 + 처음과 끝).
+import type { Era } from './model.ts';
+
+interface Props {
+  eras: Era[];
+  first: number;
+  last: number;
+}
+const { eras, first, last } = Astro.props;
+const span = last - first + 1;
+const short = (e: Era) => (e.from === e.to ? String(e.from) : `${e.from}-${String(e.to).slice(2)}`);
+const ticks: number[] = [first];
+for (let y = Math.ceil((first + 1) / 10) * 10; y < last; y += 10) if (y - first >= 4 && last - y >= 4) ticks.push(y);
+ticks.push(last);
+// 칸 사이 2px 틈을 무시한 근삿값. 눈금은 그 해 칸의 가운데에 둔다.
+const at = (y: number) => ((y - first + 0.5) / span) * 100;
+---
+
+<div class="ribbon" aria-hidden="true">
+  {
+    eras.map((e) => (
+      <div class:list={['era', { 'is-current': e.current }]} data-from={e.from} style={`flex:${e.to - e.from + 1} 1 0`} title={`${e.team} ${e.from}-${e.to}`}>
+        <b lang="en">{e.team}</b>
+        <span>{short(e)}</span>
+      </div>
+    ))
+  }
+</div>
+<div class="ribbon-axis lin-axis" aria-hidden="true">
+  {
+    ticks.map((y, k) => (
+      <span class:list={[{ first: k === 0, end: k === ticks.length - 1 }]} style={k === 0 || k === ticks.length - 1 ? undefined : `left:${at(y).toFixed(2)}%`}>
+        {y}
+      </span>
+    ))
+  }
+</div>
+<ol class="era-list" aria-label="계보 구간">
+  {
+    eras.map((e) => (
+      <li class:list={[{ 'is-current': e.current }]} data-from={e.from}>
+        <span class="nw">{e.from === e.to ? String(e.from) : `${e.from}-${e.to}`}</span>
+        <b lang="en">{e.team}</b>
+        <span class="lt">{e.link}</span>
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  /* 한 시즌짜리 칸(RB 2024, Racing Bulls 2025)에서도 이름을 자르지 않는다: 낱말 단위로 줄을 넘기고 칸은 가장 긴 낱말보다 좁아지지 않는다 */
+  .ribbon .era {
+    min-width: min-content;
+  }
+  .ribbon .era b {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: normal;
+    word-break: keep-all;
+  }
+  .ribbon-axis.lin-axis {
+    position: relative;
+    display: block;
+    height: 1.4em;
+  }
+  .lin-axis span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+  }
+  .lin-axis span.first {
+    left: 0;
+    transform: none;
+  }
+  .lin-axis span.end {
+    right: 0;
+    left: auto;
+    transform: none;
+  }
+  @media (max-width: 720px) {
+    .ribbon-axis.lin-axis {
+      display: none;
+    }
+  }
+</style>

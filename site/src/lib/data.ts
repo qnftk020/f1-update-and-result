@@ -58,3 +58,17 @@ export function getOptional<T>(name: 'engines' | 'regulations'): T | null {
   const mod = optionalFiles[`../data/generated/${name}.json`];
   return mod ? (mod.default as T) : null;
 }
+
+/** 계보 ID로 팀 요약(teams.json)을 찾는다. */
+export const teamSummaryById = new Map(teams.map((t) => [t.lineage_id, t]));
+
+/** 대회 영문 이름의 한국어 이름과 짧은 이름 */
+export function gpName(name: string): { ko: string; short: string } {
+  return labels.grand_prix[name] ?? { ko: name, short: name };
+}
+
+/** 머리말 상태 줄에 쓰는 값 */
+export const status = {
+  lastRace: { ...meta.last_race, short_ko: gpName(meta.last_race.name).short },
+  reviewDocuments: meta.review_documents,
+};

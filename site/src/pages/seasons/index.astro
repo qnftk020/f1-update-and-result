@@ -1,0 +1,155 @@
+---
+// 시즌 목록 /seasons/: 1950-2025 모든 시즌과 두 순위 1위. 연대별 표를 빌드 때 모두 싣고, 스크립트가 있으면
+// 연대 분할 전환으로 고른 연대 표만 보인다(스크립트가 없으면 모든 연대가 차례로 보인다).
+import DataTable, { type Column } from '../../components/DataTable.astro';
+import PageHead from '../../components/PageHead.astro';
+import Section from '../../components/Section.astro';
+import Seg from '../../components/Seg.astro';
+import SourceLine from '../../components/SourceLine.astro';
+import { pts } from '../../components/season/season-text.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { meta, seasons } from '../../lib/data.ts';
+import { n0 } from '../../lib/format.ts';
+import { routes } from '../../lib/paths.ts';
+import { JOLPICA, asofQualiIndex } from '../../lib/sources.ts';
+import type { SeasonSummary } from '../../lib/types.ts';
+import { b, esc } from '../../lib/typeset.ts';
+
+const first = meta.first_season;
+const last = meta.last_season;
+const races = seasons.reduce((a, s) => a + s.rounds, 0);
+const qualiYears = seasons.filter((s) => s.has_quali_index).map((s) => s.season);
+const raceYears = seasons.filter((s) => s.has_race_index).map((s) => s.season);
+const qFrom = Math.min(...qualiYears);
+const rFrom = Math.min(...raceYears);
+
+const lead =
+  `${first}년부터 ${last}년까지 ${b(`${seasons.length}개 시즌`)}, ${b(`${n0(races)}개 대회`)}를 실었다. ` +
+  `퀄리파잉 지수는 ${qFrom}년부터 ${qualiYears.length}개 시즌, 레이스 지수는 ${rFrom}년부터 ${raceYears.length}개 시즌에 있다. ` +
+  `컨스트럭터 순위는 1958년부터 있다.`;
+
+const decades: { dec: number; rows: SeasonSummary[] }[] = [];
+for (const s of seasons) {
+  const dec = Math.floor(s.season / 10) * 10;
+  let g = decades.find((d) => d.dec === dec);
+  if (!g) decades.push((g = { dec, rows: [] }));
+  g.rows.push(s);
+}
+
+const columns: Column<SeasonSummary>[] = [
+  { label: '시즌', cls: 'pos', render: (r) => `<a href="${routes.season(r.season)}">${r.season}</a>` },
+  { label: '대회', num: true, render: (r) => `${r.rounds}` },
+  {
+    label: '드라이버 1위',
+    render: (r) =>
+      r.champion_driver
+        ? `<span class="who">${esc(r.champion_driver.name)}</span><span class="sub-line">${esc(r.champion_driver.constructors.join(', '))} · ${pts(r.champion_driver.final_points)}점</span>`
+        : '결측',
+  },
+  {
+    label: '컨스트럭터 1위',
+    render: (r) =>
+      r.champion_constructor
+        ? `<span class="who">${esc(r.champion_constructor.name)}</span><span class="sub-line">${pts(r.champion_constructor.final_points)}점</span>`
+        : '<span class="muted">1958년부터</span>',
+  },
+  { label: '퀄리파잉 지수', cls: 'hide-xs', render: (r) => (r.has_quali_index ? '수록' : '<span class="muted">지수 이전</span>') },
+  { label: '레이스 지수', cls: 'hide-sm', render: (r) => (r.has_race_index ? '수록' : '<span class="muted">지수 이전</span>') },
+];
+
+const segItems = decades.map((d, i) => ({ value: String(d.dec), label: `${d.dec}년대`, pressed: i === 0 }));
+---
+
+<BaseLayout title="시즌" description={`${first}-${last} F1 시즌 목록과 드라이버, 컨스트럭터 순위 1위`} current="seasons">
+  <PageHead
+    kicker={['시즌', `<span class="nw">${first}-${last}</span>`, `${seasons.length}개 시즌`]}
+    title="시즌"
+    lead={lead}
+    facts={[
+      ['시즌', `${seasons.length}개`],
+      ['대회', `${n0(races)}개`],
+      ['퀄리파잉 지수', `${qFrom}년부터`],
+      ['레이스 지수', `${rFrom}년부터`],
+    ]}
+  />
+
+  <Section id="list" title="시즌 목록" read="연대별 표다. 시즌을 누르면 그 시즌의 캘린더와 우승자, 순위 추이, 팀 페이스 쪽으로 간다.">
+    <div class="dec-row" data-js-only><Seg label="연대 고르기" attr="decade" items={segItems} id="dec-pick" /></div>
+    {
+      decades.map((d) => (
+        <div class="decade" data-decade={d.dec}>
+          <h3 class="sub-title">
+            {d.dec}년대<span class="sec-meta">{d.rows.length}개 시즌</span>
+          </h3>
+          <DataTable caption={`${d.dec}년대 시즌 목록`} columns={columns} rows={d.rows} />
+        </div>
+      ))
+    }
+    <SourceLine
+      source={`${JOLPICA} 대회와 최종 순위. 지수 수록 여부는 이 사이트 계산`}
+      asof={asofQualiIndex()}
+    />
+  </Section>
+
+  <script>
+    // 연대 분할 전환: 고른 연대 표만 보인다. 주소 조각(#1990s)으로 고른 연대를 남긴다.
+    const btns = [...document.querySelectorAll<HTMLButtonElement>('#dec-pick [data-decade]')];
+    const blocks = [...document.querySelectorAll<HTMLElement>('.decade[data-decade]')];
+    const show = (dec: string) => {
+      btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.decade === dec)));
+      blocks.forEach((el) => (el.hidden = el.dataset.decade !== dec));
+    };
+    const fromHash = () => {
+      const m = /^#(\d{4})s$/.exec(location.hash);
+      return m && blocks.some((el) => el.dataset.decade === m[1]) ? m[1] : null;
+    };
+    if (btns.length) {
+      show(fromHash() ?? (btns[0].dataset.decade as string));
+      btns.forEach((b) =>
+        b.addEventListener('click', () => {
+          const dec = b.dataset.decade as string;
+          show(dec);
+          try {
+            history.replaceState(null, '', `#${dec}s`);
+          } catch (e) {
+            /* 주소를 못 바꿔도 전환은 된다 */
+          }
+        }),
+      );
+    }
+  </script>
+</BaseLayout>
+
+<style>
+  .decade {
+    margin-top: var(--sp-5);
+  }
+  .decade[hidden] {
+    display: none;
+  }
+  .decade :global(.sec-meta) {
+    font-size: var(--fs-small);
+    color: var(--ink-3);
+  }
+  .dec-row {
+    margin-top: var(--sp-4);
+  }
+  /* 좁은 화면: 여덟 칸이 한 줄에 들어가지 않아 4칸씩 두 줄 격자로 놓는다 */
+  @media (max-width: 760px) {
+    .dec-row :global(#dec-pick) {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      width: 100%;
+    }
+    .dec-row :global(#dec-pick button) {
+      padding: 0 4px;
+      border-radius: 0;
+    }
+    .dec-row :global(#dec-pick button:nth-child(4n + 1)) {
+      border-left: 0;
+    }
+    .dec-row :global(#dec-pick button:nth-child(n + 5)) {
+      border-top: 1px solid var(--control);
+    }
+  }
+</style>

@@ -1,0 +1,15 @@
+---
+// 접어 둔 나머지(details.more). 문구: "11위부터 20위까지 보기", "2015년 이전 35개 시즌 펼치기",
+// "구간별 표와 연결 근거 보기". 표를 접을 때는 DataTable의 expand 속성이 더 간단하다.
+interface Props {
+  summary: string;
+  class?: string;
+  open?: boolean;
+}
+const { summary, class: cls, open = false } = Astro.props;
+---
+
+<details class:list={['more', cls]} open={open}>
+  <summary>{summary}</summary>
+  <slot />
+</details>

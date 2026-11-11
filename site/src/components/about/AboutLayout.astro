@@ -1,0 +1,95 @@
+---
+// "데이터와 방법론" 네 쪽(소개, 방법론, 출처, 라이선스)의 공통 틀. DESIGN.md "데이터와 방법론 /about/ 묶음":
+// 갈래 줄 "데이터와 방법론 | {쪽 제목}", h1, 리드, 하위 메뉴(칩 줄, 현재 쪽 aria-current="page"),
+// 넓은 화면은 왼쪽 220px 따라오는 목차 + 본문(최대 40rem), 좁은 화면은 details.pick "이 쪽의 절" + 한 단.
+// 목차는 선택 상자를 쓰지 않는다. 주 메뉴는 네 쪽 모두에서 "데이터와 방법론"이 현재 표시를 갖는다.
+import PageHead from '../PageHead.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { aboutRoutes } from '../../lib/paths.ts';
+
+export type AboutKey = 'intro' | 'methodology' | 'sources' | 'license';
+
+interface Props {
+  page: AboutKey;
+  title: string;
+  description: string;
+  /** 리드(HTML) */
+  lead: string;
+  /** 이 쪽의 절: 본문 Section의 id와 제목 */
+  toc: { id: string; title: string }[];
+}
+const { page, title, description, lead, toc } = Astro.props;
+
+const SUB: { key: AboutKey; label: string; href: string }[] = [
+  { key: 'intro', label: '소개', href: aboutRoutes.intro() },
+  { key: 'methodology', label: '방법론', href: aboutRoutes.methodology() },
+  { key: 'sources', label: '출처', href: aboutRoutes.sources() },
+  { key: 'license', label: '라이선스', href: aboutRoutes.license() },
+];
+---
+
+<BaseLayout title={title} description={description} current="about">
+  <PageHead kicker={['데이터와 방법론', title]} title={title} lead={lead}>
+    <nav class="chips-row about-sub" aria-label="데이터와 방법론">
+      {
+        SUB.map((s) => (
+          <a class="chip-link" href={s.href} aria-current={s.key === page ? 'page' : undefined}>
+            {s.label}
+          </a>
+        ))
+      }
+    </nav>
+  </PageHead>
+  <div class="about-grid">
+    <nav class="about-toc" aria-label="이 쪽의 절">
+      <p class="about-toc-head">이 쪽의 절</p>
+      <ul>{toc.map((t) => <li><a href={`#${t.id}`}>{t.title}</a></li>)}</ul>
+    </nav>
+    <details class="pick about-pick">
+      <summary>이 쪽의 절</summary>
+      <nav aria-label="이 쪽의 절 (접는 목록)">
+        <ul class="about-pick-list">{toc.map((t) => <li><a href={`#${t.id}`}>{t.title}</a></li>)}</ul>
+      </nav>
+    </details>
+    <div class="about-body">
+      <slot />
+    </div>
+  </div>
+</BaseLayout>
+
+<style is:global>
+  /* 데이터와 방법론 쪽 전용. 본문은 페이지가 slot으로 넣으므로 전역 규칙을 .about- 접두어 안에 둔다. */
+  .about-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 0 56px; align-items: start; }
+  .about-toc { position: sticky; top: var(--sp-4); margin-top: var(--section-gap); padding-top: var(--sp-4); border-top: 1px solid var(--rule); font-size: var(--fs-small); }
+  .about-toc-head { color: var(--ink-3); margin-bottom: var(--sp-2); }
+  .about-toc li + li { margin-top: 6px; }
+  .about-toc a { color: var(--ink-2); text-decoration: none; }
+  .about-toc a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+  .about-pick { display: none; }
+  .about-pick-list { margin-top: var(--sp-2); padding: var(--sp-3) 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--hair); display: grid; gap: 4px; font-size: var(--fs-small); }
+  .about-pick-list a { display: inline-block; padding: 6px 0; }
+  .about-body { min-width: 0; max-width: 44rem; }
+  .about-body > .sec:first-child { margin-top: var(--section-gap); }
+  .about-body p:not(.src), .about-body .bul { max-width: var(--measure); }
+  .about-body .sec > p:not(.read):not(.src), .about-body .sub > p:not(.src) { margin-top: var(--sp-3); line-height: var(--lh-body); }
+  .about-body .bul { margin-top: var(--sp-3); padding-left: 1.25em; list-style: disc; line-height: var(--lh-body); }
+  .about-body .bul li + li { margin-top: 6px; }
+  .about-body .bul li::marker { color: var(--ink-3); }
+  .about-body .sub { margin-top: var(--sp-5); }
+  .about-body .tbl-wrap { margin-top: var(--sp-3); }
+  .about-body .src { margin-top: var(--sp-2); }
+  .about-body code { font-family: var(--font-mono); font-size: 0.92em; padding: 0 3px; background: var(--paper-2); border-radius: var(--radius-1); }
+  .about-refs { margin-top: var(--sp-3); border-top: 1px solid var(--rule); }
+  .about-refs li { padding: var(--sp-3) 0; border-bottom: 1px solid var(--hair); }
+  .about-refs a.ref-title { display: inline; font-weight: 700; }
+  .about-refs a.ref-title .ic { display: inline-block; vertical-align: -1px; margin-left: 3px; }
+  .about-refs .ref-meta { display: block; margin-top: 2px; font-size: var(--fs-small); color: var(--ink-3); }
+  .about-refs .ref-rel { margin-top: 6px; font-size: var(--fs-table); line-height: 1.65; color: var(--ink-2); }
+  @media (max-width: 960px) {
+    .about-grid { grid-template-columns: minmax(0, 1fr); }
+    .about-toc { display: none; }
+    .about-pick { display: block; margin-top: var(--sp-3); }
+    .about-body { max-width: none; }
+  }
+  @media print { .about-toc, .about-pick { display: none !important; } }
+</style>

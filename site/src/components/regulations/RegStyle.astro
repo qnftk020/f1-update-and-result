@@ -1,0 +1,26 @@
+---
+// 규정 아카이브 두 쪽이 함께 쓰는 표 조각 스타일(등급 모양, 행렬 칸, 조항 비교 표시).
+---
+
+<style is:global>
+  /* 표 안의 .sr-only(절대 위치)가 가로 스크롤 감싸개 밖으로 새어 페이지 폭을 넓히지 않게 한다 */
+  .tbl-wrap { position: relative; }
+  .rg { display: inline-flex; align-items: baseline; gap: 2px; font-weight: 700; white-space: nowrap; }
+  .rg-shape { font-size: 0.9em; }
+  .rcell { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  .rcell .n { color: var(--ink-3); font-size: var(--fs-micro); }
+  .rmiss { color: var(--ink-3); }
+  .rnote { display: block; margin-top: 2px; font-size: var(--fs-micro); color: var(--ink-3); max-width: 28rem; white-space: normal; }
+  .chg { display: inline-flex; gap: 4px; white-space: nowrap; }
+  .chg .m { font-weight: 700; width: 1em; text-align: center; }
+  .reg-legend { display: flex; flex-wrap: wrap; gap: 4px var(--sp-5); margin-top: var(--sp-4); font-size: var(--fs-small); color: var(--ink-2); }
+  .reg-legend li { display: inline-flex; align-items: center; gap: 6px; }
+  .reg-block { margin-top: var(--sp-4); }
+  .reg-sum { margin-top: var(--sp-3); border-top: 1px solid var(--rule); }
+  .reg-sum li { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 4px var(--sp-4); padding: var(--sp-3) 0; border-bottom: 1px solid var(--hair); font-size: var(--fs-table); }
+  .reg-sum .k { color: var(--ink-3); font-size: var(--fs-small); }
+  .reg-sum .s { display: block; margin-top: 2px; font-size: var(--fs-small); color: var(--ink-3); }
+  @media (max-width: 640px) { .reg-sum li { grid-template-columns: minmax(0, 1fr); } }
+  .cmp-line { margin-top: var(--sp-3); font-size: var(--fs-table); color: var(--ink-2); max-width: var(--measure); }
+  .cmp-line b { color: var(--ink); }
+</style>

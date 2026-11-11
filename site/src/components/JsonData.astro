@@ -1,0 +1,13 @@
+---
+// 페이지 전체가 쓰는 자료를 <script type="application/json" id=…>로 싣는다. 브라우저에서는
+// lib/charts/mount.ts의 readJson(id)로 읽는다. Figure의 dataRef로 넘기면 차트 여럿이 같은 자료를 쓴다.
+import { jsonScript } from '../lib/markup.ts';
+
+interface Props {
+  id: string;
+  data: unknown;
+}
+const { id, data } = Astro.props;
+---
+
+<script type="application/json" id={id} set:html={jsonScript(data)} is:inline />

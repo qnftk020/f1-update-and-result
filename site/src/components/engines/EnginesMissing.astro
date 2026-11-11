@@ -1,0 +1,17 @@
+---
+// engines.json이 없을 때(정제 테이블 부재)의 엔진 페이지
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import EmptyState from '../EmptyState.astro';
+import PageHead from '../PageHead.astro';
+import Section from '../Section.astro';
+---
+
+<BaseLayout title="엔진" description="PU 공급사와 구성요소 사용 현황" current="engines">
+  <PageHead kicker={['엔진', 'PU']} title="PU 공급사와 구성요소 사용 현황" lead="PU 구성요소 자료를 준비하고 있다." />
+  <Section id="usage" title="구성요소 사용 현황">
+    <EmptyState title="PU 구성요소 자료는 준비 중이다.">FIA PU 문서를 읽은 정제 테이블이 생기면 이 자리에 표와 차트가 들어간다.</EmptyState>
+  </Section>
+  <Section id="aduo" title="ADUO 판정">
+    <EmptyState title="2026 시즌 범위에서 추가 예정이다.">FIA의 성능 지수는 비공개라 추정하지 않고 판정 결과만 싣는다.</EmptyState>
+  </Section>
+</BaseLayout>

@@ -1,0 +1,60 @@
+---
+// 시즌 캘린더와 우승자 표. 열: R, 날짜(640 아래 숨김), 대회(영문 아래 줄, 400 아래에서는 배지가 이 칸 아래로),
+// 폴(약어, 640 아래 숨김), 우승(팀 아래 줄), 표시(배지, 400 아래 숨김). 표 바로 아래에 출처 줄.
+import DataTable, { type Column } from '../DataTable.astro';
+import SourceLine from '../SourceLine.astro';
+import type { Round, Season } from '../../lib/types.ts';
+import { esc } from '../../lib/typeset.ts';
+import { badgeList, calendarSource, gpNameHtml, roundBadges, shortName } from './season-text.ts';
+
+interface Props {
+  season: Season;
+}
+const { season } = Astro.props;
+const { source, asof } = calendarSource(season);
+
+function winnersHtml(r: Round): string {
+  if (!r.winners.length) return '결측';
+  const names = r.winners.map((w) => esc(w.name)).join(', ');
+  const teams = [...new Set(r.winners.map((w) => w.constructor))].map(esc).join(', ');
+  return `<span class="who">${names}</span><span class="sub-line">${teams}</span>`;
+}
+
+function poleHtml(r: Round): string {
+  const p = r.pole[0];
+  if (!p) return '결측';
+  return `<span class="mono" title="${esc(p.name)}">${esc(shortName(p))}</span>`;
+}
+
+const columns: Column<Round>[] = [
+  { label: 'R', num: true, render: (r) => String(r.round) },
+  { label: '날짜', cls: 'hide-sm', render: (r) => `<span class="nw">${esc(r.date.slice(5))}</span>` },
+  {
+    label: '대회',
+    render: (r) => {
+      const flags = badgeList(roundBadges(r));
+      return (
+        `${gpNameHtml(r.name_ko)}<span class="sub-line" lang="en">${esc(r.name)}</span>` +
+        (flags ? `<span class="badges show-xs">${flags}</span>` : '')
+      );
+    },
+  },
+  { label: '폴', cls: 'hide-sm', render: poleHtml },
+  { label: '우승', render: winnersHtml },
+  { label: '표시', cls: 'hide-xs', render: (r) => `<span class="badges">${badgeList(roundBadges(r))}</span>` },
+];
+---
+
+<div class="cal-block">
+  <DataTable caption={`${season.season} 시즌 캘린더와 우승자`} columns={columns} rows={season.rounds} />
+  <SourceLine source={source} asof={asof} />
+</div>
+
+<style>
+  .cal-block {
+    margin-top: var(--sp-4);
+  }
+  .cal-block :global(.src) {
+    margin-top: 8px;
+  }
+</style>

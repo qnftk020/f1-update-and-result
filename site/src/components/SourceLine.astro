@@ -1,0 +1,12 @@
+---
+// 출처 줄: 왼쪽 "출처 …", 오른쪽 "기준일 …". source, asof는 HTML 조각이다(lib/sources.ts의 도우미를 쓴다).
+// 표 아래에 쓸 때는 이 컴포넌트, 차트 틀 안은 Figure가 같은 마크업을 figcaption으로 만든다.
+interface Props {
+  source: string;
+  asof: string;
+  as?: 'p' | 'figcaption';
+}
+const { source, asof, as: Tag = 'p' } = Astro.props;
+---
+
+<Tag class="src"><span><b>출처</b> <Fragment set:html={source} /></span><span><b>기준일</b> <Fragment set:html={asof} /></span></Tag>

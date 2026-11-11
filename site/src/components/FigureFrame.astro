@@ -1,0 +1,75 @@
+---
+// Figure.astro의 안쪽(figure.fig 자체). 페이지는 Figure를 쓴다. 속성 설명은 Figure.astro에 있다.
+import type { ChartName } from '../lib/charts/mount.ts';
+import { jsonScript } from '../lib/markup.ts';
+import type { Column } from './DataTable.astro';
+import DataTable from './DataTable.astro';
+import type { LegendItem } from './Legend.astro';
+import Legend from './Legend.astro';
+
+interface Props {
+  id: string;
+  title: string;
+  scope?: string;
+  sub?: string;
+  legend?: LegendItem[];
+  chart?: ChartName;
+  data?: unknown;
+  dataRef?: string;
+  opts?: Record<string, unknown>;
+  manual?: boolean;
+  source: string;
+  asof: string;
+  twin?: { caption: string; columns: Column[]; rows: any[]; rowClass?: (r: any, i: number) => string };
+  noToggle?: boolean;
+  ariaLabel?: string;
+  twinHtml?: string;
+  belowHtml?: string;
+}
+
+const {
+  id, title, scope, sub, legend, chart, data, dataRef, opts, manual = false, source, asof, twin,
+  noToggle = false, ariaLabel, twinHtml = '', belowHtml = '',
+} = Astro.props;
+
+const plain = title.replace(/<[^>]+>/g, '');
+const chartOpts = { label: ariaLabel ?? plain, ...(opts ?? {}) };
+const auto = Boolean(chart) && !manual;
+const embed = auto && data !== undefined && !dataRef;
+---
+
+<figure class="fig" id={id} aria-labelledby={`${id}-t`}>
+  <div class="fig-head">
+    <div>
+      <h3 class="fig-title" id={`${id}-t`} set:html={title} />
+      {scope && <p class="fig-scope" set:html={scope} />}
+    </div>
+    {
+      !noToggle && (
+        <div class="seg-view" role="group" aria-label={`${plain} 보기 방식`}>
+          <button type="button" data-view="chart" aria-pressed="true">차트</button><button type="button" data-view="table" aria-pressed="false">표</button>
+        </div>
+      )
+    }
+  </div>
+  {sub && <p class="fig-sub" set:html={sub} />}
+  {legend && legend.length > 0 && <Legend items={legend} />}
+  <div class="fig-body">
+    <div
+      class="viz"
+      data-chart={auto ? chart : undefined}
+      data-chart-data={auto ? dataRef : undefined}
+      data-chart-opts={auto ? JSON.stringify(chartOpts) : undefined}
+    >
+    </div>
+    {embed && <script type="application/json" class="chart-data" is:inline set:html={jsonScript(data)} />}
+    <div class="twin">
+      {twin && <DataTable compact caption={twin.caption} columns={twin.columns} rows={twin.rows} rowClass={twin.rowClass} />}
+      <Fragment set:html={twinHtml} />
+    </div>
+  </div>
+  <Fragment set:html={belowHtml} />
+  <figcaption class="src">
+    <span><b>출처</b> <Fragment set:html={source} /></span><span><b>기준일</b> <Fragment set:html={asof} /></span>
+  </figcaption>
+</figure>

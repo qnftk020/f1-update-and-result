@@ -1,0 +1,323 @@
+---
+// 업그레이드 탐색기. DESIGN.md "업그레이드 탐색기"와 design/final/explorer.html을 따른다.
+// 항목 855건을 모두 정적 HTML로 대회별 묶음에 싣는다(스크립트가 없어도 전부 읽힌다). 큰 JSON은 싣지 않고,
+// 브라우저 스크립트(components/upgrades/explorer-client.ts)가 항목의 data 속성으로 거르고 세고 그린다.
+// 스크립트가 있으면 처음 20건만 보이고 "20건 더 보기"로 늘린다(.ex-x는 스크립트가 있을 때만 숨는다).
+import EmptyState from '../../components/EmptyState.astro';
+import DataTable from '../../components/DataTable.astro';
+import Figure from '../../components/Figure.astro';
+import JsonData from '../../components/JsonData.astro';
+import Note from '../../components/Note.astro';
+import Notice from '../../components/Notice.astro';
+import PageHead from '../../components/PageHead.astro';
+import Section from '../../components/Section.astro';
+import Seg from '../../components/Seg.astro';
+import {
+  AREA,
+  AREA_ORDER,
+  CAT,
+  COMPONENT_SPELLINGS,
+  DOCS,
+  GROUPS,
+  REVIEW_DOCS,
+  SEASONS,
+  TEAM_OPTIONS,
+  TOTAL,
+  YEARS,
+  areaCounts,
+  catCounts,
+  clientMeta,
+  groupBeyond,
+  itemHtml,
+  lead,
+  pagesOf,
+  reviewTeams,
+  scopeText,
+  teamGroups,
+} from '../../components/upgrades/explorer-data.ts';
+import { CAT_ORDER, PAGE } from '../../components/upgrades/explorer-text.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { n0 } from '../../lib/format.ts';
+import { badgeHtml, extHtml, glyphHtml, iconSvg } from '../../lib/markup.ts';
+import { aboutRoutes } from '../../lib/paths.ts';
+import { FIA_CP, asofFia } from '../../lib/sources.ts';
+import { esc, nw } from '../../lib/typeset.ts';
+
+const reviewHead = REVIEW_DOCS.map((d) => {
+  const { bad, ok } = reviewTeams(d);
+  return `${d.season}년 ${d.round}라운드 ${esc(d.event_short_ko)} 문서는 ${bad.map(esc).join(', ')} 쪽 표가 그림으로만 들어 있어 문서 전체를 검수 대기로 둔다. 같은 문서의 나머지 ${ok}개 팀 항목은 실었다.`;
+}).join(' ');
+
+const shareRows = CAT_ORDER.map((c) => ({ c: CAT[c], n: catCounts[c], p: TOTAL ? (catCounts[c] / TOTAL) * 100 : 0 }));
+const groupColumns = [
+  { label: '팀', key: 'label' },
+  { label: '합계', num: true, render: (g: (typeof teamGroups)[number]) => String(g.total) },
+  ...CAT_ORDER.map((c) => ({ label: CAT[c], num: true, render: (g: (typeof teamGroups)[number]) => String(g.cats[c]) })),
+];
+
+const description = `${YEARS} FIA Car Presentation 문서의 업그레이드 항목 ${n0(TOTAL)}건을 시즌, 대회, 팀, 부품 영역, 변경 사유로 거른다`;
+const shown = Math.min(PAGE, TOTAL);
+---
+
+<BaseLayout title="업그레이드 탐색기" description={description} current="upgrades">
+  <PageHead
+    kicker={['업그레이드', '<span lang="en">FIA Car Presentation Submissions</span>', YEARS]}
+    title="업그레이드 탐색기"
+    lead={lead}
+    leadId="ex-lead"
+  >
+    {
+      REVIEW_DOCS.length > 0 ? (
+        <Notice icon="review" class="ex-head-notice">
+          <b>검수 대기 {REVIEW_DOCS.length}건.</b> <Fragment set:html={reviewHead} /> 문서 범위: {scopeText}.
+        </Notice>
+      ) : (
+        <Notice class="ex-head-notice">문서 범위: {scopeText}.</Notice>
+      )
+    }
+  </PageHead>
+  <noscript>
+    <p class="notice ex-head-notice">
+      <span>스크립트가 꺼져 있어 거르기와 그림을 쓸 수 없다. 아래에는 항목 {n0(TOTAL)}건이 대회별로 모두 보이고, 요약은 표로 보인다.</span>
+    </p>
+  </noscript>
+
+  <form class="filters" id="filters" role="search" aria-label="업그레이드 항목 거르기" data-js-only>
+    <div class="field">
+      <label for="f-season">시즌</label>
+      <select id="f-season">
+        <option value="">전체 시즌</option>
+        {SEASONS.map((s) => <option value={String(s)}>{s}</option>)}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-event">대회</label>
+      <select id="f-event">
+        <option value="">전체 대회 ({DOCS})</option>
+        {GROUPS.map((g) => <option value={g.key}>{g.label}{g.doc.review ? ' (검수 대기)' : ''}</option>)}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-team">팀 (계보)</label>
+      <select id="f-team">
+        <option value="">전체 팀</option>
+        {TEAM_OPTIONS.map((t) => <option value={t.value}>{t.label}</option>)}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-area">부품 영역</label>
+      <select id="f-area">
+        <option value="">전체 부품 영역 ({AREA_ORDER.length})</option>
+        {AREA_ORDER.map((a) => <option value={a}>{AREA[a]} ({areaCounts[a] ?? 0})</option>)}
+      </select>
+    </div>
+    <div class="wide-row">
+      <fieldset class="field ex-cats">
+        <legend class="lab">변경 사유</legend>
+        <div class="cat-chips" id="f-cats">
+          {
+            CAT_ORDER.map((c) => (
+              <label class="cat-chip on">
+                <input type="checkbox" value={c} checked />
+                <span class="box" aria-hidden="true" />
+                <Fragment set:html={glyphHtml(c)} />
+                <span>{CAT[c]}</span>
+                <span class="n">{catCounts[c]}</span>
+              </label>
+            ))
+          }
+        </div>
+      </fieldset>
+      <div class="field search">
+        <label for="f-q">영문 원문 검색</label>
+        <input type="search" id="f-q" placeholder="예: floor, cooling" lang="en" autocomplete="off" />
+      </div>
+      <button class="btn" type="button" id="f-reset">조건 지우기</button>
+    </div>
+  </form>
+  <div class="result-line" aria-live="polite" id="result" tabindex="-1">
+    <span class="result-n">{n0(TOTAL)}</span><span class="result-of">{n0(TOTAL)}건 가운데 · 조건 0개</span><span class="active-chips" id="active"></span>
+  </div>
+
+  <Section
+    id="summary"
+    title="요약"
+    read="변경 사유 범주와 묶음별로 항목 수를 센다. 거르기 조건을 바꾸면 두 그림과 아래 항목 목록이 같은 조건으로 함께 바뀐다."
+  >
+    <Seg
+      slot="meta"
+      label="묶는 기준"
+      attr="group"
+      items={[
+        { value: 'team', label: '팀', pressed: true },
+        { value: 'area', label: '부품 영역' },
+        { value: 'event', label: '대회' },
+      ]}
+    />
+    <div class="pair pair-sum">
+      <Figure
+        pair
+        manual
+        id="f-share"
+        title="변경 사유"
+        scope={`<span id="share-scope">${n0(TOTAL)}건</span>`}
+        sub="원문 사유의 앞부분으로 정한 상위 범주다. 원문 사유는 항목 목록에 그대로 있다."
+        source={`${FIA_CP} ${DOCS}건, 범주 구분은 이 사이트`}
+        asof={asofFia()}
+        twin={{
+          caption: '변경 사유 범주별 항목 수',
+          columns: [
+            { label: '범주', render: (r) => `${glyphHtml(r.cat)} ${esc(r.c)}` },
+            { label: '항목', num: true, render: (r) => `${n0(r.n)}건` },
+            { label: '비율', num: true, render: (r) => `${r.p.toFixed(1)}%` },
+          ],
+          rows: shareRows.map((r, k) => ({ ...r, cat: CAT_ORDER[k] })),
+        }}
+      />
+      <Figure
+        pair
+        manual
+        id="f-group"
+        title={'<span id="group-title">팀별 항목 수</span>'}
+        scope={`<span id="group-scope">${n0(TOTAL)}건 · 많은 순</span>`}
+        sub="막대는 변경 사유 범주로 나뉜다. 조건이 바뀌어도 범주의 색과 순서는 그대로다. 막대를 누르거나 Enter를 누르면 그 묶음으로 거른다."
+        legend={[
+          { type: 'rect', color: 's1', label: CAT.performance },
+          { type: 'rect', color: 's2', label: CAT.circuit_specific },
+          { type: 'rect', color: 's3', label: CAT.reliability },
+          { type: 'hollow', color: 'ctx', label: `${CAT.other} (빈 네모)` },
+          { type: 'review', label: '검수 대기 문서' },
+        ]}
+        source={`${FIA_CP} ${DOCS}건, 이 사이트 파싱. 부품 영역은 파이프라인의 component_area ${Object.keys(AREA).length}개`}
+        asof={asofFia()}
+      >
+        <div id="group-twin" slot="twin">
+          <DataTable compact caption="팀별 항목 수" columns={groupColumns} rows={teamGroups} />
+        </div>
+      </Figure>
+    </div>
+    <div class="fig-row wide ex-notes">
+      <aside class="notes" aria-label="요약 주석">
+        <Note head="부품 영역">
+          원문 부품 표기 {COMPONENT_SPELLINGS}가지를 파이프라인이 {Object.keys(AREA).length}개 영역으로 묶은 값이다(<a href={aboutRoutes.methodology()}>데이터와 방법론</a>의 부품 영역 규칙). 에지 윙은 플로어, 콕핏 주변은 헤일로, 미러, 헤드레스트다. 원문 표기는 항목 목록에 그대로 있다.
+        </Note>
+        <Note head="주의" caution>
+          항목 수는 신고 건수일 뿐이다. 항목의 크기와 성능 영향은 문서에 적혀 있지 않으며 이 사이트도 추정하지 않는다.
+        </Note>
+      </aside>
+    </div>
+  </Section>
+
+  <Section
+    id="items"
+    title="항목"
+    meta={`<span id="items-meta">${n0(TOTAL)}건</span>`}
+    read="최근 대회부터 대회별로 묶었다. 같은 대회 안에서는 팀 이름 순이고, 팀 안에서는 문서의 항목 순서다. 영문은 FIA 문서에 적힌 그대로이며 번역하거나 고치지 않는다. 쪽은 그 팀 표가 있는 문서 쪽이다."
+  >
+    <div id="item-list" class="ex-list">
+      {
+        GROUPS.map((g) => {
+          const pages = pagesOf(g.doc);
+          const head = `ev-${g.key}`;
+          const { bad, ok } = reviewTeams(g.doc);
+          return (
+            <section class:list={['ex-ev', { 'ex-x': groupBeyond(g) }]} data-ev={g.key} data-s={g.season} data-n={g.items.length} aria-labelledby={head}>
+              <div class="ex-ev-head">
+                <h3 id={head}>{g.label}</h3>
+                <p class="ex-ev-meta">
+                  {g.doc.review && <Fragment set:html={badgeHtml('review', '검수 대기 문서')} />}
+                  <span>
+                    항목 <b class="ex-ev-n">{g.items.length}</b>건
+                  </span>
+                  {g.doc.published_at && <span set:html={`게시 ${nw(g.doc.published_at)}`} />}
+                  <Fragment set:html={extHtml(g.doc.url)} />
+                </p>
+              </div>
+              {g.doc.review && (
+                <p class="notice ex-ev-notice">
+                  <Fragment set:html={iconSvg('review')} />
+                  <span>
+                    {bad.join(', ')} 쪽 표가 그림으로만 들어 있어 그 팀의 항목은 이 목록에 없다. 나머지 {ok}개 팀 항목은 실었다.
+                  </span>
+                </p>
+              )}
+              {g.items.length === 0 ? (
+                <p class="ex-ev-none">
+                  이 문서에는 {g.doc.teams.length}개 팀 모두 <span lang="en">No updates submitted</span>로 적혀 있다.
+                </p>
+              ) : (
+                <div class="items" set:html={g.items.map((i, k) => itemHtml(i, pages.get(i.constructor_id), g.offset + k, groupBeyond(g))).join('')} />
+              )}
+            </section>
+          );
+        })
+      }
+    </div>
+    <div id="ex-empty" hidden>
+      <EmptyState title="조건에 맞는 항목이 0건이다">
+        <span id="ex-empty-why">고른 조건을 모두 만족하는 항목이 문서에 없다.</span>
+        <button slot="actions" class="btn" type="button" id="ex-empty-reset">조건 지우기</button>
+      </EmptyState>
+    </div>
+    <p class="result-of ex-more" id="more-line" data-js-only>
+      <span id="more-text">{n0(TOTAL)}건 가운데 {shown}건을 보고 있다.</span>
+      <button class="btn" type="button" id="more">{Math.min(PAGE, TOTAL - shown)}건 더 보기</button>
+    </p>
+    <p class="src ex-src">
+      <span><b>출처</b> {FIA_CP} {DOCS}건 (FIA 저작물, 원문 링크와 추출한 정보만 싣는다), 이 사이트 파싱</span><span
+        ><b>기준일</b> <Fragment set:html={asofFia()} /></span
+      >
+    </p>
+  </Section>
+
+  <JsonData id="ex-meta" data={clientMeta} />
+
+  <script>
+    import { start } from '../../components/upgrades/explorer-client.ts';
+
+    start();
+  </script>
+</BaseLayout>
+
+<style is:global>
+  /* 탐색기 전용. 항목마다 붙는 범위 속성(data-astro-cid)으로 무게가 늘지 않게 전역 이름(ex-)으로 둔다 */
+  .ex-head-notice { margin-top: var(--sp-4); }
+  .ex-cats { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .ex-cats legend { padding: 0; margin-bottom: 4px; }
+  .ex-notes { margin-top: var(--sp-4); }
+  .ex-list { margin-top: var(--sp-4); }
+  .ex-ev + .ex-ev { margin-top: var(--sp-5); }
+  .ex-ev-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--rule); }
+  .ex-ev-head h3 { font-size: var(--fs-h3); font-weight: 750; line-height: 1.4; }
+  .ex-ev-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; font-size: var(--fs-small); color: var(--ink-3); }
+  .ex-ev-meta b { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ex-ev-meta .ext { color: var(--ink); }
+  .ex-ev .items { margin-top: var(--sp-2); border-top: 1px solid var(--hair); }
+  .ex-ev-notice { margin-top: var(--sp-2); }
+  .ex-ev-none { margin-top: var(--sp-2); padding: var(--sp-2) 0; border-top: 1px solid var(--hair); font-size: var(--fs-small); color: var(--ink-2); }
+  .ex-more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-top: var(--sp-4); }
+  .ex-src { margin-top: var(--sp-3); }
+  /* 덜어 낸 항목 마크업(article > .w, .c, .t)을 공용 .item, .item-where, .item-comp, .item-reason, .item-text 모양에 맞춘다 */
+  .ex-list article { display: grid; grid-template-columns: 160px 250px minmax(0, 1fr); gap: var(--sp-2) var(--sp-5); padding: var(--sp-3) 0; border-bottom: 1px solid var(--hair); font-size: var(--fs-table); }
+  .ex-list .w b { display: block; font-weight: 700; }
+  .ex-list .w span { color: var(--ink-3); font-size: var(--fs-micro); }
+  .ex-list .c b { font-weight: 700; }
+  .ex-list .c small { display: block; font-size: var(--fs-micro); color: var(--ink-3); }
+  .ex-list .c p { margin-top: 4px; color: var(--ink-2); font-size: var(--fs-small); line-height: 1.5; }
+  .ex-list .c p > span:first-child { display: block; white-space: nowrap; color: var(--ink); } /* 범주 태그 한 줄, 원문 사유는 그 아래 줄 */
+  .ex-list .c .rk { margin-right: 5px; }
+  .ex-list .c .badge { margin-top: 6px; }
+  .ex-list .t p + p { margin-top: 4px; }
+  .ex-list .t small { color: var(--ink-3); font-size: var(--fs-micro); margin-right: 2px; }
+  .ex-list .t .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .ex-list .t.open .clamp, html:not(.js) .ex-list .t .clamp { display: block; -webkit-line-clamp: unset; overflow: visible; }
+  @media (max-width: 860px) {
+    .ex-list article { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .ex-list .w { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .ex-list .w b { display: inline; }
+  }
+  .ex-list article:focus { outline: none; }
+  .ex-list article:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  /* 스크립트가 있을 때 처음 20건 밖의 항목과 묶음은 숨긴다(스크립트가 hidden으로 넘겨받는다). 스크립트가 없으면 모두 보인다 */
+  html.js .ex-x { display: none; }
+</style>

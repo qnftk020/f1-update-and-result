@@ -1,0 +1,37 @@
+---
+// 업그레이드 항목 한 건(article.item). 세 칸: 어디(시즌 라운드 대회, 팀 · 항목 번호), 무엇(부품 원문 굵게,
+// 부품 영역 한국어, 범주 기호 + 범주 이름, 원문 사유), 내용(형상 차이, 설명, FIA 원문 PDF).
+// 영어는 FIA 문서 그대로(lang="en")이며 번역하거나 고치지 않는다. 설명이 260자를 넘으면 세 줄에서 줄이고
+// "전체 보기" 단추를 단다(스크립트가 없으면 줄이지 않는다). 브라우저 쪽 짝은 lib/charts/items.js의 upgradeItemNode().
+import { labels } from '../lib/data.ts';
+import { badgeHtml, extHtml, glyphHtml } from '../lib/markup.ts';
+import type { UpgradeItem } from '../lib/types.ts';
+
+interface Props {
+  item: UpgradeItem;
+  showTeam?: boolean;
+}
+const { item: i, showTeam = true } = Astro.props;
+const long = (i.description || '').length > 260;
+---
+
+<article class="item">
+  <div class="item-where">
+    <b>{i.season} {i.round}라운드 {i.event_short_ko}</b><span>{showTeam && `${i.team} · `}항목 {i.no}</span>
+  </div>
+  <div class="item-comp">
+    <b lang="en">{i.component}</b><span class="area">{labels.component_areas[i.area] ?? i.area}</span>
+    <p class="item-reason">
+      <span class="cat"><Fragment set:html={glyphHtml(i.category)} />{labels.reason_categories[i.category]}</span><span lang="en">{i.reason}</span>
+    </p>
+    {i.review && <Fragment set:html={badgeHtml('review', '검수 대기 문서')} />}
+  </div>
+  <div class="item-text">
+    <p><span class="lab">형상 차이</span><span lang="en">{i.geometry ?? ''}</span></p>
+    <p class:list={[{ clamp: long }]}><span class="lab">설명</span><span lang="en">{i.description ?? ''}</span></p>
+    <p class="item-actions">
+      {long && <button class="linkbtn" type="button" aria-expanded="false" data-clamp-toggle data-js-only>전체 보기</button>}
+      <Fragment set:html={extHtml(i.url)} />
+    </p>
+  </div>
+</article>

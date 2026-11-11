@@ -1,0 +1,91 @@
+---
+// 데이터와 방법론 > 출처. 원고 briefs/about_copy.md "출처": 데이터원 표(데이터원, 쓰는 범위, 라이선스, 기준일)와
+// 쓰지 않는 자료. 기준일은 모두 meta.json에서 온다(lib/sources.ts). Jolpica 기준일은 덤프 날짜다.
+import AboutLayout from '../../components/about/AboutLayout.astro';
+import { V } from '../../components/about/data.ts';
+import DataTable from '../../components/DataTable.astro';
+import Section from '../../components/Section.astro';
+import SourceLine from '../../components/SourceLine.astro';
+import { meta } from '../../lib/data.ts';
+import { iconSvg } from '../../lib/markup.ts';
+import { asofF1db, asofFia, asofJolpica, asofOpenF1 } from '../../lib/sources.ts';
+import { esc, nw } from '../../lib/typeset.ts';
+
+const S = meta.sources;
+const toc = [
+  { id: 'list', title: '데이터원' },
+  { id: 'unused', title: '쓰지 않는 자료' },
+];
+const rows = [
+  { name: S.jolpica.name, en: true, url: S.jolpica.url, use: `결과, 순위, 예선 기록 ${V.first}-${V.last}`, license: S.jolpica.license, asof: asofJolpica() },
+  {
+    name: S.f1db.name,
+    en: true,
+    url: S.f1db.url,
+    use: '캘린더 대조, 컨스트럭터 연혁, 엔트런트와 엔진 제조사, 예선 기록 보완',
+    license: S.f1db.license,
+    asof: asofF1db(),
+  },
+  {
+    name: S.openf1.name,
+    en: true,
+    url: S.openf1.url,
+    use: `세션 상세 2023-${V.last} (랩, 스틴트, 날씨, 레이스 컨트롤)`,
+    license: S.openf1.license,
+    asof: asofOpenF1(),
+  },
+  {
+    name: 'FIA 문서',
+    en: false,
+    url: S.fia.url,
+    use: 'Car Presentation, PU 구성요소 문서, 규정',
+    license: 'FIA 저작물. 원문 링크와 구조화 정보만 게시',
+    asof: asofFia(),
+  },
+];
+type Row = (typeof rows)[number];
+---
+
+<AboutLayout
+  page="sources"
+  title="출처"
+  description="사이트가 쓰는 데이터원과 범위, 라이선스, 기준일, 쓰지 않는 자료"
+  lead="화면의 수치가 어느 데이터원에서 왔는지, 각 데이터원을 어떤 범위와 조건으로 쓰는지 적는다."
+  toc={toc}
+>
+  <Section id="list" title="데이터원" read="모든 차트와 표 아래에 이 표의 데이터원과 기준일을 다시 적는다.">
+    <DataTable
+      caption="데이터원별 쓰는 범위, 라이선스, 기준일"
+      columns={[
+        {
+          label: '데이터원',
+          render: (r: Row) =>
+            `<a class="ext" href="${esc(r.url)}" rel="noopener">${r.en ? `<span lang="en">${esc(r.name)}</span>` : esc(r.name)}${iconSvg('external')}<span class="sr-only"> (외부 문서)</span></a><span class="sub-line show-sm">${esc(r.license)}</span>`,
+        },
+        { label: '쓰는 범위', render: (r: Row) => esc(r.use) },
+        { label: '라이선스', cls: 'hide-sm', render: (r: Row) => esc(r.license) },
+        { label: '기준일', render: (r: Row) => r.asof },
+      ]}
+      rows={rows}
+    />
+    <SourceLine source="각 데이터원의 공식 저장소와 문서(표의 링크), 이 사이트의 수집 기록" asof={`데이터원마다 표의 기준일, 이 표는 ${nw(meta.generated_on)} 생성`} />
+    <ul class="bul">
+      <li>
+        <span lang="en">Jolpica-F1</span>의 기준일은 덤프 날짜다. 그 뒤에 API로 대회를 더 반영하면 반영한 대회와 수집일을 덧붙인다.
+      </li>
+      <li>페이스 지수는 이 사이트가 위 자료로 계산한 값이다. 지금 값은 {S.pace.as_of}에 계산했다.</li>
+      <li>출처별 기준일은 화면 아래와 각 차트 아래에 적는다.</li>
+    </ul>
+  </Section>
+
+  <Section id="unused" title="쓰지 않는 자료">
+    <ul class="bul">
+      <li>
+        <span lang="en">FastF1</span>로 받은 데이터. 라이브 타이밍 아카이브는 계정 인증이 필요하고, 개인 구독으로 받은 자료를 다시 배포할 수
+        없다.
+      </li>
+      <li>언론 기사 본문.</li>
+      <li>공식 로고와 이미지.</li>
+    </ul>
+  </Section>
+</AboutLayout>

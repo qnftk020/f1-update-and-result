@@ -1,0 +1,142 @@
+/* F1 업그레이드와 성능 추이: 디자인 토큰 (design/final/tokens.css에서 옮겼다)
+   밝은 값은 :root, 어두운 값은 두 경로(시스템 설정, data-theme="dark")에 같은 값으로 둔다.
+   data-theme="light"는 시스템이 어두워도 밝은 값을 지킨다. 대비 수치는 DESIGN.md의 토큰 표에 있다. */
+
+:root {
+  color-scheme: light;
+
+  /* 면 */
+  --paper: #f8f7f3;          /* 페이지와 차트 바탕 */
+  --paper-2: #efede7;        /* 필터 줄, 안내 상자, 표 머리 hover, 범위 막대 */
+  --paper-3: #e4e1d9;        /* 우천 구간 띠, 공개 문서가 없는 대회 띠 */
+
+  /* 잉크 (글자) */
+  --ink: #141413;            /* 본문, 제목, 굵은 괘선 */
+  --ink-2: #47453f;          /* 보조 글, 범례, 주석 */
+  --ink-3: #5f5d56;          /* 축 눈금, 캡션, 출처 줄 */
+
+  /* 선 */
+  --rule: var(--ink);        /* 4px 머리 괘선, 2px 절 괘선, 1px 표 머리 */
+  --hair: #d6d3ca;           /* 행 구분, 칸 구분 (장식선) */
+  --grid: #e6e3db;           /* 차트 격자 */
+  --axis: #a19e94;           /* 차트 기준선 */
+  --control: #77746c;        /* 단추, 선택 상자, 입력의 테두리 (3:1 이상) */
+  --focus: #1c5cab;          /* 키보드 초점 고리 */
+
+  /* 데이터 (범주 1~3은 dataviz 참조 팔레트 1~3번) */
+  --s1: #2a78d6;             /* 주인공 계열, 단일 계열, 변경 사유 성능 */
+  --s2: #eb6834;             /* 변경 사유 서킷 대응, 강조 둘째 */
+  --s3: #1baf7a;             /* 변경 사유 신뢰성, 강조 셋째 */
+  --s1-wash: rgba(42, 120, 214, 0.10);  /* 강조 행 바탕 */
+  --ctx: #8d8a82;            /* 맥락: 필드 중앙값 선, 다른 계열, 변경 사유 기타 */
+  --band: rgba(20, 20, 19, 0.085); /* 필드 가운데 절반 띠 */
+  --on-fill: #ffffff;
+
+  /* 상태 (아이콘과 글자와 함께만) */
+  --warn: #fab219;           /* 검수 대기 세모 */
+  --warn-ink: #141413;       /* 세모 윤곽과 느낌표 */
+  --danger: #d03b3b;         /* PU 허용 초과 원 (dataviz 상태 critical, 허용 개수 자료가 생긴 뒤에만, 아이콘과 글자와 함께) */
+
+  /* 글자 */
+  /* 웹 글꼴을 내려받지 않는다. 설치된 Pretendard가 있으면 쓰고, 없으면 운영체제의 한글 글꼴로 물러난다. */
+  --font-sans: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs-display: clamp(1.75rem, 1.2rem + 1.6vw, 2.375rem); /* 28 ~ 38px, 페이지 제목 */
+  --fs-lead: clamp(1.125rem, 1rem + 0.45vw, 1.3125rem);   /* 18 ~ 21px, 페이지 리드 */
+  --fs-h2: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);        /* 20 ~ 24px, 절 제목 */
+  --fs-figure: clamp(1.5rem, 1.2rem + 0.9vw, 2rem);       /* 24 ~ 32px, 수치 타일 값 */
+  --fs-read: 1.0625rem;      /* 17px, 절 첫 문장 */
+  --fs-body: 1rem;           /* 16px */
+  --fs-h3: 1rem;             /* 16px, 차트 제목 */
+  --fs-table: 0.875rem;      /* 14px */
+  --fs-small: 0.8125rem;     /* 13px, 주석, 출처 줄, 범례 */
+  --fs-micro: 0.75rem;       /* 12px, 축, 배지, 라벨 머리 */
+  --lh-tight: 1.2;
+  --lh-head: 1.35;
+  --lh-body: 1.7;
+  --lh-read: 1.62;
+
+  /* 간격 (4px 단위) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --section-gap: clamp(40px, 3vw + 24px, 64px);
+  --gutter: clamp(16px, 3vw, 40px);
+
+  /* 폭 */
+  --page-max: 1200px;
+  --main-max: 780px;
+  --notes-w: 280px;
+  --measure: 40rem;
+  --lead-measure: 34rem;
+
+  /* 모서리와 선 굵기 */
+  --radius-0: 0;
+  --radius-1: 2px;           /* 배지, 범례 열쇠 */
+  --radius-2: 4px;           /* 단추, 입력, 막대의 데이터 끝 */
+  --rule-masthead: 4px;
+  --rule-section: 2px;
+  --rule-figure: 1px;
+
+  --shadow-tip: 0 2px 10px rgba(20, 20, 19, 0.14);
+  --motion: 150ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #171716;
+    --paper-2: #201f1d;
+    --paper-3: #2b2a27;
+    --ink: #efeee9;
+    --ink-2: #c6c4bb;
+    --ink-3: #a3a198;
+    --hair: #393834;
+    --grid: #2a2926;
+    --axis: #5d5b55;
+    --control: #8c8a82;
+    --focus: #86b6ef;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s1-wash: rgba(57, 135, 229, 0.16);
+    --ctx: #8f8c84;
+    --band: rgba(239, 238, 233, 0.10);
+    --on-fill: #ffffff;
+    --warn: #fab219;
+    --warn-ink: #141413;
+    --danger: #d03b3b;
+    --shadow-tip: 0 2px 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #171716;
+  --paper-2: #201f1d;
+  --paper-3: #2b2a27;
+  --ink: #efeee9;
+  --ink-2: #c6c4bb;
+  --ink-3: #a3a198;
+  --hair: #393834;
+  --grid: #2a2926;
+  --axis: #5d5b55;
+  --control: #8c8a82;
+  --focus: #86b6ef;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s1-wash: rgba(57, 135, 229, 0.16);
+  --ctx: #8f8c84;
+  --band: rgba(239, 238, 233, 0.10);
+  --on-fill: #ffffff;
+  --warn: #fab219;
+  --warn-ink: #141413;
+  --danger: #d03b3b;
+  --shadow-tip: 0 2px 12px rgba(0, 0, 0, 0.5);
+}

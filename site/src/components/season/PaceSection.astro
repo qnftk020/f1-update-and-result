@@ -1,0 +1,177 @@
+---
+// 팀 페이스 추이 절: 팀별 작은 다중(paceMultiples). 연도별 규칙(DESIGN.md "시즌"):
+//  2023-2025 퀄리파잉과 레이스 전환 / 1996-2022 퀄리파잉만 + 레이스 빈 상태 (2003-2005는 참고용, 1996-2022는 미분류 안내 상자)
+//  1995년 이전 빈 상태 "퀄리파잉 지수는 1996년부터 계산한다."
+// 스크립트가 없으면 두 묶음(#pm-q, #pm-r)이 모두 보이고, 스크립트가 있으면 전환 단추로 하나씩 보인다.
+import EmptyState from '../EmptyState.astro';
+import Figure from '../Figure.astro';
+import Notice from '../Notice.astro';
+import Section from '../Section.astro';
+import Seg from '../Seg.astro';
+import type { Column } from '../DataTable.astro';
+import type { LegendItem } from '../Legend.astro';
+import { multipleTeams, qualiRounds, raceRounds } from '../../lib/chart-data.ts';
+import type { Season } from '../../lib/types.ts';
+import { esc, keepNames } from '../../lib/typeset.ts';
+import { badgeHtml } from '../../lib/markup.ts';
+import {
+  EMPTY,
+  QUALI_FROM,
+  RACE_FROM,
+  WET_FROM,
+  num,
+  qualiFlagCell,
+  qualiNotice,
+  qualiRead,
+  qualiSource,
+  qualiSub,
+  raceRead,
+  raceSource,
+  seasonFlags,
+} from './season-text.ts';
+
+interface Props {
+  season: Season;
+}
+const { season: s } = Astro.props;
+const x = seasonFlags(s);
+const year = s.season;
+const teams = multipleTeams(s);
+const qRows = x.hasQ ? qualiRounds(s) : [];
+const rRows = x.hasR ? raceRounds(s) : [];
+const qSrc = qualiSource(s);
+const rSrc = raceSource();
+const notice = x.hasQ ? qualiNotice(s) : null;
+
+const qLegend: LegendItem[] = [
+  { type: 'line', color: 's1', label: '그 팀' },
+  { type: 'line', color: 'ctx', label: '필드 중앙값' },
+];
+if (x.wetJudged) {
+  qLegend.push({ type: 'wet', label: '우천 예선' }, { type: 'ring', color: 's1', label: '우천 예선 값 (분석 제외)' });
+}
+if (x.refs.length) qLegend.push({ type: 'ring', color: 's1', label: '참고용 형식 값' });
+
+const qColumns: Column[] = [
+  { label: 'R', num: true, render: (r) => String(r.round) },
+  { label: '대회', cls: 'stick', render: (r) => esc(r.short) },
+  { label: '필드 중앙값', num: true, render: (r) => num(r.field?.med ?? null, 3) },
+  ...teams.map((t): Column => ({ label: t.team, num: true, render: (r) => num(r.teams[t.cid], 3) })),
+  { label: '표시', render: (r) => qualiFlagCell(r) },
+];
+
+const rColumns: Column[] = [
+  { label: 'R', num: true, render: (r) => String(r.round) },
+  { label: '대회', cls: 'stick', render: (r) => esc(r.short) },
+  ...teams.map(
+    (t): Column => ({
+      label: t.team,
+      num: true,
+      render: (r) => {
+        const v = r.teams[t.cid];
+        if (!v) return '결측';
+        return `${num(v[0], 2, { sign: true })}<span class="sub-line nw">${num(v[1], 2, { sign: true })} ~ ${num(v[2], 2, { sign: true })}</span>`;
+      },
+    }),
+  ),
+  { label: '노면', render: (r) => (r.wet ? badgeHtml('wet', '우천') : '') },
+];
+
+const kindItems = [
+  { value: 'quali', label: '퀄리파잉 지수', pressed: true },
+  { value: 'race', label: '레이스 지수', pressed: false },
+];
+---
+
+{
+  !x.hasQ ? (
+    <Section id="pace" title="팀 페이스 추이">
+      <EmptyState title={EMPTY.quali} class="pm-empty">
+        그 이전 시즌은 결과와 순위만 싣는다. 레이스 지수는 {RACE_FROM}년부터 계산한다.
+      </EmptyState>
+    </Section>
+  ) : (
+    <Section id="pace" title="팀 페이스 추이" meta={x.hasR ? undefined : `<span>퀄리파잉 지수만 (레이스 지수는 ${RACE_FROM}년부터)</span>`}>
+      {x.hasR && <Seg slot="meta" label="지수 고르기" attr="kind" items={kindItems} id="pm-kind" />}
+      <div id="pm-q">
+        <p class="read" set:html={keepNames(qualiRead(s))} />
+        {notice && (
+          <Notice badges={notice.badges} class="pm-notice">
+            <Fragment set:html={notice.text} />
+          </Notice>
+        )}
+        <Figure
+          id="f-pm"
+          title="팀별 퀄리파잉 지수"
+          scope={`${year} · 라운드별 · ${teams.length}개 팀 · 같은 세로축 · 위가 빠르다`}
+          sub={qualiSub(s)}
+          legend={qLegend}
+          chart="paceMultiples"
+          data={qRows}
+          opts={{ teams, kind: 'quali', label: '퀄리파잉 지수' }}
+          source={qSrc.source}
+          asof={qSrc.asof}
+          wide
+          twin={{ caption: `${year} 팀별 라운드별 퀄리파잉 지수 (%)`, columns: qColumns, rows: qRows }}
+          notes={[
+            {
+              head: '읽는 법',
+              body:
+                '작은 차트는 모두 같은 세로축이라 칸끼리 높이를 그대로 비교할 수 있다. ' +
+                (x.wetJudged
+                  ? '칸 제목의 평균은 마른 예선만의 평균이다.'
+                  : '칸 제목의 평균은 모든 예선의 평균이다(우천 여부 미분류).'),
+            },
+            {
+              head: '표시 규칙',
+              body: `2003-2005 시즌은 참고용(빈 고리로만 찍고 선으로 잇지 않는다), ${WET_FROM - 1}년 이전 시즌은 우천 여부 미분류다. 대회마다 표 보기의 표시 칸과 캘린더에 같은 배지가 있다. ${QUALI_FROM - 1}년 이전 시즌은 이 절 대신 빈 상태 안내를 둔다.`,
+            },
+          ]}
+        />
+      </div>
+      {x.hasR ? (
+        <div id="pm-r">
+          <p class="read" set:html={keepNames(raceRead(s))} />
+          <Figure
+            id="f-rm"
+            title="팀별 레이스 지수와 95% 구간"
+            scope={`${year} · 라운드별 · ${teams.length}개 팀 · 같은 세로축 · 위가 빠르다`}
+            sub="점이 그 대회의 레이스 지수, 세로 막대가 95% 구간이다. 0은 그 대회의 필드 중앙값이다."
+            legend={[
+              { type: 'dot', color: 's1', label: '레이스 지수' },
+              { type: 'line', color: 's1', label: '95% 구간' },
+              { type: 'wet', label: '우천 결승' },
+            ]}
+            chart="paceMultiples"
+            data={rRows}
+            opts={{ teams, kind: 'race', label: '레이스 지수' }}
+            source={rSrc.source}
+            asof={rSrc.asof}
+            wide
+            twin={{ caption: `${year} 팀별 라운드별 레이스 지수와 95% 구간 (%)`, columns: rColumns, rows: rRows }}
+            notes={[
+              {
+                head: '주의',
+                caution: true,
+                body: `퀄리파잉 지수와 기준점이 달라(최고 대비, 중앙 대비) 두 차트의 값을 서로 비교하지 않는다. 레이스 지수는 ${RACE_FROM}년부터 있다.`,
+              },
+            ]}
+          />
+        </div>
+      ) : (
+        <EmptyState title={EMPTY.race} class="pm-empty">
+          OpenF1 랩 자료가 {RACE_FROM}년부터 있어서다. 이 시즌은 퀄리파잉 지수만 싣는다.
+        </EmptyState>
+      )}
+    </Section>
+  )
+}
+
+<style>
+  :global(.pm-empty) {
+    margin-top: var(--sp-5);
+  }
+  :global(.pm-notice) {
+    margin-top: var(--sp-4);
+  }
+</style>

@@ -1,0 +1,9 @@
+---
+// 감싼 내용에 마지막 조판 단계 typeset()을 적용한다(라이선스 이름, 연도 범위, 구간 값, "(이 사이트 계산)"을
+// .nw로 묶는다). BaseLayout이 본문과 꼬리말에 이미 쓰므로 페이지에서 따로 쓸 일은 드물다.
+import { typeset } from '../lib/typeset.ts';
+
+const html = Astro.slots.has('default') ? typeset(await Astro.slots.render('default')) : '';
+---
+
+<Fragment set:html={html} />

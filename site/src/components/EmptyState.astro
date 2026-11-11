@@ -1,0 +1,15 @@
+---
+// 빈 상태: 점선 틀, 굵은 한 줄, 까닭 한 문장. 예: <EmptyState title="레이스 지수는 2023년부터 계산한다.">OpenF1 랩 자료가 …</EmptyState>
+// 상태 글은 "~없음"으로 끝내지 않는다("0건이다", "문서 부재", "순위 미부여").
+interface Props {
+  title: string;
+  class?: string;
+}
+const { title, class: cls } = Astro.props;
+---
+
+<div class:list={['empty', cls]}>
+  <p class="empty-title">{title}</p>
+  {Astro.slots.has('default') && <p><slot /></p>}
+  <slot name="actions" />
+</div>

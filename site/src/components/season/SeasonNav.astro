@@ -1,0 +1,41 @@
+---
+// 시즌 이동 줄: [이전 시즌] [다른 시즌 고르기 ▼] [다음 시즌 또는 2026 시즌 (범위 밖)].
+// 다른 시즌 고르기는 연대별 연도 링크 목록(details.pick)이라 스크립트 없이도 열린다.
+import LinkPick from '../LinkPick.astro';
+import { meta } from '../../lib/data.ts';
+import { routes } from '../../lib/paths.ts';
+
+interface Props {
+  year: number;
+}
+const { year } = Astro.props;
+const first = meta.first_season;
+const last = meta.last_season;
+
+const groups: { label: string; links: { href: string; text: string; current: boolean }[] }[] = [];
+for (let dec = Math.floor(last / 10) * 10; dec >= Math.floor(first / 10) * 10; dec -= 10) {
+  const links = [];
+  for (let y = Math.min(dec + 9, last); y >= Math.max(dec, first); y--) {
+    links.push({ href: routes.season(y), text: String(y), current: y === year });
+  }
+  groups.push({ label: `${dec}년대`, links });
+}
+---
+
+<div class="chips-row season-nav">
+  {year > first && <a class="btn" href={routes.season(year - 1)}>{year - 1} 시즌</a>}
+  <LinkPick summary="다른 시즌 고르기" navLabel="시즌 목록" groups={groups} />
+  {
+    year < last ? (
+      <a class="btn" href={routes.season(year + 1)}>{year + 1} 시즌</a>
+    ) : (
+      <span class="btn" aria-disabled="true">{year + 1} 시즌 (범위 밖)</span>
+    )
+  }
+</div>
+
+<style>
+  .season-nav {
+    align-items: flex-start;
+  }
+</style>

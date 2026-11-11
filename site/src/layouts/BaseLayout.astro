@@ -1,0 +1,59 @@
+---
+// 모든 페이지의 틀: <head>(테마 부트, 전역 스타일), 건너뛰기 링크, 머리말과 상태 줄, 본문(main#main.wrap), 꼬리말.
+// 본문과 꼬리말은 마지막 조판 단계 typeset()을 한 번 거친다(라이선스 이름, 연도 범위, 구간 값을 .nw로 묶기).
+// 페이지에 figure.fig가 있으면 차트 모듈을 동적으로 불러 mountAll()을 부른다. 실패하면 모든 차트 자리를 표로 되돌린다.
+import '../styles/tokens.css';
+import '../styles/base.css';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import Typeset from '../components/Typeset.astro';
+import type { NavKey } from '../lib/paths.ts';
+
+interface Props {
+  /** 페이지 제목. <title>은 "{title} | F1 업그레이드와 성능 추이"가 된다(홈은 title을 비운다) */
+  title?: string;
+  description: string;
+  /** 주 메뉴에서 aria-current="page"를 받을 칸 */
+  current?: NavKey;
+}
+const { title, description, current } = Astro.props;
+const site = 'F1 업그레이드와 성능 추이';
+const fullTitle = title ? `${title} | ${site}` : site;
+const favicon = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/favicon.svg`;
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <script is:inline>
+      // 첫 칠 전에: 스크립트 있음 표시(html.js)와 저장된 테마. 저장이 막혀 있어도 자동 테마로 그린다.
+      document.documentElement.classList.add('js');
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+  </head>
+  <body>
+    <a class="skip" href="#main">본문으로 건너뛰기</a>
+    <SiteHeader current={current} />
+    <main id="main" class="wrap"><Typeset><slot /></Typeset></main>
+    <Typeset><SiteFooter /></Typeset>
+    <script>
+      import { boot } from '../lib/boot.ts';
+
+      boot();
+      if (document.querySelector('figure.fig')) {
+        import('../lib/charts/mount.ts')
+          .then((m) => m.mountAll())
+          .catch((err) => window.chartFallback(err));
+      }
+    </script>
+  </body>
+</html>

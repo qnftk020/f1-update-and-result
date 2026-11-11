@@ -1,0 +1,40 @@
+---
+// 범례. 계열이 둘 이상이면 언제나 둔다. 열쇠 모양: line, dot, ring, rect, band, tri, glyph(cat 필요), wet, ref,
+// nodoc, zero, hollow, review. color는 토큰 이름이다('s1', 'ctx', 'ink-2'). label은 HTML 조각이다.
+import { iconSvg } from '../lib/markup.ts';
+import type { ReasonCategory } from '../lib/types.ts';
+
+export interface LegendItem {
+  type: 'line' | 'dot' | 'ring' | 'rect' | 'band' | 'tri' | 'glyph' | 'wet' | 'ref' | 'nodoc' | 'zero' | 'hollow' | 'review';
+  label: string;
+  color?: string;
+  cat?: ReasonCategory;
+  /** 범례 항목 li의 id(페이지 스크립트가 글자를 바꿀 때) */
+  id?: string;
+}
+
+interface Props {
+  items: LegendItem[];
+}
+const { items } = Astro.props;
+---
+
+<ul class="legend">
+  {
+    items.map((it) => (
+      <li id={it.id}>
+        {it.type === 'review' ? (
+          <span class="key key-review" aria-hidden="true" set:html={iconSvg('review')} />
+        ) : (
+          <span
+            class={`key key-${it.type}`}
+            data-cat={it.cat}
+            style={it.color ? `--k:var(--${it.color})` : undefined}
+            aria-hidden="true"
+          />
+        )}
+        <span set:html={it.label} />
+      </li>
+    ))
+  }
+</ul>

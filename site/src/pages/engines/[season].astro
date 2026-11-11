@@ -1,0 +1,12 @@
+---
+// 엔진: 마지막 시즌을 뺀 PU 시즌(2020-). 마지막 시즌은 /engines/가 맡는다.
+import EnginesPage from '../../components/engines/EnginesPage.astro';
+import { engineYears, engines } from '../../components/engines/engines-data.ts';
+
+export function getStaticPaths() {
+  return engineYears.filter((y) => y !== engines?.last_season).map((y) => ({ params: { season: String(y) } }));
+}
+const season = Number(Astro.params.season);
+---
+
+<EnginesPage season={season} />

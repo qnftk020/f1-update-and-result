@@ -1,0 +1,25 @@
+---
+// 분할 전환(div.seg[role=group]): 시즌 고르기 [2023|2024|2025], 지수 고르기 [퀄리파잉 지수|레이스 지수],
+// 묶는 기준 [팀|부품 영역|대회], PU 구성요소 [ICE|TC|...]. 단추마다 data-{attr}="{value}"와 aria-pressed를 단다.
+// 스크립트가 있어야 움직이므로 기본은 data-js-only다. 누를 때의 동작은 페이지 스크립트가 잇는다.
+// cols4를 주면 640px 아래에서 한 줄에 들어가지 않는 칸을 4칸 격자로 줄바꿈한다(PU 구성요소 7칸).
+interface Props {
+  label: string;
+  attr: string;
+  items: { value: string; label: string; pressed?: boolean; disabled?: boolean }[];
+  jsOnly?: boolean;
+  id?: string;
+  cols4?: boolean;
+}
+const { label, attr, items, jsOnly = true, id, cols4 = false } = Astro.props;
+---
+
+<div class:list={['seg', { 'seg-cols4': cols4 }]} role="group" aria-label={label} data-js-only={jsOnly ? '' : undefined} id={id}>
+  {
+    items.map((it) => (
+      <button type="button" {...{ [`data-${attr}`]: it.value }} aria-pressed={String(Boolean(it.pressed))} disabled={it.disabled}>
+        {it.label}
+      </button>
+    ))
+  }
+</div>

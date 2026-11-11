@@ -44,3 +44,36 @@ test('formatSignedPercent: 부호와 0 처리는 그대로다', () => {
   assert.equal(formatSignedPercent(0.1234), '+0.123%');
   assert.equal(formatSignedPercent(-0.0001), '0.000%');
 });
+
+test('num: 지수 표기 반올림, 빼기 기호, 부호', async () => {
+  const { num, pct, ivl, josa, posChange, roundsText } = await import('./format.ts');
+  assert.equal(num(0.244504726, 3), '0.245');
+  assert.equal(num(0.2445, 3), '0.245');
+  assert.equal(num(-1.4569, 2, { sign: true }), '−1.46');
+  assert.equal(num(0.0004, 3, { sign: true }), '0.000');
+  assert.equal(num(1e-7, 3), '0.000');
+  assert.equal(num(null), '결측');
+  assert.equal(pct(1.336836475), '1.337%');
+  assert.equal(ivl(-0.184, -0.39, 0.06), '−0.18 (−0.39 ~ +0.06)');
+  assert.equal(josa('플로어', '이', '가'), '플로어가');
+  assert.equal(josa('70건', '이', '가'), '70건이');
+  assert.equal(josa('23', '으로', '로'), '23으로');
+  assert.equal(posChange(18, 9), '+9');
+  assert.equal(posChange(3, 11), '−8');
+  assert.equal(roundsText([17, 22]), '2개 (17, 22라운드)');
+  assert.equal(roundsText([]), '0개');
+});
+
+test('typeset과 keepNames: 글 조각만 묶고 태그와 스크립트는 건드리지 않는다', async () => {
+  const { keepNames, typeset } = await import('./typeset.ts');
+  assert.equal(
+    keepNames('<b>Max Verstappen</b><span class="aside">(Red Bull)</span>의 우승'),
+    '<span class="nw"><b><span class="nw" lang="en">Max Verstappen</span></b><span class="aside">(<span class="nw" lang="en">Red Bull</span>)</span>의</span> 우승',
+  );
+  assert.equal(typeset('<p>1996-2025 기간</p>'), '<p><span class="nw">1996-2025</span> 기간</p>');
+  assert.equal(typeset('<p>CC BY-NC-SA 4.0</p>'), '<p><span class="nw">CC BY-NC-SA 4.0</span></p>');
+  assert.equal(typeset('<p>2026-10-27 덤프</p>'), '<p>2026-10-27 덤프</p>');
+  const script = '<script type="application/json">{"r":"1996-2025","a":1<2}</script>';
+  assert.equal(typeset(script), script);
+  assert.equal(typeset('<a title="2003-2005">x</a>'), '<a title="2003-2005">x</a>');
+});

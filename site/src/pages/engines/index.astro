@@ -1,0 +1,8 @@
+---
+// 엔진: 마지막 시즌. 다른 시즌은 /engines/<연도>/ ([season].astro).
+import EnginesPage from '../../components/engines/EnginesPage.astro';
+import EnginesMissing from '../../components/engines/EnginesMissing.astro';
+import { engines } from '../../components/engines/engines-data.ts';
+---
+
+{engines ? <EnginesPage season={engines.last_season} /> : <EnginesMissing />}

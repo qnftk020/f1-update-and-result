@@ -1,0 +1,92 @@
+---
+// 차트 틀(figure.fig). DESIGN.md "차트 틀": 머리(제목, 범위 줄, 차트/표 전환), 부제, 범례, 그림(.viz),
+// 표 보기(.twin, 정적 HTML), 출처 줄(figcaption.src). pair가 아니면 .fig-row로 감싸고 옆에 여백 주석을 둔다.
+//
+// 차트 자료: chart(함수 이름)와 data를 주면 <script type="application/json" class="chart-data">로 싣고
+// 브라우저의 mountAll()이 그린다. opts는 JSON으로 넘길 수 있는 옵션만(width는 자동). 함수가 필요한 옵션
+// (onSelect)이나 조작에 따른 다시 그리기는 페이지 스크립트가 handles.get(id)로 한다.
+// chart를 비우고 manual을 주면 자동으로 그리지 않는다(페이지 스크립트가 mount()를 직접 부른다).
+//
+// 표 보기: twin(열 정의) 또는 slot="twin". 주석: notes 또는 slot="notes"(<Note>들).
+// slot="below"는 그림과 출처 줄 사이(표 보기 밖)에 들어간다. 예: 축 범위 안내.
+import type { ChartName } from '../lib/charts/mount.ts';
+import type { Column } from './DataTable.astro';
+import FigureFrame from './FigureFrame.astro';
+import type { LegendItem } from './Legend.astro';
+import Note from './Note.astro';
+
+interface Props {
+  id: string;
+  /** 차트 제목(HTML 가능) */
+  title: string;
+  /** 범위 줄: "2025 R24 · 결승 클린 랩 · 95% 구간" (HTML 가능) */
+  scope?: string;
+  /** 부제: 무엇을 그렸는지, 단위, 읽는 방향("왼쪽이 빠르다", "위가 빠르다", "위가 1위다") */
+  sub?: string;
+  legend?: LegendItem[];
+  chart?: ChartName;
+  data?: unknown;
+  /** data 대신 JsonData의 id를 가리킨다 */
+  dataRef?: string;
+  opts?: Record<string, unknown>;
+  manual?: boolean;
+  source: string;
+  asof: string;
+  twin?: { caption: string; columns: Column[]; rows: any[]; rowClass?: (r: any, i: number) => string };
+  notes?: { head: string; body: string; caution?: boolean }[];
+  /** 넓은 틀(.fig-row.wide): 전체 폭, 주석은 아래 여러 칸 */
+  wide?: boolean;
+  /** .pair 안에 둘 때: figure만 내보낸다(주석은 바깥에서 따로) */
+  pair?: boolean;
+  /** 차트/표 전환을 숨긴다(표 보기가 없는 그림) */
+  noToggle?: boolean;
+  /** 그림의 낭독 이름. 없으면 제목 */
+  ariaLabel?: string;
+}
+
+const {
+  id,
+  title,
+  scope,
+  sub,
+  legend,
+  chart,
+  data,
+  dataRef,
+  opts,
+  manual = false,
+  source,
+  asof,
+  twin,
+  notes,
+  wide = false,
+  pair = false,
+  noToggle = false,
+  ariaLabel,
+} = Astro.props;
+
+const plain = title.replace(/<[^>]+>/g, '');
+const hasNotes = !pair && ((notes && notes.length > 0) || Astro.slots.has('notes'));
+const twinHtml = Astro.slots.has('twin') ? await Astro.slots.render('twin') : '';
+const belowHtml = Astro.slots.has('below') ? await Astro.slots.render('below') : '';
+const frame = {
+  id, title, scope, sub, legend, chart, data, dataRef, opts, manual, source, asof, twin, noToggle, ariaLabel,
+  twinHtml, belowHtml,
+};
+---
+
+{
+  pair ? (
+    <FigureFrame {...frame} />
+  ) : (
+    <div class:list={['fig-row', { wide }]}>
+      <FigureFrame {...frame} />
+      {hasNotes && (
+        <aside class="notes" aria-label={`${plain} 주석`}>
+          {notes?.map((n) => <Note head={n.head} body={n.body} caution={n.caution} />)}
+          <slot name="notes" />
+        </aside>
+      )}
+    </div>
+  )
+}

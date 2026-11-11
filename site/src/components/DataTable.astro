@@ -1,0 +1,95 @@
+---
+// 표(table.dt)와 가로 스크롤 감싸개(div.tbl-wrap[role=region][tabindex=0][aria-label]).
+// 두 가지로 쓴다.
+//  1. 열 정의: <DataTable caption="결승 결과 1위부터 10위" columns={cols} rows={rows} rowClass={(r) => r.pos === 3 ? 'break' : ''} />
+//     Column.render(row, i)는 HTML 문자열을 돌려준다(데이터 글자는 esc()로 막는다). render가 없으면 row[key]를 막아서 적는다.
+//  2. 감싸개만: <DataTable caption="…"><table class="dt">…</table></DataTable>
+// expand를 주면 앞 first행만 보이고 나머지는 details.more("11위부터 20위까지 보기") 안의 둘째 표로 접는다.
+// 표 보기(차트 쌍둥이)는 compact로 쓴다(table.dt.dt-compact, 클라이언트 tableTwin()과 같은 마크업).
+import { esc } from '../lib/typeset.ts';
+
+export interface Column<R = any> {
+  /** 머리 글자. labelHtml이면 HTML로 넣는다(예: 'sub-line' 두 줄 머리) */
+  label: string;
+  labelHtml?: boolean;
+  key?: string;
+  render?: (row: R, i: number) => string;
+  /** 숫자 열: 머리와 값을 오른쪽 정렬, tabular-nums */
+  num?: boolean;
+  /** 칸 클래스: pos(순위 굵게), hide-sm(640px 아래 숨김), hide-xs(400px 아래), stick(첫 열 고정), who, meter-cell */
+  cls?: string;
+}
+
+interface Props {
+  caption: string;
+  columns?: Column[];
+  rows?: any[];
+  rowClass?: (row: any, i: number) => string;
+  compact?: boolean;
+  /** 캡션을 표 위에 보이게 둔다(기본은 sr-only. 보통은 절 제목이 캡션을 맡는다) */
+  captionVisible?: boolean;
+  expand?: { first: number; summary: string; captionRest?: string };
+  class?: string;
+}
+
+const {
+  caption,
+  columns,
+  rows = [],
+  rowClass,
+  compact = false,
+  captionVisible = false,
+  expand,
+  class: cls,
+} = Astro.props;
+
+const tableCls = ['dt', compact ? 'dt-compact' : '', cls ?? ''].filter(Boolean).join(' ');
+
+function cellCls(c: Column): string {
+  return [c.num ? 'num' : '', c.cls ?? ''].filter(Boolean).join(' ');
+}
+function attr(v: string): string {
+  return v ? ` class="${v}"` : '';
+}
+function renderTable(list: any[], cap: string, offset: number): string {
+  if (!columns) return '';
+  const head = columns
+    .map((c) => `<th scope="col"${attr(cellCls(c))}>${c.labelHtml ? c.label : esc(c.label)}</th>`)
+    .join('');
+  const body = list
+    .map((r, j) => {
+      const i = j + offset;
+      const tds = columns
+        .map((c) => {
+          const v = c.render ? c.render(r, i) : esc(c.key ? r[c.key] : '');
+          return `<td${attr(cellCls(c))}>${v}</td>`;
+        })
+        .join('');
+      return `<tr${attr(rowClass ? rowClass(r, i) : '')}>${tds}</tr>`;
+    })
+    .join('');
+  const capCls = captionVisible ? 'vis' : 'sr-only';
+  return `<div class="tbl-wrap" role="region" tabindex="0" aria-label="${esc(cap)}"><table class="${tableCls}"><caption class="${capCls}">${esc(cap)}</caption><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+const first = expand ? rows.slice(0, expand.first) : rows;
+const rest = expand ? rows.slice(expand.first) : [];
+---
+
+{
+  columns ? (
+    <Fragment>
+      <Fragment set:html={renderTable(first, caption, 0)} />
+      {expand && rest.length > 0 && (
+        <details class="more">
+          <summary>{expand.summary}</summary>
+          <Fragment set:html={renderTable(rest, expand.captionRest ?? `${caption}, 나머지`, expand.first)} />
+        </details>
+      )}
+    </Fragment>
+  ) : (
+    <div class="tbl-wrap" role="region" tabindex="0" aria-label={caption}>
+      <slot />
+    </div>
+  )
+}

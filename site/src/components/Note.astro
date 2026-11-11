@@ -1,0 +1,15 @@
+---
+// 여백 주석 한 칸. head: 읽는 법 · 주의 · 추정된 연관 · 우천 예선 · 자료 범위 · 검수 대기 · 표시 규칙 …
+// caution이면 잉크 왼쪽 선(해석을 제한하는 주석: 주의, 추정된 연관). body는 HTML 문자열이나 slot.
+interface Props {
+  head: string;
+  body?: string;
+  caution?: boolean;
+}
+const { head, body, caution = false } = Astro.props;
+---
+
+<div class:list={['note', { caution }]}>
+  <p class="note-h">{head}</p>
+  {body ? <p set:html={body} /> : <p><slot /></p>}
+</div>
