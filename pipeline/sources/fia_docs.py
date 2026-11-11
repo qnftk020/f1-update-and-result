@@ -15,7 +15,7 @@ from __future__ import annotations
 import html
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote, unquote, urljoin
 
@@ -231,24 +231,54 @@ def download_documents(
     """
     rows = manifest.read_rows(INDEX_MANIFEST)
     paths: list[Path] = []
-    with PoliteClient("fia") as client:
-        for row in rows:
-            if row["doc_type"] not in doc_types:
-                continue
-            if seasons and int(row["season"]) not in seasons:
-                continue
-            if urls is not None and row["url"] not in urls:
-                continue
-            result = client.get(row["url"], pdf_cache_path(row))
-            if row["sha256"] and row["sha256"] != result.sha256:
-                raise RuntimeError(f"원문이 manifest와 다르다: {row['url']}")
-            if not row["sha256"]:
-                row["sha256"] = result.sha256
-                row["bytes"] = str(len(result.content))
-                row["fetched_at"] = result.fetched_at or utc_now_iso()
-            paths.append(result.path)
-    manifest.write_rows(INDEX_MANIFEST, rows, INDEX_FIELDS)
+    try:
+        with PoliteClient("fia") as client:
+            for row in rows:
+                if row["doc_type"] not in doc_types:
+                    continue
+                if seasons and int(row["season"]) not in seasons:
+                    continue
+                if urls is not None and row["url"] not in urls:
+                    continue
+                result = client.get(row["url"], pdf_cache_path(row))
+                if row["sha256"] and row["sha256"] != result.sha256:
+                    raise RuntimeError(f"원문이 manifest와 다르다: {row['url']}")
+                if not row["sha256"]:
+                    row["sha256"] = result.sha256
+                    row["bytes"] = str(len(result.content))
+                    row["fetched_at"] = result.fetched_at or file_time_iso(result.path)
+                paths.append(result.path)
+    finally:
+        # 중간에 멈춰도 그때까지 받은 파일의 기록은 남긴다.
+        manifest.write_rows(INDEX_MANIFEST, rows, INDEX_FIELDS)
     return paths
+
+
+def record_cached(doc_types: list[str]) -> int:
+    """이미 로컬 캐시에 있는 PDF의 sha256을 manifest에 적는다. 네트워크 요청은 하지 않는다."""
+    from pipeline.config import RAW_DIR
+    from pipeline.http import sha256_bytes
+
+    rows = manifest.read_rows(INDEX_MANIFEST)
+    n = 0
+    for row in rows:
+        if row["doc_type"] not in doc_types or row["sha256"]:
+            continue
+        path = RAW_DIR / "fia" / pdf_cache_path(row)
+        if not path.exists():
+            continue
+        content = path.read_bytes()
+        row["sha256"] = sha256_bytes(content)
+        row["bytes"] = str(len(content))
+        row["fetched_at"] = file_time_iso(path)
+        n += 1
+    manifest.write_rows(INDEX_MANIFEST, rows, INDEX_FIELDS)
+    return n
+
+
+def file_time_iso(path: Path) -> str:
+    """캐시 파일이 저장된 시각(UTC)."""
+    return datetime.fromtimestamp(path.stat().st_mtime, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 if __name__ == "__main__":
@@ -257,6 +287,8 @@ if __name__ == "__main__":
         index_seasons([int(a) for a in args])
     elif command == "news":
         index_news_car_presentations(int(args[0]))
+    elif command == "record-cached":
+        print(f"{record_cached(args[0].split(','))} rows recorded")
     elif command == "download":
         got = download_documents(args[0].split(","), [int(a) for a in args[1:]] or None)
         print(f"{len(got)} files")

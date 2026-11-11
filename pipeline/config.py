@@ -26,10 +26,18 @@ PU_ELEMENTS_FIRST_SEASON = 2020
 MIN_INTERVAL_SECONDS = {
     "jolpica": 0.5,  # 공식 제한 4회/초, 500회/시간. 시간당 제한은 클라이언트에서 따로 센다.
     "openf1": 2.0,
-    "fia": 3.0,
+    # 작업서 기준은 3초 이상이다. 2026-11-11에 3초 간격으로 100여 건을 잇달아 받은 뒤
+    # Cloudflare 확인 화면(429)을 받아 8초로 늘렸다(docs/sources.md).
+    "fia": 8.0,  # www.fia.com
+    "fia_argent": 8.0,  # argent.fia.com (구 서버)
+    "fia_historic": 8.0,  # historicdb.fia.com
+    "web": 3.0,  # 그 밖의 제3자 페이지(링크 확인용)
     "f1db": 1.0,
     "openmeteo": 1.0,
 }
 MAX_REQUESTS_PER_HOUR = {
     "jolpica": 450,  # 공식 500회/시간보다 낮게 잡는다.
+    # www.fia.com은 파일 요청이 한 시간에 100건을 넘으면 확인 화면(429)을 띄운다(2026-11-11 관찰,
+    # 공식 문서에 없는 수치라 미검증). 그보다 낮게 잡는다.
+    "fia": 80,
 }
