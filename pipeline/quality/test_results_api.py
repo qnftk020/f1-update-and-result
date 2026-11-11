@@ -282,3 +282,18 @@ def test_apply_round_replaces_existing_round(baseline, tmp_path):
     assert con.execute(
         f"select forename from '{drivers}' where driver_id = 'norris'"
     ).fetchone() == ("X",)
+
+
+@pytest.mark.network
+def test_replaying_a_dump_round_changes_nothing(baseline, tmp_path):
+    """덤프로 적재된 라운드를 API로 다시 반영해도 파일이 그대로다(T13 수동 재현).
+
+    API에 없는 status_code와 기록 없는 Q3 드라이버의 세션 순위는 덤프 값을 두고,
+    내용이 같으면 파일을 다시 쓰지 않는다.
+    """
+    season, rnd = ROUNDS[0]
+    shutil.copytree(baseline / "jolpica", tmp_path / "jolpica")
+    before = {name: file_sha(tmp_path / "jolpica" / f"{name}.parquet") for name in TABLES}
+    results_api.apply_round(season, rnd, out_dir=tmp_path)
+    after = {name: file_sha(tmp_path / "jolpica" / f"{name}.parquet") for name in TABLES}
+    assert after == before

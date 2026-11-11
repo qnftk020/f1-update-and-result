@@ -4,7 +4,8 @@
 더한다. 같은 라운드를 다시 돌리면 그 라운드의 행을 새 응답으로 갈아 끼운다.
 
 API가 주지 않는 값은 비워 둔다.
-- results.status_code: 덤프 내부 분류라 API에 없다. 다음 덤프 적재 때 채워진다.
+- results.status_code: 덤프 내부 분류라 API에 없다. 덤프에 이미 있는 행은 기존 값을 두고,
+  새 라운드는 다음 덤프 적재 때 채워진다.
 - races.scheduled_laps: API 일정에 없다. 이미 있는 라운드를 갈아 끼울 때는 기존 값을 둔다.
 - races.date: API는 결승 시작 시각의 UTC 날짜를 준다. 덤프는 대회의 현지 날짜라 밤 경기(2025
   라스베이거스)에서 하루 다르다. 이미 있는 라운드는 기존 날짜를 두고, 새 라운드만 API 날짜를 쓴다.
@@ -45,6 +46,13 @@ REPLACE_KEY = {
     "constructor_standings": ["season", "round"],
     "drivers": ["driver_id"],
     "constructors": ["constructor_id"],
+}
+
+# 이미 덤프로 적재된 라운드를 API로 다시 반영할 때, API에 없는 값은 같은 행의 기존 값을 둔다.
+# (열 목록, 행 키). 기록 없는 Q3 드라이버의 세션 순위는 덤프만 준다.
+KEEP_IF_NULL = {
+    "results": (["status_code"], ["season", "round", "session_type", "driver_id"]),
+    "qualifying": (["position"], ["season", "round", "session_type", "driver_id"]),
 }
 
 
@@ -231,6 +239,15 @@ def upsert(path: Path, name: str, rows: list[dict], *, keep_existing: bool = Fal
     keys = REPLACE_KEY[name]
     match = " and ".join(f'old."{k}" = new."{k}"' for k in keys)
     con.execute(f"create temp table new as select {casts} from frame")
+    if name in KEEP_IF_NULL:
+        # API가 비워 두는 열은 같은 행의 기존 값(덤프)을 둔다. 다시 돌려도 값이 사라지지 않는다.
+        cols, row_keys = KEEP_IF_NULL[name]
+        same_row = " and ".join(f'old."{k}" = new."{k}"' for k in row_keys)
+        for col in cols:
+            con.execute(
+                f'update new set "{col}" = (select old."{col}" from \'{path}\' old '
+                f'where {same_row}) where "{col}" is null'
+            )
     if keep_existing:
         con.execute(f"delete from new where exists (select 1 from '{path}' old where {match})")
         applied = con.execute("select count(*) from new").fetchone()[0]
@@ -244,6 +261,11 @@ def upsert(path: Path, name: str, rows: list[dict], *, keep_existing: bool = Fal
             "union all select * from new"
         )
     con.execute(f"create temp table merged as select * from ({query}) order by {ORDER_BY[name]}")
+    added = f"select count(*) from (select * from merged except all select * from '{path}')"
+    dropped = f"select count(*) from (select * from '{path}' except all select * from merged)"
+    if con.execute(added).fetchone()[0] == 0 and con.execute(dropped).fetchone()[0] == 0:
+        # 같은 라운드를 다시 돌려 내용이 그대로면 파일을 쓰지 않는다(자동 갱신의 빈 커밋 방지).
+        return applied
     con.execute(f"copy merged to '{path}' (format parquet, compression zstd)")
     return applied
 

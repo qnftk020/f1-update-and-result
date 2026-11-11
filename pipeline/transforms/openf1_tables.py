@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from pipeline.config import CURATED_DIR, LAST_SEASON, OPENF1_FIRST_SEASON, RAW_DIR
 from pipeline.sources.openf1 import ENDPOINTS, SESSION_NAMES
@@ -194,7 +196,16 @@ def build_driver_map(meeting_map: pd.DataFrame, drivers: pd.DataFrame) -> pd.Dat
 def write_parquet(df: pd.DataFrame, name: str) -> Path:
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / f"{name}.parquet"
-    df.to_parquet(path, index=False, compression="zstd")
+    new = pa.Table.from_pandas(df, preserve_index=False)
+    if path.exists():
+        old = pq.read_table(path)
+        # 내용이 같으면 쓰지 않는다. 증분 갱신에서 pandas 열 형식 메타데이터만 달라져도
+        # 파일 바이트가 바뀌어, 자동 갱신이 내용 변화 없는 커밋을 만드는 일을 막는다.
+        if old.schema.remove_metadata().equals(new.schema.remove_metadata()) and old.equals(
+            new.replace_schema_metadata(old.schema.metadata)
+        ):
+            return path
+    pq.write_table(new, path, compression="zstd")
     return path
 
 
