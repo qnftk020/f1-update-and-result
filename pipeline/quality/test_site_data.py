@@ -494,8 +494,11 @@ def manifest_rows(name):
 
 
 def test_engines_export_follows_pu_tables(site):
+    usage_path = CURATED_DIR / "fia" / "pu_usage.parquet"
+    if not usage_path.exists():  # PU 파서(T6) 결과가 커밋되기 전에는 engines.json을 만들지 않는다
+        pytest.skip("PU 정제 테이블이 아직 없다")
     engines = site("engines.json")
-    usage = pd.read_parquet(CURATED_DIR / "fia" / "pu_usage.parquet")
+    usage = pd.read_parquet(usage_path)
     assert sorted(engines["seasons"]) == [str(s) for s in range(2020, LAST_SEASON + 1)]
     for key, s in engines["seasons"].items():
         season = int(key)
