@@ -392,7 +392,7 @@ const pageData = {
         { head: '우천 예선', body: '우천 예선은 빈 고리로만 찍고 선을 끊는다. 평균과 순위 계산에서 뺀다. 웨트 계열 타이어를 썼거나 날씨 표본의 10% 이상에서 강우가 기록된 예선이다.' },
         {
           head: '추정된 연관',
-          body: '아래 세모는 팀이 업그레이드를 신고한 대회와 항목 수다. 시점을 나란히 놓을 뿐이며 지수 변화와의 관계는 추정된 연관으로만 다룬다. 개별 업그레이드의 영향을 단정하지 않는다.',
+          body: '아래 핑크 세모는 팀이 업그레이드를 신고한 대회와 항목 수다. 시점을 나란히 놓을 뿐이며 지수 변화와의 관계는 추정된 연관으로만 다룬다. 개별 업그레이드의 영향을 단정하지 않는다.',
           caution: true,
         },
       ]}
@@ -452,7 +452,10 @@ const pageData = {
       title="시즌 최종 컨스트럭터 순위"
       scope={`<span data-lin-scope="steps">${esc(M.linScope.steps.on)}</span>`}
       sub="각 시즌 마지막 라운드 뒤의 순위다. 위가 1위다. 순위가 없는 시즌(0점으로 순위표에 실리지 않은 해)에서는 선을 끊는다."
-      legend={[{ type: 'line', color: 's1', label: '시즌 최종 순위' }]}
+      legend={[
+        { type: 'line', color: 's1', label: '시즌 최종 순위' },
+        ...(M.stepsData.some((d) => d.pos === 1) ? [{ type: 'dot' as const, color: 's2', label: '컨스트럭터 챔피언 시즌' }] : []),
+      ]}
       chart="standingsSteps"
       data={M.stepsData}
       opts={{ eras: M.chartEras, from: M.first, to: M.lastTo }}

@@ -135,6 +135,7 @@ const roundsTwin = {
 };
 const roundsLegend: { type: 'rect' | 'ring' | 'nodoc'; color?: string; label: string }[] = [
   { type: 'rect', color: 's1', label: '항목 수' },
+  { type: 'rect', color: 's2', label: '가장 많은 대회' },
   { type: 'ring', color: 'ink-3', label: '신고 0건' },
 ];
 if (counts.length < h.rounds_in_season) roundsLegend.push({ type: 'nodoc', label: '문서 부재' });
@@ -216,10 +217,10 @@ const description = `${season} 시즌 ${isFinal(h) ? '최종전' : `${race.round
         id="f-grid"
         title="출발 순위와 결승 순위"
         scope={`${R} · ${grid.length}대`}
-        sub="빈 원이 출발, 채운 원이 결승 순위다. 왼쪽일수록 앞 순위이고, 5칸 이상 바뀐 차에만 변화량을 적었다."
+        sub="블루 빈 원이 출발, 핑크 채운 원이 결승 순위다. 왼쪽일수록 앞 순위이고, 5칸 이상 바뀐 차에만 변화량을 적었다."
         legend={[
-          { type: 'ring', color: 'ink-2', label: '출발 (그리드)' },
-          { type: 'dot', color: 's1', label: '결승' },
+          { type: 'ring', color: 's1', label: '출발 (그리드)' },
+          { type: 'dot', color: 's2', label: '결승' },
         ]}
         chart="gridToFinish"
         data={grid}

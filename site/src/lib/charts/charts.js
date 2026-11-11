@@ -130,9 +130,10 @@ export function gridToFinish(data, { width, label = "출발 순위와 결승 순
     y: { type: "band", domain: data.map((d) => d.code), padding: 0 },
     marks: [
       Plot.gridX({ stroke: C.grid, strokeOpacity: 1, ticks: [1, 5, 10, 15, 20] }),
-      Plot.link(data, { x1: "grid", x2: "pos", y1: "code", y2: "code", stroke: C.ink3, strokeWidth: 1.5 }),
-      Plot.dot(data, { x: "grid", y: "code", r: 4, fill: C.paper, stroke: C.ink2, strokeWidth: 1.5 }),
-      Plot.dot(data, { x: "pos", y: "code", r: 4.5, fill: C.s1, stroke: C.paper, strokeWidth: 1.5 }),
+      Plot.link(data, { x1: "grid", x2: "pos", y1: "code", y2: "code", stroke: C.ctx, strokeWidth: 2 }),
+      // 출발은 블루 빈 원, 결승은 핑크 채운 원 (모양이 첫째, 색이 둘째 통로)
+      Plot.dot(data, { x: "grid", y: "code", r: 4.5, fill: C.paper, stroke: C.s1, strokeWidth: 2 }),
+      Plot.dot(data, { x: "pos", y: "code", r: 4.5, fill: C.s2, stroke: C.paper, strokeWidth: 1.5 }),
       Plot.text(data.filter((d) => Math.abs(d.grid - d.pos) >= 5), {
         x: (d) => Math.max(d.grid, d.pos), y: "code", dx: 9, textAnchor: "start", fill: C.ink2, fontVariant: "tabular-nums",
         text: (d) => (d.grid > d.pos ? `+${d.grid - d.pos}` : `${MINUS}${d.pos - d.grid}`),
@@ -147,8 +148,8 @@ export function gridToFinish(data, { width, label = "출발 순위와 결승 순
     py: ys.apply(d.code) + rowH / 2, px: xs.apply(Math.max(d.grid, d.pos)),
     head: `${d.name} (${d.team})`,
     rows: [
-      { value: `${d.grid}위`, label: "출발", key: { type: "ring", color: C.ink2 } },
-      { value: `${d.pos}위`, label: "결승", key: { type: "dot", color: C.s1 } },
+      { value: `${d.grid}위`, label: "출발", key: { type: "ring", color: C.s1 } },
+      { value: `${d.pos}위`, label: "결승", key: { type: "dot", color: C.s2 } },
       { value: d.grid === d.pos ? "0" : d.grid > d.pos ? `+${d.grid - d.pos}` : `${MINUS}${d.pos - d.grid}`, label: "순위 변화" },
     ],
   }));
@@ -175,7 +176,8 @@ export function roundCounts(data, { width, rounds = 24, label = "라운드별 �
     marks: [
       Plot.gridY({ stroke: C.grid, strokeOpacity: 1, ticks: 4 }),
       Plot.barY(dom.filter((r) => !by.has(r)), { x: (r) => r, y1: 0, y2: max * 1.08, fill: C.paper3, stroke: C.axis, strokeWidth: 1 }),
-      Plot.barY(data.filter((d) => d.n > 0), { x: "round", y: "n", fill: C.s1, insetLeft: inset, insetRight: inset, ry2: 3 }),
+      // 가장 많은 대회 한 곳만 핑크로 두고 라벨을 단다
+      Plot.barY(data.filter((d) => d.n > 0), { x: "round", y: "n", fill: (d) => (d === top ? C.s2 : C.s1), insetLeft: inset, insetRight: inset, ry2: 3 }),
       Plot.dot(data.filter((d) => d.n === 0), { x: "round", y: 0, r: 3.5, fill: C.paper, stroke: C.ink3, strokeWidth: 1.5 }),
       Plot.ruleY([0], { stroke: C.axis }),
       Plot.text([top], { x: "round", y: "n", dy: -8, dx: -inset, textAnchor: "start", fill: C.ink, fontWeight: 600, text: (d) => `${d.round}라운드 ${d.short} ${d.n}건`, stroke: C.paper, strokeWidth: 3 }),
@@ -191,7 +193,7 @@ export function roundCounts(data, { width, rounds = 24, label = "라운드별 �
     return {
       px: xs.apply(r) + xs.bandwidth / 2, py: ys.apply(d ? d.n : 0) - 10, top: 24, bottom: (narrow ? 200 : 230) - 30,
       head: d ? `${r}라운드 ${d.short}` : `${r}라운드`,
-      rows: d ? [{ value: `${d.n}건`, label: "제출 항목", key: { type: "rect", color: C.s1 } }] : [],
+      rows: d ? [{ value: `${d.n}건`, label: "제출 항목", key: { type: "rect", color: d === top ? C.s2 : C.s1 } }] : [],
       note: !d ? "공개 문서가 없는 대회다." : d.n === 0 ? "10개 팀 모두 No updates submitted로 제출했다." : d.review ? "검수 대기 문서다." : null,
     };
   });
@@ -279,7 +281,7 @@ function railMarks(rail, step) {
   const by = new Map(rail.map((r) => [r.round, r.n]));
   const tight = rail.some((r) => by.has(r.round + 1) && step < (textWidth(r.n, 11) + textWidth(by.get(r.round + 1), 11)) / 2 + 4);
   const r = Math.max(2.6, Math.min(4.2, step * 0.42));
-  const marks = [Plot.dot(rail, { x: "round", frameAnchor: "bottom", dy: 36, symbol: "triangle", r, fill: C.ink })];
+  const marks = [Plot.dot(rail, { x: "round", frameAnchor: "bottom", dy: 36, symbol: "triangle", r, fill: C.s2 })];
   if (!tight) marks.push(Plot.text(rail, { x: "round", frameAnchor: "bottom", dy: 50, text: "n", fill: C.ink2, fontSize: 11 }));
   return { marks, note: tight ? "라운드 간격이 좁아 신고 항목 수는 툴팁과 표 보기에 둔다." : null };
 }
@@ -628,7 +630,9 @@ export function standingsSteps(seasons, { width, eras, from, to, label = "시즌
       Plot.gridY({ stroke: C.grid, strokeOpacity: 1, ticks: [1, 5, 10] }),
       ...eraMarks(eraL, [1, maxPos], eraBase).slice(0, -1),
       Plot.lineY(line, { x: "season", y: "y", stroke: C.s1, strokeWidth: 2, curve: "step" }),
-      Plot.dot(data.filter((d) => d.pos), { x: "season", y: "pos", r: 3, fill: C.s1, stroke: C.paper, strokeWidth: 1.5 }),
+      Plot.dot(data.filter((d) => d.pos && d.pos !== 1), { x: "season", y: "pos", r: 3, fill: C.s1, stroke: C.paper, strokeWidth: 1.5 }),
+      // 챔피언 시즌은 핑크 큰 점
+      Plot.dot(data.filter((d) => d.pos === 1), { x: "season", y: "pos", r: 5, fill: C.s2, stroke: C.paper, strokeWidth: 1.5 }),
       champRow ? Plot.text(champs, { x: (d) => (d.from + d.to) / 2, frameAnchor: "top", dy: -13, text: (d) => `${d.text} 우승`, fill: C.ink, fontWeight: 600 }) : null,
       Plot.axisY({ tickSize: 0, tickPadding: 6, ticks: [1, 5, 10], label: null, tickFormat: (d) => `${d}위` }),
       Plot.axisX({ tickSize: 0, tickPadding: 6, label: null, ticks, tickFormat: String }),
@@ -640,7 +644,7 @@ export function standingsSteps(seasons, { width, eras, from, to, label = "시즌
     px: xs.apply(d.season), py: d.pos ? ys.apply(d.pos) : H / 2, top: mt, bottom: H - mb,
     head: `${d.season} ${d.team}`,
     rows: [
-      { value: d.pos ? `${d.pos}위` : "미부여", label: "최종 순위", key: { type: "line", color: C.s1 } },
+      { value: d.pos ? `${d.pos}위` : "미부여", label: d.pos === 1 ? "최종 순위 (챔피언)" : "최종 순위", key: d.pos === 1 ? { type: "dot", color: C.s2 } : { type: "line", color: C.s1 } },
       { value: `${int(d.pts)}점`, label: "점수" },
       { value: `${d.wins}승`, label: "우승" },
     ],
