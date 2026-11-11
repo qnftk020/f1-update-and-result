@@ -1,32 +1,830 @@
 """data/curated 의 정제 데이터를 사이트 빌드용 JSON으로 내보낸다.
 
-사이트는 서버 코드 없이 여기서 만든 JSON만 읽는다. 태스크가 진행되면서 내보내는 항목을 늘린다.
+사이트는 서버 코드 없이 여기서 만든 JSON만 읽는다. 화면에 올리는 수치는 모두 이 파일을 거치므로
+어느 정제 테이블에서 왔는지 따라갈 수 있다. 내보내는 파일:
+
+    meta.json               기준일, 범위, 출처별 수집 정보
+    labels.json             화면 표기용 한글 이름(대회, 부품 영역, 변경 사유 등)
+    seasons.json            시즌 목록과 챔피언
+    season/<연도>.json      대회, 순위 추이, 팀별 페이스 지수
+    teams.json              2025 그리드 10개 계보 요약
+    team/<계보>.json        계보 구간, 근거, 시즌별 성적과 지수
+    upgrades.json           Car Presentation 업그레이드 항목 전체
+    home.json               최신 대회 요약
+    engines.json            PU 공급사와 구성요소 사용 현황 (정제 테이블이 있을 때)
+    regulations.json        규정 아카이브 (정제 테이블이 있을 때)
+
+실행: uv run python -m pipeline.build_site_data
 """
 
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+import math
+from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
 
-from pipeline.config import LAST_SEASON, SITE_DATA_DIR
+import duckdb
+import pandas as pd
+
+from pipeline import manifest
+from pipeline.config import CURATED_DIR, LAST_SEASON, MANIFEST_DIR, SITE_DATA_DIR
+
+KST = timezone(timedelta(hours=9))
+QUALI_FIRST_SEASON = 1996
+RACE_INDEX_FIRST_SEASON = 2023
+UPGRADES_FIRST_SEASON = 2023
+
+COMPONENT_AREAS_KO = {
+    "front_wing": "프런트 윙",
+    "nose": "노즈",
+    "front_suspension": "프런트 서스펜션",
+    "front_corner": "프런트 코너",
+    "floor": "플로어",
+    "diffuser": "디퓨저",
+    "sidepod": "사이드포드",
+    "engine_cover": "엔진 커버와 냉각",
+    "cockpit": "콕핏 주변",
+    "rear_suspension": "리어 서스펜션",
+    "rear_corner": "리어 코너",
+    "rear_wing": "리어 윙",
+    "beam_wing": "빔 윙",
+    "other": "기타",
+}
+REASON_CATEGORIES_KO = {
+    "performance": "성능",
+    "circuit_specific": "서킷 대응",
+    "reliability": "신뢰성",
+    "other": "기타",
+}
+LINK_TYPES_KO = {
+    "origin": "출발",
+    "acquired": "인수",
+    "renamed": "명칭 변경",
+    "continued": "계속",
+}
+QUALI_FORMATS_KO = {
+    "ONE_SESSION": "단일 세션",
+    "ONE_LAP": "원랩",
+    "AGGREGATE": "합산",
+    "KNOCKOUT": "녹아웃",
+    "ELIMINATION": "엘리미네이션",
+    "SPRINT_RACE": "스프린트 주말 녹아웃",
+}
+
+
+# --- 도우미 ---------------------------------------------------------------------------
 
 
 def write_json(name: str, payload: object) -> None:
-    SITE_DATA_DIR.mkdir(parents=True, exist_ok=True)
     path = SITE_DATA_DIR / name
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"wrote {path.relative_to(SITE_DATA_DIR.parents[3])}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    path.write_text(text, encoding="utf-8")
 
 
-def build_meta() -> dict:
+def clean(value: object, digits: int | None = None) -> object:
+    """NaN과 NaT를 None으로, numpy 값을 파이썬 값으로 바꾼다."""
+    if value is None or value is pd.NaT:
+        return None
+    if isinstance(value, float | int) and not isinstance(value, bool):
+        if isinstance(value, float) and math.isnan(value):
+            return None
+        number = float(value)
+        if digits is not None:
+            return round(number, digits)
+        return int(number) if number.is_integer() else number
+    if hasattr(value, "item"):
+        return clean(value.item(), digits)
+    if pd.isna(value) if not isinstance(value, list | dict | str) else False:
+        return None
+    return value
+
+
+def kst_date(iso_utc: str) -> str:
+    """UTC 시각 문자열을 한국 날짜(YYYY-MM-DD)로 바꾼다."""
+    text = iso_utc.replace("Z", "+00:00")
+    moment = datetime.fromisoformat(text)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.astimezone(KST).strftime("%Y-%m-%d")
+
+
+class Tables:
+    """정제 테이블을 한 번만 읽어 둔다."""
+
+    def __init__(self) -> None:
+        con = duckdb.connect()
+
+        def read(relative: str) -> pd.DataFrame:
+            return con.execute(f"select * from '{CURATED_DIR / relative}'").df()
+
+        self.races = read("jolpica/races.parquet")
+        self.results = read("jolpica/results.parquet")
+        self.qualifying = read("jolpica/qualifying.parquet")
+        self.driver_standings = read("jolpica/driver_standings.parquet")
+        self.constructor_standings = read("jolpica/constructor_standings.parquet")
+        self.drivers = read("jolpica/drivers.parquet")
+        self.constructors = read("jolpica/constructors.parquet")
+        self.f1db_races = read("f1db/races.parquet")
+        self.engines = read("f1db/engine_manufacturers.parquet")
+        self.constructor_seasons = read("lineage/constructor_seasons.parquet")
+        self.quali_index = read("pace/qualifying_index.parquet")
+        self.race_index = read("pace/race_index.parquet")
+        self.upgrades = read("fia/car_presentation.parquet")
+        self.upgrade_teams = pd.read_csv(CURATED_DIR / "fia" / "car_presentation_teams.csv")
+        self.upgrade_docs = pd.read_csv(CURATED_DIR / "fia" / "car_presentation_documents.csv")
+        self.lineages = pd.read_csv(CURATED_DIR / "lineage" / "lineages.csv")
+        self.lineage_links = pd.read_csv(CURATED_DIR / "lineage" / "lineage_links.csv")
+        self.lineage_evidence = pd.read_csv(CURATED_DIR / "lineage" / "lineage_evidence.csv")
+        self.gp_ko = pd.read_csv(CURATED_DIR / "labels" / "grand_prix_ko.csv")
+
+        self.driver_names = {
+            r.driver_id: f"{r.forename} {r.surname}".strip() for r in self.drivers.itertuples()
+        }
+        self.driver_codes = {
+            r.driver_id: (r.abbreviation if isinstance(r.abbreviation, str) else None)
+            for r in self.drivers.itertuples()
+        }
+        self.constructor_names = {r.constructor_id: r.name for r in self.constructors.itertuples()}
+        self.season_team = {
+            (int(r.season), r.constructor_id): r for r in self.constructor_seasons.itertuples()
+        }
+        self.engine_names = {r.engine_manufacturer_id: r.name for r in self.engines.itertuples()}
+        self.gp_names = {r.race_name: (r.name_ko, r.short_ko) for r in self.gp_ko.itertuples()}
+
+    def team_name(self, season: int, constructor_id: str) -> str:
+        row = self.season_team.get((season, constructor_id))
+        if row is not None and isinstance(row.team_name, str):
+            return row.team_name
+        return self.constructor_names.get(constructor_id, constructor_id)
+
+    def lineage_of(self, season: int, constructor_id: str) -> str | None:
+        row = self.season_team.get((season, constructor_id))
+        if row is not None and isinstance(row.lineage_id, str):
+            return row.lineage_id
+        return None
+
+    def pu_of(self, season: int, constructor_id: str) -> dict | None:
+        row = self.season_team.get((season, constructor_id))
+        if row is None or not isinstance(row.pu_manufacturer_id, str):
+            return None
+        pu = row.pu_manufacturer_id
+        return {"id": pu, "name": self.engine_names.get(pu, pu)}
+
+    def driver(self, driver_id: str) -> dict:
+        return {
+            "id": driver_id,
+            "name": self.driver_names.get(driver_id, driver_id),
+            "code": self.driver_codes.get(driver_id),
+        }
+
+    def gp(self, race_name: str) -> tuple[str, str]:
+        if race_name not in self.gp_names:
+            raise KeyError(
+                f"대회 한글 이름이 없다: {race_name} (data/curated/labels/grand_prix_ko.csv)"
+            )
+        return self.gp_names[race_name]
+
+
+# --- 시즌 ------------------------------------------------------------------------------
+
+
+def season_rounds(t: Tables, season: int) -> list[dict]:
+    races = t.races[t.races["season"] == season].sort_values("round")
+    results = t.results[(t.results["season"] == season) & (t.results["session_type"] == "R")]
+    formats = {
+        int(r.round): r.qualifying_format
+        for r in t.f1db_races[t.f1db_races["season"] == season].itertuples()
+    }
+    quali = t.quali_index[t.quali_index["season"] == season]
+    quali_by_round = {int(k): g.iloc[0] for k, g in quali.groupby("round")}
+    race = t.race_index[t.race_index["season"] == season]
+    race_by_round = {int(k): g.iloc[0] for k, g in race.groupby("round")}
+    rounds = []
+    for r in races.itertuples():
+        rnd = int(r.round)
+        name_ko, short_ko = t.gp(r.race_name)
+        res = results[results["round"] == rnd]
+        winners = res[res["position"] == 1]
+        poles = res[res["grid"] == 1]
+        q = quali_by_round.get(rnd)
+        x = race_by_round.get(rnd)
+        fmt = formats.get(rnd)
+        rounds.append(
+            {
+                "round": rnd,
+                "name": r.race_name,
+                "name_ko": name_ko,
+                "short_ko": short_ko,
+                "date": str(r.date)[:10],
+                "circuit": r.circuit_name,
+                "locality": r.locality,
+                "country": r.country,
+                "has_sprint": bool(r.has_sprint),
+                # 공동 우승(1951, 1956, 1957년의 차량 공유)은 여러 명이다.
+                "winners": [
+                    {
+                        **t.driver(w.driver_id),
+                        "constructor_id": w.constructor_id,
+                        "constructor": t.team_name(season, w.constructor_id),
+                    }
+                    for w in winners.itertuples()
+                ],
+                "pole": [
+                    {
+                        **t.driver(p.driver_id),
+                        "constructor_id": p.constructor_id,
+                        "constructor": t.team_name(season, p.constructor_id),
+                    }
+                    for p in poles.itertuples()
+                ],
+                "quali": None
+                if q is None
+                else {
+                    "format": fmt,
+                    "format_ko": QUALI_FORMATS_KO.get(fmt, fmt),
+                    "reference": bool(q.is_reference_format),
+                    "wet": q.wet_flag,
+                    "source": q.time_source,
+                    "best_ms": clean(q.session_best_ms),
+                },
+                "race": None if x is None else {"wet": bool(x.is_wet), "laps": clean(x.race_laps)},
+            }
+        )
+    return rounds
+
+
+def standings_series(
+    standings: pd.DataFrame, key: str, rounds: list[int]
+) -> dict[str, dict[str, list]]:
+    """참가자별로 라운드 순서의 순위와 누적 점수를 만든다. 기록이 없는 라운드는 None이다."""
+    out: dict[str, dict[str, list]] = {}
+    index = {rnd: i for i, rnd in enumerate(rounds)}
+    for row in standings.itertuples():
+        entry = out.setdefault(
+            getattr(row, key),
+            {"positions": [None] * len(rounds), "points": [None] * len(rounds), "wins": 0},
+        )
+        i = index.get(int(row.round))
+        if i is None:
+            continue
+        entry["positions"][i] = clean(row.position)
+        entry["points"][i] = clean(row.points)
+        entry["wins"] = max(entry["wins"], int(row.wins or 0))
+    return out
+
+
+def last_value(values: list) -> object:
+    for v in reversed(values):
+        if v is not None:
+            return v
+    return None
+
+
+def build_season(t: Tables, season: int) -> dict:
+    rounds = season_rounds(t, season)
+    round_numbers = [r["round"] for r in rounds]
+    results = t.results[(t.results["season"] == season) & (t.results["session_type"] == "R")]
+
+    ds = t.driver_standings[t.driver_standings["season"] == season]
+    driver_series = standings_series(ds, "driver_id", round_numbers)
+    teams_of_driver: dict[str, list[str]] = {}
+    for row in results.sort_values("round").itertuples():
+        seen = teams_of_driver.setdefault(row.driver_id, [])
+        if row.constructor_id not in seen:
+            seen.append(row.constructor_id)
+    drivers = []
+    for driver_id, series in driver_series.items():
+        drivers.append(
+            {
+                **t.driver(driver_id),
+                "constructor_ids": teams_of_driver.get(driver_id, []),
+                "constructors": [
+                    t.team_name(season, c) for c in teams_of_driver.get(driver_id, [])
+                ],
+                "position": last_value(series["positions"]),
+                "final_points": last_value(series["points"]),
+                "wins": series["wins"],
+                "positions": series["positions"],
+                "points": series["points"],
+            }
+        )
+    drivers.sort(key=lambda d: (d["position"] is None, d["position"] or 0, d["name"]))
+
+    cs = t.constructor_standings[t.constructor_standings["season"] == season]
+    constructor_series = standings_series(cs, "constructor_id", round_numbers)
+    quali = t.quali_index[t.quali_index["season"] == season]
+    race = t.race_index[t.race_index["season"] == season]
+    entered = list(
+        dict.fromkeys(results.sort_values(["round", "constructor_id"])["constructor_id"])
+    )
+    constructor_ids = list(dict.fromkeys([*constructor_series, *entered, *quali["constructor_id"]]))
+    index = {rnd: i for i, rnd in enumerate(round_numbers)}
+    constructors = []
+    for cid in constructor_ids:
+        series = constructor_series.get(cid)
+        qi = [None] * len(round_numbers)
+        for row in quali[quali["constructor_id"] == cid].itertuples():
+            qi[index[int(row.round)]] = clean(row.index_pct, 3)
+        ri = [None] * len(round_numbers)
+        for row in race[race["constructor_id"] == cid].itertuples():
+            value = clean(row.index_pct, 3)
+            ri[index[int(row.round)]] = (
+                None
+                if value is None
+                else {
+                    "v": value,
+                    "lo": clean(row.ci_low_pct, 3),
+                    "hi": clean(row.ci_high_pct, 3),
+                    "n": clean(row.clean_laps),
+                }
+            )
+        constructors.append(
+            {
+                "id": cid,
+                "name": t.team_name(season, cid),
+                "lineage_id": t.lineage_of(season, cid),
+                "pu": t.pu_of(season, cid),
+                "position": last_value(series["positions"]) if series else None,
+                "final_points": last_value(series["points"]) if series else None,
+                "wins": series["wins"] if series else None,
+                "positions": series["positions"] if series else None,
+                "points": series["points"] if series else None,
+                "quali_index": qi if any(v is not None for v in qi) else None,
+                "race_index": ri if any(v is not None for v in ri) else None,
+            }
+        )
+    constructors.sort(
+        key=lambda c: (c["position"] is None, c["position"] or 0, c["name"].casefold())
+    )
     return {
-        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "last_season": LAST_SEASON,
+        "season": season,
+        "rounds": rounds,
+        "drivers": drivers,
+        "constructors": constructors,
+        "has_constructor_standings": bool(len(cs)),
+        "has_quali_index": bool(len(quali)),
+        "has_race_index": bool(len(race)),
     }
 
 
+def season_summary(season_data: dict) -> dict:
+    drivers = [d for d in season_data["drivers"] if d["position"] == 1]
+    constructors = [c for c in season_data["constructors"] if c["position"] == 1]
+    return {
+        "season": season_data["season"],
+        "rounds": len(season_data["rounds"]),
+        "champion_driver": None
+        if not drivers
+        else {k: drivers[0][k] for k in ("id", "name", "constructors", "final_points")},
+        "champion_constructor": None
+        if not constructors
+        else {k: constructors[0][k] for k in ("id", "name", "final_points")},
+        "has_quali_index": season_data["has_quali_index"],
+        "has_race_index": season_data["has_race_index"],
+    }
+
+
+# --- 팀(계보) --------------------------------------------------------------------------
+
+
+def build_team(t: Tables, lineage: object, seasons: dict[int, dict]) -> dict:
+    lineage_id = lineage.lineage_id
+    links = t.lineage_links[t.lineage_links["lineage_id"] == lineage_id].sort_values("season_from")
+    evidence = t.lineage_evidence[t.lineage_evidence["lineage_id"] == lineage_id]
+    members = t.constructor_seasons[t.constructor_seasons["lineage_id"] == lineage_id]
+    rows = []
+    for member in members.sort_values(["season", "constructor_id"]).itertuples():
+        season = int(member.season)
+        data = seasons[season]
+        entry = next((c for c in data["constructors"] if c["id"] == member.constructor_id), None)
+        dry_quali, all_quali = [], []
+        race_values = []
+        for i, rnd in enumerate(data["rounds"]):
+            if entry and entry["quali_index"] and entry["quali_index"][i] is not None:
+                all_quali.append(entry["quali_index"][i])
+                if rnd["quali"] and rnd["quali"]["wet"] != "wet":
+                    dry_quali.append(entry["quali_index"][i])
+            race_value = entry["race_index"][i] if entry and entry["race_index"] else None
+            if race_value is not None and rnd["race"] and not rnd["race"]["wet"]:
+                race_values.append(race_value["v"])
+        quali_formats = {r["quali"]["format"] for r in data["rounds"] if r["quali"]}
+        rows.append(
+            {
+                "season": season,
+                "constructor_id": member.constructor_id,
+                "team_name": member.team_name,
+                "entrant": member.entrant_name if isinstance(member.entrant_name, str) else None,
+                "pu": t.pu_of(season, member.constructor_id),
+                "position": entry["position"] if entry else None,
+                "points": entry["final_points"] if entry else None,
+                "wins": entry["wins"] if entry else None,
+                "races": len(data["rounds"]),
+                # 시즌 요약은 우천 이상값에 덜 흔들리도록 중앙값을 쓴다.
+                "quali_index_median": clean(pd.Series(dry_quali).median(), 3)
+                if dry_quali
+                else None,
+                "quali_rounds": len(dry_quali),
+                "quali_rounds_all": len(all_quali),
+                "quali_wet_unclassified": season < RACE_INDEX_FIRST_SEASON and bool(all_quali),
+                "quali_reference": bool(quali_formats & {"ONE_LAP", "AGGREGATE"}),
+                "race_index_median": clean(pd.Series(race_values).median(), 3)
+                if race_values
+                else None,
+                "race_rounds": len(race_values),
+            }
+        )
+    current = t.season_team.get((LAST_SEASON, lineage.constructor_id_2025))
+    return {
+        "lineage_id": lineage_id,
+        "name_ko": lineage.name_ko,
+        "base": lineage.base,
+        "constructor": {
+            "id": lineage.constructor_id_2025,
+            "name": t.team_name(LAST_SEASON, lineage.constructor_id_2025),
+        },
+        "entrant": current.entrant_name if current is not None else None,
+        "pu": t.pu_of(LAST_SEASON, lineage.constructor_id_2025),
+        "segments": [
+            {
+                "constructor_id": r.constructor_id,
+                "team_name": r.team_name,
+                "from": int(r.season_from),
+                "to": int(r.season_to),
+                "link_type": r.link_type,
+                "link_type_ko": LINK_TYPES_KO.get(r.link_type, r.link_type),
+                "note": r.note if isinstance(r.note, str) else None,
+            }
+            for r in links.itertuples()
+        ],
+        "evidence": [
+            {
+                "constructor_id": r.constructor_id,
+                "season_from": int(r.season_from),
+                "kind": r.evidence_kind,
+                "url": r.evidence_url,
+                "quote": r.quote,
+                "verified_on": r.verified_on,
+            }
+            for r in evidence.itertuples()
+        ],
+        "seasons": rows,
+    }
+
+
+# --- 업그레이드 ------------------------------------------------------------------------
+
+
+def build_upgrades(t: Tables) -> dict:
+    items = []
+    for r in t.upgrades.sort_values(
+        ["season", "round", "constructor_id", "row_order"]
+    ).itertuples():
+        season, rnd = int(r.season), int(r.round)
+        name_ko, short_ko = t.gp(r.event)
+        items.append(
+            {
+                "season": season,
+                "round": rnd,
+                "event": r.event,
+                "event_ko": name_ko,
+                "event_short_ko": short_ko,
+                "constructor_id": r.constructor_id,
+                "team": t.team_name(season, r.constructor_id),
+                "lineage_id": t.lineage_of(season, r.constructor_id),
+                "no": r.item_no,
+                "no_inferred": bool(r.item_no_inferred),
+                "component": r.updated_component,
+                "area": r.component_area,
+                "reason": r.primary_reason,
+                "category": r.reason_category,
+                "category_inferred": bool(r.reason_category_inferred),
+                "detail": r.reason_detail,
+                "geometry": r.geometric_differences,
+                "description": r.description,
+                "description_shared": bool(r.description_shared),
+                "review": r.document_status != "ok",
+                "url": r.source_url,
+            }
+        )
+    documents = []
+    for d in t.upgrade_docs.sort_values(["season", "round"]).itertuples():
+        name_ko, short_ko = t.gp(d.event)
+        teams = t.upgrade_teams[
+            (t.upgrade_teams["season"] == d.season) & (t.upgrade_teams["round"] == d.round)
+        ]
+        documents.append(
+            {
+                "season": int(d.season),
+                "round": int(d.round),
+                "event": d.event,
+                "event_ko": name_ko,
+                "event_short_ko": short_ko,
+                "published_at": d.published_at if isinstance(d.published_at, str) else None,
+                "url": d.url,
+                "items": int(d.rows),
+                "review": d.status != "ok",
+                "problems": d.problems if isinstance(d.problems, str) else None,
+                "teams": [
+                    {
+                        "constructor_id": x.constructor_id,
+                        "team": t.team_name(int(d.season), x.constructor_id),
+                        "lineage_id": t.lineage_of(int(d.season), x.constructor_id),
+                        "status": x.status,
+                        "items": int(x.rows),
+                        "page": int(x.page),
+                    }
+                    for x in teams.sort_values("constructor_id").itertuples()
+                ],
+            }
+        )
+    # 목록이 없는 대회(문서를 찾지 못한 대회)를 밝힌다.
+    have = {(d["season"], d["round"]) for d in documents}
+    missing = []
+    for r in (
+        t.races[t.races["season"] >= UPGRADES_FIRST_SEASON]
+        .sort_values(["season", "round"])
+        .itertuples()
+    ):
+        if (int(r.season), int(r.round)) not in have:
+            name_ko, short_ko = t.gp(r.race_name)
+            missing.append(
+                {
+                    "season": int(r.season),
+                    "round": int(r.round),
+                    "event": r.race_name,
+                    "event_ko": name_ko,
+                    "event_short_ko": short_ko,
+                }
+            )
+    return {"items": items, "documents": documents, "missing_events": missing}
+
+
+# --- 홈 --------------------------------------------------------------------------------
+
+
+def format_gap(ms: float | None, winner_ms: float | None) -> str | None:
+    if ms is None or winner_ms is None:
+        return None
+    return f"+{(ms - winner_ms) / 1000:.3f}"
+
+
+def format_race_time(ms: float) -> str:
+    total = ms / 1000
+    hours, rest = divmod(total, 3600)
+    minutes, seconds = divmod(rest, 60)
+    return f"{int(hours)}:{int(minutes):02d}:{seconds:06.3f}"
+
+
+def format_lap(ms: float) -> str:
+    minutes, seconds = divmod(ms / 1000, 60)
+    return f"{int(minutes)}:{seconds:06.3f}"
+
+
+def build_home(t: Tables, seasons: dict[int, dict], upgrades: dict) -> dict:
+    season = LAST_SEASON
+    data = seasons[season]
+    last = data["rounds"][-1]
+    rnd = last["round"]
+    res = t.results[
+        (t.results["season"] == season)
+        & (t.results["round"] == rnd)
+        & (t.results["session_type"] == "R")
+    ]
+    winner_ms = res.loc[res["position"] == 1, "time_ms"]
+    winner_ms = clean(winner_ms.iloc[0]) if len(winner_ms) else None
+    classification = []
+    winner_laps = clean(res.loc[res["position"] == 1, "laps_completed"].max())
+    ordered = res.assign(_order=res["position"].fillna(999)).sort_values(["_order", "grid"])
+    for r in ordered.itertuples():
+        time_ms = clean(r.time_ms)
+        laps = clean(r.laps_completed)
+        behind = None if laps is None or winner_laps is None else int(winner_laps - laps)
+        if r.position == 1 and time_ms is not None:
+            time_text = format_race_time(time_ms)
+        elif r.is_classified and behind:
+            time_text = f"+{behind}랩"  # 한 바퀴 이상 뒤진 차는 시간 차 대신 랩 수 차를 적는다
+        elif r.is_classified and time_ms is not None:
+            time_text = format_gap(time_ms, winner_ms)
+        else:
+            time_text = None
+        classification.append(
+            {
+                "position": clean(r.position),
+                **t.driver(r.driver_id),
+                "number": clean(r.car_number),
+                "constructor_id": r.constructor_id,
+                "constructor": t.team_name(season, r.constructor_id),
+                "lineage_id": t.lineage_of(season, r.constructor_id),
+                "grid": clean(r.grid),
+                "laps": clean(r.laps_completed),
+                "time": time_text,
+                "status": r.status_detail,
+                "points": clean(r.points),
+                "fastest_lap": bool(r.fastest_lap_rank == 1),
+            }
+        )
+    quali = t.qualifying[(t.qualifying["season"] == season) & (t.qualifying["round"] == rnd)]
+    quali = quali[quali["session_type"].isin(["Q1", "Q2", "Q3"])].dropna(subset=["best_time_ms"])
+    session_best = None
+    if len(quali):
+        best = quali.sort_values("best_time_ms").iloc[0]
+        session_best = {
+            **t.driver(best.driver_id),
+            "constructor": t.team_name(season, best.constructor_id),
+            "session": best.session_type,
+            "time": format_lap(float(best.best_time_ms)),
+        }
+    index = len(data["rounds"]) - 1
+    pace = []
+    for c in data["constructors"]:
+        pace.append(
+            {
+                "constructor_id": c["id"],
+                "constructor": c["name"],
+                "lineage_id": c["lineage_id"],
+                "quali": c["quali_index"][index] if c["quali_index"] else None,
+                "race": c["race_index"][index] if c["race_index"] else None,
+            }
+        )
+    documents = [d for d in upgrades["documents"] if d["season"] == season]
+    this_weekend = next((d for d in documents if d["round"] == rnd), None)
+    latest_with_items = next((d for d in reversed(documents) if d["items"] > 0), None)
+
+    def weekend(doc: dict | None) -> dict | None:
+        if doc is None:
+            return None
+        return {
+            **{
+                k: doc[k]
+                for k in ("season", "round", "event", "event_ko", "url", "items", "review")
+            },
+            "published_at": doc["published_at"],
+            "teams": doc["teams"],
+            "list": [
+                i for i in upgrades["items"] if i["season"] == season and i["round"] == doc["round"]
+            ],
+        }
+
+    return {
+        "season": season,
+        "race": last,
+        "classification": classification,
+        "session_best": session_best,
+        "pace": pace,
+        "upgrades_this_weekend": weekend(this_weekend),
+        "upgrades_latest": weekend(latest_with_items),
+        "drivers_top": [
+            {
+                k: d[k]
+                for k in ("id", "name", "code", "constructors", "position", "final_points", "wins")
+            }
+            for d in data["drivers"][:5]
+        ],
+        "constructors_top": [
+            {k: c[k] for k in ("id", "name", "lineage_id", "position", "final_points", "wins")}
+            for c in data["constructors"][:5]
+        ],
+    }
+
+
+# --- 기준일과 표기 ---------------------------------------------------------------------
+
+
+def build_meta(t: Tables) -> dict:
+    datasets = {r["source"]: r for r in manifest.read_rows("datasets.csv")}
+    fia = manifest.read_rows("fia_documents.csv")
+    indexed = max(r["indexed_at"] for r in fia)
+    last_race = t.races[t.races["season"] == LAST_SEASON].sort_values("round").iloc[-1]
+    car_docs = [r for r in fia if r["doc_type"] == "car_presentation"]
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "generated_at": now,
+        "generated_on": kst_date(now),
+        "first_season": int(t.races["season"].min()),
+        "last_season": LAST_SEASON,
+        "last_race": {
+            "season": LAST_SEASON,
+            "round": int(last_race["round"]),
+            "name": last_race["race_name"],
+            "name_ko": t.gp(last_race["race_name"])[0],
+            "date": str(last_race["date"])[:10],
+        },
+        "sources": {
+            "jolpica": {
+                "name": "Jolpica-F1",
+                "url": "https://github.com/jolpica/jolpica-f1",
+                "license": "CC BY-NC-SA 4.0",
+                "version": datasets["jolpica"]["version"][:10],
+                "as_of": kst_date(datasets["jolpica"]["fetched_at"]),
+            },
+            "f1db": {
+                "name": "F1DB",
+                "url": "https://github.com/f1db/f1db",
+                "license": "CC BY 4.0",
+                "version": datasets["f1db"]["version"],
+                "as_of": kst_date(datasets["f1db"]["fetched_at"]),
+            },
+            "openf1": {
+                "name": "OpenF1",
+                "url": "https://openf1.org",
+                "license": "CC BY-NC-SA 4.0",
+                "version": datasets["openf1"]["version"],
+                "as_of": kst_date(datasets["openf1"]["fetched_at"]),
+            },
+            "fia": {
+                "name": "FIA 결정 문서",
+                "url": "https://www.fia.com/documents",
+                "license": "FIA 저작물, 원문 링크와 구조화 정보만 게시",
+                "version": f"{len(car_docs)}개 Car Presentation 문서",
+                "as_of": kst_date(indexed),
+            },
+        },
+        "counts": {
+            "races": int(len(t.races)),
+            "seasons": int(t.races["season"].nunique()),
+            "upgrade_items": int(len(t.upgrades)),
+            "upgrade_documents": int(len(t.upgrade_docs)),
+            "quali_index_races": int(t.quali_index.groupby(["season", "round"]).ngroups),
+            "race_index_races": int(t.race_index.groupby(["season", "round"]).ngroups),
+            "parse_failures": len(manifest.read_rows("parse_failures.csv")),
+        },
+    }
+
+
+def build_labels(t: Tables) -> dict:
+    return {
+        "component_areas": COMPONENT_AREAS_KO,
+        "reason_categories": REASON_CATEGORIES_KO,
+        "link_types": LINK_TYPES_KO,
+        "quali_formats": QUALI_FORMATS_KO,
+        "grand_prix": {
+            name: {"ko": ko, "short": short} for name, (ko, short) in t.gp_names.items()
+        },
+    }
+
+
+# --- 선택 항목(정제 테이블이 있을 때만) ------------------------------------------------
+
+
+def optional_builders() -> dict[str, object]:
+    """T6, T8 산출물이 있으면 해당 내보내기 함수를 불러 쓴다."""
+    out: dict[str, object] = {}
+    from pipeline import site_data_extra
+
+    for name, builder in site_data_extra.BUILDERS.items():
+        payload = builder()
+        if payload is not None:
+            out[name] = payload
+    return out
+
+
 def main() -> None:
-    write_json("meta.json", build_meta())
+    t = Tables()
+    first, last = int(t.races["season"].min()), LAST_SEASON
+    seasons = {season: build_season(t, season) for season in range(first, last + 1)}
+    for season, data in seasons.items():
+        write_json(f"season/{season}.json", data)
+    write_json("seasons.json", [season_summary(seasons[s]) for s in sorted(seasons, reverse=True)])
+
+    teams = [build_team(t, lineage, seasons) for lineage in t.lineages.itertuples()]
+    for team in teams:
+        write_json(f"team/{team['lineage_id']}.json", team)
+    write_json(
+        "teams.json",
+        [
+            {
+                **{
+                    k: team[k]
+                    for k in ("lineage_id", "name_ko", "base", "constructor", "entrant", "pu")
+                },
+                "since": team["segments"][0]["from"],
+                "names": [s["team_name"] for s in team["segments"]],
+            }
+            for team in teams
+        ],
+    )
+
+    upgrades = build_upgrades(t)
+    write_json("upgrades.json", upgrades)
+    write_json("home.json", build_home(t, seasons, upgrades))
+    write_json("labels.json", build_labels(t))
+    extra = optional_builders()
+    for name, payload in extra.items():
+        write_json(name, payload)
+    meta = build_meta(t)
+    meta["available"] = sorted(extra)
+    write_json("meta.json", meta)
+
+    files = sorted(p for p in SITE_DATA_DIR.rglob("*.json"))
+    total = sum(p.stat().st_size for p in files)
+    print(f"wrote {len(files)} files, {total / 1e6:.1f} MB under {_relative(SITE_DATA_DIR)}")
+
+
+def _relative(path: Path) -> str:
+    root = MANIFEST_DIR.parents[1]
+    return str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
 
 
 if __name__ == "__main__":

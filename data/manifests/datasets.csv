@@ -1,3 +1,4 @@
 source,name,version,url,sha256,bytes,upstream_published_at,fetched_at
 f1db,f1db-csv.zip,v2026.20.0,https://github.com/f1db/f1db/releases/download/v2026.20.0/f1db-csv.zip,0760d50ecb9fad9f267e14ceece73891c2095c812a71d024d0cfbda1f02b3863,4509622,,2026-11-10T15:42:35Z
 jolpica,delayed-dump-csv,2026-10-27T07:12:03.133526Z,https://api.jolpi.ca/data/dumps/download/delayed/?dump_type=csv,3154f289f6e8979dd0e42818bf06211568fc8e43af23a4ee4a1dc3daafa790d0,14669906,2026-10-27T07:12:03.133526Z,2026-11-10T15:42:35Z
+openf1,sessions-2023-2025,2023-2025,https://api.openf1.org/v1/,,,,2026-11-10T16:19:49Z
