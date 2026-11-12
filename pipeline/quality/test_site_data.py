@@ -187,7 +187,8 @@ def test_team_page_fields(site):
     vegas = next(
         r for r in site("team/grove.json")["upgrades"]["timeline"]["2024"] if r["round"] == 22
     )
-    assert vegas["status"] == "needs_review" and vegas["doc_review"]
+    # 14쪽 Williams는 사람 검수(human_review.csv i00)로 업데이트 없음이다
+    assert vegas["status"] == "no_updates" and not vegas["doc_review"]
 
 
 def test_home_tiles_and_round_counts(site):
@@ -212,7 +213,8 @@ def test_meta_has_as_of_dates_per_source(site):
     assert jolpica["dump"] == "2026-10-27"
     assert set(meta["sources"]) == {"jolpica", "f1db", "openf1", "fia", "pace"}
     assert all(len(s["as_of"]) == 10 for s in meta["sources"].values())
-    assert [(d["season"], d["round"]) for d in meta["review_documents"]] == [(2024, 22)]
+    # 2024 라스베이거스는 사람 검수(human_review.csv i00)로 검수 대기가 아니다
+    assert meta["review_documents"] == []
 
 
 def test_flags_are_exported(site):
@@ -265,7 +267,7 @@ def test_upgrades_export_is_complete(site):
     assert sum(1 for season, _ in missing if season == 2023) == 15
     assert not any(season == 2025 for season, _ in missing)
     review = {(i["season"], i["event"]) for i in upgrades["items"] if i["review"]}
-    assert review == {(2024, "Las Vegas Grand Prix")}
+    assert review == set()  # 2024 라스베이거스는 사람 검수 i00으로 정상이다
     labels = site("labels.json")
     assert {i["area"] for i in upgrades["items"]} <= set(labels["component_areas"])
     assert {i["category"] for i in upgrades["items"]} <= set(labels["reason_categories"])
@@ -582,16 +584,15 @@ def test_comparisons_name_the_versions_they_skip(site):
             assert k["url"] == hit["url"]
             if hit["status"] == "needs_review":
                 assert k["status"] == "needs_review" and k["review_reasons"]
-    assert reviewed == 7
-    # 2025 스포팅 규정 시즌 비교는 검수 대기인 Issue 5(2025-04-30)를 건너뛴다.
+    # 2026-11-13 사람 검수 뒤로는 모든 판이 파싱되어 건너뛴 판이 있는 비교가 없다.
+    assert reviewed == 0
+    # 2025 스포팅 규정 시즌 비교는 사람이 원문 번호 오류로 확인한 Issue 5(2025-04-30)까지 간다.
     c = next(
         c
         for c in reg["comparisons"]
         if c["kind"] == "season" and c["section"] == "sporting" and c["to_season"] == 2025
     )
-    assert c["review"] and [(k["issue"], k["version"]) for k in c["skipped_versions"]] == [
-        ("5", "2025-04-30")
-    ]
+    assert c["to_version"] == "2025-04-30" and not c["review"] and c["skipped_versions"] == []
 
 
 def test_needs_review_versions_say_why_in_korean(site):
@@ -599,7 +600,7 @@ def test_needs_review_versions_say_why_in_korean(site):
     docs = _reg_documents()
     review = docs[docs["status"] == "needs_review"]
     exported = [d for ds in reg["documents"].values() for d in ds if d["status"] == "needs_review"]
-    assert len(exported) == len(review) == 12
+    assert len(exported) == len(review)
     for d in exported:
         assert d["problems"] and d["review_reasons"]
         assert all(not r.endswith("..") and "\u2014" not in r for r in d["review_reasons"])
@@ -612,13 +613,15 @@ def test_needs_review_versions_say_why_in_korean(site):
         for y, ds in reg["documents"].items()
         for d in ds
     }
-    # 렌더링한 쪽에서 확인한 원문 오류는 원문 오류라고 적는다.
-    issue5 = by[(2025, "sporting", "2025-04-30")]["review_reasons"]
-    assert issue5[0].startswith("FIA 원문에 같은 조항 번호가 두 번 인쇄되어 있다(25쪽 23.6)")
-    # 확인하지 않은 문제는 아직 확인하지 않았다고 적는다.
-    unverified = by[(2022, "technical", "2021-12-15")]["review_reasons"]
-    assert unverified[-1] == "원문의 오류인지 파싱의 오류인지 아직 사람이 확인하지 않았다."
-    assert "14.3.3" in unverified[0]
+    # 사람이 원문 번호 오류로 확인한 판은 조항 파싱 판이고, 판 설명에 검수 id와 확인 내용을 싣는다.
+    noted = docs[docs["review_note"].notna()]
+    assert len(noted) == 11
+    for r in noted.itertuples():
+        d = by[(r.season, r.section, r.version_key)]
+        assert d["status"] == "parsed" and d["note_ko"] == r.review_note
+        assert d["note_ko"].startswith("사람 검수(2026-11-13, i") and "FIA 원문" in d["note_ko"]
+    issue5 = by[(2025, "sporting", "2025-04-30")]["note_ko"]
+    assert issue5.startswith("사람 검수(2026-11-13, i09)") and "23.6#2" in issue5
 
 
 def test_review_reasons_group_parser_problems():
@@ -655,10 +658,10 @@ def test_regulation_facts_carry_their_issue(site):
         pu.loc[pu["is_final_issue"] == "False", "element"]
     )
     for f in non_final:
-        assert (f["issue"], f["version_key"]) == ("4", "2025-02-26")
-        fin = f["final_issue"]
-        assert (fin["issue"], fin["version"], fin["status"]) == ("5", "2025-04-30", "needs_review")
-        assert fin["review_reasons"]
+        assert f["final_issue"]["status"] != "parsed"
+    # 2025 시즌 PU 할당 수는 사람 검수로 ok가 된 마지막 판 Issue 5(2025-04-30)에서 읽는다.
+    ice = next(f for f in reg["facts"]["2025"] if f.get("element") == "ICE")
+    assert (ice["issue"], ice["version_key"], ice["is_final_issue"]) == ("5", "2025-04-30", True)
 
 
 def test_engine_allocation_says_where_values_come_from(site):
@@ -666,9 +669,9 @@ def test_engine_allocation_says_where_values_come_from(site):
     s = engines["seasons"]["2025"]
     ice = s["allocation"]["ICE"]
     assert (ice["basis"], ice["clause_no"], ice["issue"], ice["is_final_issue"]) == (
-        "regulation", "28.2", "4", False,
+        "regulation", "28.2", "5", True,
     )  # fmt: skip
-    assert ice["final_issue"]["issue"] == "5" and ice["final_issue"]["status"] == "needs_review"
+    assert ice["final_issue"] is None
     # FIA 선언 문서의 배정 문장(pu_allocations.csv)도 함께 싣는다.
     statements = pd.read_csv(CURATED_DIR / "fia" / "pu_allocations.csv")
     for el, rows in s["allocation_statements"].items():

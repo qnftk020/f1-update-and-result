@@ -1,4 +1,5 @@
 ---
+import { status as siteStatus } from '../../lib/data.ts';
 // 업그레이드 탐색기. DESIGN.md "업그레이드 탐색기"와 design/final/explorer.html을 따른다.
 // 항목 855건을 모두 정적 HTML로 대회별 묶음에 싣는다(스크립트가 없어도 전부 읽힌다). 큰 JSON은 싣지 않고,
 // 브라우저 스크립트(components/upgrades/explorer-client.ts)가 항목의 data 속성으로 거르고 세고 그린다.
@@ -186,7 +187,7 @@ const shown = Math.min(PAGE, TOTAL);
           { type: 'rect', color: 's2', label: CAT.circuit_specific },
           { type: 'rect', color: 's3', label: CAT.reliability },
           { type: 'hollow', color: 'ctx', label: `${CAT.other} (빈 네모)` },
-          { type: 'review', label: '검수 대기 문서' },
+          ...(siteStatus.reviewDocuments.length > 0 ? [{ type: 'review', label: '검수 대기 문서' }] : []),
         ]}
         source={`${FIA_CP} ${DOCS}건, 이 사이트 파싱. 부품 영역은 파이프라인의 component_area ${Object.keys(AREA).length}개`}
         asof={asofFia()}

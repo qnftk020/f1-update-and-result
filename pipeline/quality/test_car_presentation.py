@@ -5,20 +5,25 @@ import csv
 import pandas as pd
 import pytest
 
-from pipeline import manifest
+from pipeline import manifest, review
 from pipeline.config import CURATED_DIR, RAW_DIR
 from pipeline.parsers import car_presentation as cp
 from pipeline.sources import fia_docs
 
 FIA = CURATED_DIR / "fia"
-# 표가 그림으로만 들어 있어 읽을 수 없는 문서. 사이트에는 "검수 대기"로 표시한다.
-KNOWN_FAILURES = {(2024, "Las Vegas Grand Prix")}
+# 표가 그림으로만 들어 있어 읽을 수 없는 문서. 사이트에는 "검수 대기"로 표시한다. 2024 라스베이거스
+# Williams(14쪽)는 사람이 그림 속 문구를 확인해(human_review.csv i00) 더는 검수 대기가 아니다.
+KNOWN_FAILURES: set[tuple[int, str]] = set()
+VEGAS_URL = (
+    "https://www.fia.com/sites/default/files/decision-document/"
+    "2024%20Las%20Vegas%20Grand%20Prix%20-%20Car%20Presentation%20Submissions.pdf"
+)
 # 원문을 다시 받아 파싱 결과를 대조하는 표본. 양식이 서로 다른 문서를 골랐다.
 SAMPLE = [
     (2023, "Mexico City Grand Prix"),  # 2023년 뉴스 첨부 양식
     (2024, "Saudi Arabian Grand Prix"),  # 번호 열 칸이 없는 팀, 같은 번호가 두 번 나오는 팀
     (2024, "Spanish Grand Prix"),  # 표가 다음 쪽으로 이어지는 팀
-    (2024, "Las Vegas Grand Prix"),  # 표가 그림인 팀(실패 문서)
+    (2024, "Las Vegas Grand Prix"),  # 표가 그림인 팀(사람 검수 i00으로 업데이트 없음)
     (2025, "Australian Grand Prix"),  # 행이 가장 많은 문서, 건너뛴 번호
     (2025, "Bahrain Grand Prix"),  # 병합된 설명 칸
 ]
@@ -162,10 +167,7 @@ def test_teams_match_the_grid_of_that_race(teams):
 def test_only_known_documents_need_review(teams, documents):
     review_docs = documents[documents["status"] != "ok"]
     assert {(r.season, r.event) for r in review_docs.itertuples()} == KNOWN_FAILURES
-    review_teams = teams[teams["status"] == "needs_review"]
-    assert [(r.season, r.event, r.constructor_id) for r in review_teams.itertuples()] == [
-        (2024, "Las Vegas Grand Prix", "williams")
-    ]
+    assert (teams["status"] != "needs_review").all()
     failures = [
         r for r in manifest.read_rows("parse_failures.csv") if r["doc_type"] == "car_presentation"
     ]
@@ -209,7 +211,9 @@ def test_parser_reproduces_curated_rows_from_source(items, teams):
     fia_docs.download_documents(["car_presentation"], urls={d["url"] for d in wanted})
     for doc in wanted:
         season, event = int(doc["season"]), doc["event"]
-        parsed = cp.parse_document(RAW_DIR / "fia" / fia_docs.pdf_cache_path(doc))
+        parsed = cp.parse_document(
+            RAW_DIR / "fia" / fia_docs.pdf_cache_path(doc), cp.document_reviews(doc["url"])
+        )
         assert parsed.ok == ((season, event) not in KNOWN_FAILURES)
         expected = items[(items["season"] == season) & (items["event"] == event)]
         got = [
@@ -235,3 +239,48 @@ def test_documents_file_is_consistent_with_manifest(documents):
     assert set(documents["url"]) == urls
     with open(FIA / "car_presentation_documents.csv", newline="", encoding="utf-8") as f:
         assert next(csv.reader(f))[:3] == ["season", "round", "event"]
+
+
+# --- 사람 검수 결정 ---------------------------------------------------------------------------
+
+
+def test_human_review_marks_vegas_williams_as_no_updates(teams, documents):
+    """i00: 2024 라스베이거스 14쪽 Williams는 그림 속 문구대로 업데이트 없음이고 문서는 정상이다."""
+    [decision] = [r for r in review.decisions("car_presentation") if r["id"] == "i00"]
+    assert decision["source_url"] == VEGAS_URL and decision["decision"] == "no_updates"
+    vegas = teams[(teams["season"] == 2024) & (teams["round"] == 22)].set_index("constructor_id")
+    williams = vegas.loc["williams"]
+    assert (williams["status"], williams["rows"], williams["page"]) == ("no_updates", 0, 14)
+    assert williams["note"].startswith("사람 검수(2026-11-13, i00): 14쪽")
+    # 결정은 그 팀 한 줄에만 붙는다
+    assert teams["note"].notna().sum() == 1
+    doc = documents.set_index("url").loc[VEGAS_URL]
+    assert (doc["status"], doc["no_update_teams"], doc["teams"], doc["rows"]) == ("ok", 1, 10, 19)
+    assert pd.isna(doc["problems"])
+    assert VEGAS_URL not in {r["url"] for r in manifest.read_rows("parse_failures.csv")}
+
+
+def test_reviewed_no_updates_is_keyed_by_page_and_team():
+    rows = [{"id": "x1", "reviewed_at": "2026-11-13", "decision": "no_updates",
+             "target": "williams", "page": "14", "source_url": "u"}]  # fmt: skip
+    assert cp.reviewed_no_updates(rows, 14, "williams") is rows[0]
+    assert cp.reviewed_no_updates(rows, 13, "williams") is None
+    assert cp.reviewed_no_updates(rows, 14, "haas") is None
+    assert cp.reviewed_no_updates([{**rows[0], "decision": "other"}], 14, "williams") is None
+
+
+def test_vegas_review_applies_only_where_it_points():
+    """결정이 없으면 원래대로 검수 대기이고, 쪽이 틀린 결정은 적용하지 않고 문제로 남긴다."""
+    docs = [
+        r for r in manifest.read_rows(fia_docs.INDEX_MANIFEST) if r["url"] == VEGAS_URL
+    ]  # fmt: skip
+    path = RAW_DIR / "fia" / fia_docs.pdf_cache_path(docs[0])
+    if not path.exists():
+        pytest.skip("원문이 캐시에 없다")
+    reviews = cp.document_reviews(VEGAS_URL)
+    assert [r["id"] for r in reviews] == ["i00"]
+    assert cp.parse_document(path, reviews).ok
+    plain = cp.parse_document(path)
+    assert plain.problems == ["14쪽: Williams Racing: 표도 'No updates submitted'도 글자로 없다"]
+    wrong = cp.parse_document(path, [{**reviews[0], "page": "13"}])
+    assert len(wrong.problems) == 2 and "i00" in wrong.problems[1]

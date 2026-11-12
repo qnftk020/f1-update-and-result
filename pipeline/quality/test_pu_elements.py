@@ -8,7 +8,7 @@ from urllib.parse import unquote
 import pandas as pd
 import pytest
 
-from pipeline import manifest
+from pipeline import manifest, review
 from pipeline.config import CURATED_DIR, RAW_DIR
 from pipeline.http import sha256_bytes
 from pipeline.parsers import pu_elements as pu
@@ -17,33 +17,17 @@ from pipeline.sources import fia_docs
 FIA = CURATED_DIR / "fia"
 STATUSES = {"ok", "needs_review", "not_downloaded", "superseded", "held"}
 # 원문 자체가 어긋나 자동으로 읽지 않는 문서(파일 이름 -> 까닭). 사이트에는 "검수 대기"로 표시한다.
-KNOWN_FAILURES = {
-    "2022 Belgian Grand Prix - New PU elements for this Event, Parc Fermé issue.pdf": (
-        "MGU-K 표에는 Yuki Tsunoda가 있는데 배정 문장은 Pierre Gasly를 가리킨다"
-    ),
-    "2025_chinese_grand_prix_-_pu_elements_used_per_driver_up_to_now.pdf": (
-        "Isack Hadjar의 행에 차량 번호가 30으로 적혀 30번이 두 번 나온다"
-    ),
-    "2024 Bahrain Grand Prix - New PU elements for this Competition.pdf": (
-        "CE 표의 Previously used 칸이 비어 있다"
-    ),
-    "2023 Miami Grand Prix - New PU elements for this Competition.pdf": (
-        "CE 표의 Previously used 칸이 비어 있다"
-    ),
-    # 2023 Sargeant(2번) EX: R13, R14는 5, R15부터 4. 값이 줄어든 이웃 쌍(R14, R15)만 검수 대기로
-    # 둔다. 앞뒤의 R13, R16 문서는 정확히 읽혔고 이웃 쌍과의 값도 맞으므로 정상이다.
-    "2023 Italian Grand Prix - PU elements used per driver up to now.pdf": "Sargeant EX 5 -> 4",
-    "2023 Singapore Grand Prix - PU elements used per driver up to now.pdf": "Sargeant EX 5 -> 4",
-    "2025_japanese_grand_prix_-_pu_elements_used_per_driver_up_to_now.pdf": (
-        "Tsunoda와 Lawson이 팀을 맞바꾼 대회인데 표는 앞 대회의 번호, 이름, 팀 조합 그대로다"
-    ),
-}
+# 2026-11-13 사람 검수(human_review.csv i01-i07)로 2022 벨기에 문서 60, 2023 마이애미, 2024 바레인
+# 선언 문서, 2023 이탈리아, 싱가포르, 2025 중국, 일본 누적 문서는 정상이 되어 지금은 없다.
+KNOWN_FAILURES: dict[str, str] = {}
+# KNOWN_FAILURES 가운데 이웃 누적 문서와 견주어 생긴 실패(문서 한 건의 파싱은 정상)
+PAIR_FAILURES = set(KNOWN_FAILURES)
 # 원문을 다시 파싱해 정제 데이터와 대조하는 표본. 양식이 서로 다른 문서를 골랐다.
 SAMPLE = [
     "2020 Austrian Grand Prix - New PU elements for this Event.pdf",  # 한 쪽 양식, 줄바꿈된 팀 칸
     "2020 Sakhir Grand Prix - PU elements used per driver up to now.pdf",  # 대체 드라이버 셋
     "2021 Azerbaijan Grand Prix - New PU elements for this Event.pdf",  # 69행, 쪽을 넘는 표
-    "2022 Belgian Grand Prix - New PU elements for this Event, Parc Fermé issue.pdf",  # 실패 문서
+    "2022 Belgian Grand Prix - New PU elements for this Event, Parc Fermé issue.pdf",  # 사람 검수
     "2025_australian_grand_prix_-_new_pu_elements_for_this_competition.pdf",  # "All drivers"
     "2025_bahrain_grand_prix_-_pu_elements_used_per_driver_up_to_now.pdf",  # 왼쪽 맞춤 숫자
 ]
@@ -1228,8 +1212,9 @@ def test_every_ok_used_document_lists_the_grid(used, grid):
 
 
 def test_counts_never_decrease_within_a_season(used, documents, inconsistencies):
-    """정상 누적 문서 사이에서 값이 줄면, 그 사이의 이웃한 두 문서가 검수 대기이고 끊김이 한 번만
-    적혀 있어야 한다(2023 Sargeant EX: R14 5, R15 4).
+    """누적 문서 사이에서 값이 줄면, 그 사이의 이웃한 두 문서가 검수 대기이고 끊김이 한 번만 적혀
+    있어야 한다. 사람이 두 값을 받아들인 끊김(2023 Sargeant EX R14 5, R15 4: i04, i05)은 적혀 있되
+    두 문서 모두 정상이다.
     """
     keys = ["season", "constructor_id", "car_number", "element"]
     ok = used[used["document_status"] == "ok"].sort_values("round")
@@ -1249,12 +1234,14 @@ def test_counts_never_decrease_within_a_season(used, documents, inconsistencies)
         (documents["doc_type"] == "pu_used") & documents["status"].isin(["ok", "needs_review"])
     ]
     for r in listed.itertuples():
-        assert status[r.earlier_url] == status[r.later_url] == "needs_review"
+        expected = "ok" if "사람이 검수해 받아들였으므로" in r.note else "needs_review"
+        assert status[r.earlier_url] == status[r.later_url] == expected, r.note
         between = read[(read["season"] == r.season) & (read["round"] > r.earlier_round)
                        & (read["round"] < r.later_round)]  # fmt: skip
         assert between.empty, (r.season, r.earlier_round, r.later_round)
     sargeant = listed[(listed["season"] == 2023) & (listed["car_number"] == 2)]
     assert list(zip(sargeant["earlier_round"], sargeant["later_round"], strict=True)) == [(14, 15)]
+    assert "i04" in sargeant["note"].iloc[0] and "i05" in sargeant["note"].iloc[0]
 
 
 def test_new_table_values(new):
@@ -1323,7 +1310,10 @@ def test_next_snapshot_is_previous_plus_new_or_listed(used, new, documents, inco
     earlier = ok.merge(added, on=["round", *keys], how="left").fillna({"new": 0})
     earlier["round"] += 1
     pairs = earlier.merge(ok, on=["round", *keys], suffixes=("_before", "_after"))
-    listed = inconsistencies[inconsistencies["kind"] == "snapshot_sequence"]
+    # 값이 줄어든 칸은 snapshot_decrease로 적는다(사람이 받아들인 2023 Sargeant EX R14, R15)
+    listed = inconsistencies[
+        inconsistencies["kind"].isin(["snapshot_sequence", "snapshot_decrease"])
+    ]
     listed = set(zip(listed["season"], listed["later_round"], listed["constructor_id"],
                      listed["car_number"], listed["element"], strict=True))  # fmt: skip
     compared = 0
@@ -1438,17 +1428,18 @@ def test_usage_regressions(usage):
     # 2022 마이애미, 캐나다: 선언의 Previously used가 누적 값보다 크다. after를 정하지 않는다
     for key in [(2022, 5, 77, "TC"), (2022, 9, 16, "ICE"), (2022, 9, 22, "CE")]:
         assert pd.isna(cell.loc[key, "used_after_event"]) and cell.loc[key, "new_at_event"] == 1
-    # 2022 벨기에: 검수 대기 문서 60은 22번만 다룬다. 다른 차량의 개수는 정해진다
+    # 2022 벨기에: 문서 60(22번)은 사람 검수 i01로 정상이 되어 모든 차량의 개수가 정해진다
     belgium = usage[(usage["season"] == 2022) & (usage["round"] == 14)]
-    assert set(belgium.loc[belgium["new_at_event"].isna(), "car_number"]) == {22}
+    assert belgium["new_at_event"].notna().all()
+    assert cell.loc[(2022, 14, 22, "MGU-K"), "used_after_event"] == 5
 
 
 def test_inconsistency_regressions(inconsistencies, new):
-    # 2022 벨기에 -> 네덜란드 쌍은 22번(검수 대기 문서 60)을 빼고 비교한다
+    # 2022 벨기에 -> 네덜란드 쌍은 문서 60이 사람 검수 i01로 정상이 되어 22번도 비교한다
     found = inconsistencies
     pair = found[(found["season"] == 2022) & (found["earlier_round"] == 14)
                  & (found["later_round"] == 15)]  # fmt: skip
-    assert len(pair) >= 50 and 22 not in set(pair["car_number"])
+    assert len(pair) >= 50
     # 2023 Hülkenberg, Magnussen, Zhou의 끊김은 값이 실제로 바뀐 이웃 쌍에 적는다
     haas = inconsistencies[(inconsistencies["season"] == 2023)
                            & inconsistencies["car_number"].isin([27, 20, 24])]  # fmt: skip
@@ -1556,11 +1547,13 @@ def test_parser_reproduces_curated_rows_from_source(used, new, documents):
     if not all(path.exists() for path in paths):
         fia_docs.download_documents(pu.DOC_TYPES, urls={d["url"] for d in wanted})
     status = documents.set_index("url")["status"]
+    listed = manifest.read_rows(fia_docs.INDEX_MANIFEST)
     for doc, path in zip(wanted, paths, strict=True):
         name = file_name(doc["url"])
         assert not doc["sha256"] or doc["sha256"] == sha256_bytes(path.read_bytes()), name
+        reviews = pu.document_reviews(doc, None, listed)
         if doc["doc_type"] == "pu_used":
-            parsed = pu.parse_used(path)
+            parsed = pu.parse_used(path, reviews)
             got = [
                 (r["car_number"], r["team_text"], r["driver_name"], element, r["used"][element])
                 for r in parsed.rows
@@ -1572,7 +1565,7 @@ def test_parser_reproduces_curated_rows_from_source(used, new, documents):
                 for r in rows.itertuples()
             ]
         else:
-            parsed = pu.parse_new(path)
+            parsed = pu.parse_new(path, reviews)
             got = [
                 (r["car_number"], r["team_text"], r["driver_name"], r["element"],
                  r["previously_used"], r["allocation_text"], r["within_allocation"])
@@ -1587,7 +1580,8 @@ def test_parser_reproduces_curated_rows_from_source(used, new, documents):
                 for r in rows.itertuples()
             ]  # fmt: skip
         assert got == want and got, name
-        assert parsed.ok == (name not in KNOWN_FAILURES), name
+        # 이웃 누적 문서와 견주어 생긴 실패는 문서 한 건만 읽어서는 드러나지 않는다
+        assert parsed.ok == (name not in set(KNOWN_FAILURES) - PAIR_FAILURES), name
         assert (status[doc["url"]] == "needs_review") == (name in KNOWN_FAILURES), name
 
 
@@ -1694,3 +1688,283 @@ def test_new_parser_matches_hand_transcribed_values(name):
     if per_element is not None:  # 쪽을 넘는 표의 첫 행과 마지막 행
         tc = [r["car_number"] for r in parsed.rows if r["element"] == "TC"]
         assert (tc[0], tc[-1]) == (44, 6)
+
+
+# --- 사람 검수 결정 ---------------------------------------------------------------------------
+
+
+def decision(id_: str, decision_: str, target: str, value: str = "", page: str = "") -> dict:
+    """합성 사람 검수 결정 한 줄(human_review.csv의 열)."""
+    return {
+        "id": id_, "reviewed_at": "2026-11-13", "doc_type": "pu_used", "season": "2021",
+        "round": "", "source_url": "u", "page": page, "target": target, "decision": decision_,
+        "value": value, "note": "",
+    }  # fmt: skip
+
+
+def test_reviews_fix_used_cells_and_car_number_before_the_duplicate_check():
+    """i04, i05, i06 꼴: 칸 값과 차량 번호를 결정대로 읽고, 원문 값은 메모에 남긴다."""
+    reviews = pu.Reviews(
+        [
+            decision("a", "car_number_is", "Isack Hadjar car number", "6", "1"),
+            decision("b", "printed_value_is", "2 EX", "4"),
+            decision("c", "accept_printed", "30 ICE", "1"),
+        ]
+    )
+    _, rows, problems = pu.parse_used_lines(
+        lines(
+            cells(100, *USED_HEADER),
+            used_line(112, "30", "Red Bull Racing Honda RBPT", "Liam Lawson", "1 1 1 1 1 1 1"),
+            used_line(124, "30", "Racing Bulls Honda RBPT", "Isack Hadjar", "1 1 1 1 1 1 1"),
+            used_line(136, "2", "Williams Mercedes", "Logan Sargeant", "1 1 1 1 1 1 5"),
+        ),
+        reviews,
+    )
+    assert problems == [] and reviews.unapplied() == []
+    assert [r["car_number"] for r in rows] == [30, 6, 2]
+    assert rows[1]["review_note"] == "사람 검수(2026-11-13, a): 원문 30번을 6번으로 읽음"
+    assert rows[2]["used"]["EX"] == 4
+    assert pu.review_note(rows[2], "EX") == "사람 검수(2026-11-13, b): 원문 5개를 4개로 읽음"
+    assert pu.review_note(rows[2], "ICE") == ""
+    assert pu.review_note(rows[0], "ICE") == "사람 검수(2026-11-13, c): 원문 1개를 그대로 받아들임"
+    assert rows[0]["review_accepted"] == {"ICE"} and "review_accepted" not in rows[2]
+
+
+def test_reviews_that_do_not_match_are_left_as_problems():
+    """쪽이나 값이 맞지 않는 결정은 적용하지 않고 문제로 남긴다(조용히 넘어가지 않는다)."""
+    reviews = pu.Reviews(
+        [
+            decision("a", "car_number_is", "Isack Hadjar car number", "6", "2"),  # 1쪽에 있다
+            decision("b", "accept_printed", "2 EX", "4"),  # 원문은 5
+            decision("c", "unknown_decision", "2 EX", "4"),
+        ]
+    )
+    _, rows, problems = pu.parse_used_lines(
+        lines(
+            cells(100, *USED_HEADER),
+            used_line(124, "30", "Racing Bulls Honda RBPT", "Isack Hadjar", "1 1 1 1 1 1 1"),
+            used_line(136, "2", "Williams Mercedes", "Logan Sargeant", "1 1 1 1 1 1 5"),
+        ),
+        reviews,
+    )
+    assert rows[0]["car_number"] == 30 and rows[1]["used"]["EX"] == 5 and problems == []
+    unapplied = reviews.unapplied()
+    assert len(unapplied) == 3 and all("적용할 곳을 찾지 못했다" in p for p in unapplied)
+
+
+def test_reviews_fill_a_blank_previously_used_cell():
+    """i02, i03 꼴: 빈 Previously used 칸을 결정대로 읽고 문제로 남기지 않는다."""
+    blank = cells(30, (MARGIN, "04"), (110.0, "McLaren Mercedes"), (280.0, "Lando Norris"))
+    body = new_document(
+        blank, tail=[f"The internal combustion engine used by Lando Norris {WITHIN}"]
+    )
+    reviews = pu.Reviews([decision("i", "blank_is", "4 ICE previously used", "1", "1")])
+    rows, problems, _ = pu.read_declarations(body, reviews)
+    assert problems == [] and reviews.unapplied() == []
+    assert (rows[0]["previously_used"], rows[0]["printed_previously_used"]) == (1, None)
+    assert rows[0]["review_note"] == "사람 검수(2026-11-13, i): 원문 빈칸을 1개로 읽음"
+    # 다른 차량이나 다른 구성요소를 가리키는 결정은 적용하지 않는다
+    for target in ("81 ICE previously used", "4 CE previously used"):
+        other = pu.Reviews([decision("j", "blank_is", target, "1")])
+        rows, problems, _ = pu.read_declarations(body, other)
+        assert rows[0]["previously_used"] is None and len(problems) == 1
+        assert len(other.unapplied()) == 1
+
+
+def test_reviews_point_a_statement_at_a_car():
+    """i01 꼴: 표에 없는 드라이버를 가리키는 문장을 결정이 정한 차량의 행에 붙인다."""
+    body = new_document(
+        new_line(0, "22", "AlphaTauri RBPT", "Yuki Tsunoda", "3"),
+        tail=[f"The internal combustion engine used by Pierre Gasly {OVER}"],
+    )
+    reviews = pu.Reviews([decision("s", "statement_driver_is", "ICE statement", "22", "1")])
+    rows, problems, _ = pu.read_declarations(body, reviews)
+    assert problems == [] and reviews.unapplied() == []
+    assert rows[0]["within_allocation"] is False and "Pierre Gasly" in rows[0]["allocation_text"]
+    assert rows[0]["ordinal"] == 4 and rows[0]["previously_used"] == 3
+    assert (
+        rows[0]["review_note"]
+        == "사람 검수(2026-11-13, s): 배정 문장이 가리키는 행을 22번으로 읽음"
+    )
+    # 결정의 차량이 표에 없으면 붙이지 않는다
+    missing = pu.Reviews([decision("t", "statement_driver_is", "ICE statement", "10")])
+    rows, problems, _ = pu.read_declarations(body, missing)
+    assert rows[0]["allocation_text"] == "" and len(problems) == 1
+    assert len(missing.unapplied()) == 1
+
+
+def test_reviews_link_named_cars_to_the_seat_of_their_team_label():
+    """i07 꼴: 팀 표기의 좌석으로 이으라고 정한 차량은 그 좌석으로 잇고 충돌로 적지 않는다."""
+
+    def row(car: int, team_text: str, constructor_id: str) -> dict:
+        return {**seat(constructor_id, car, 1, 1), "team_text": team_text}
+
+    after = document(
+        "pu_used", 3,
+        [row(1, "Red Bull", "red_bull"), row(30, "Red Bull", "rb"),
+         row(22, "Racing Bulls", "red_bull"), row(6, "Racing Bulls", "rb")],
+    )  # fmt: skip
+    usual = {
+        (2021, "red bull"): pu.Counter({"red_bull": 3, "rb": 1}),
+        (2021, "racing bulls"): pu.Counter({"rb": 3, "red_bull": 1}),
+    }
+    after.reviews = pu.Reviews([decision("k", "seat_by_team_label", "22 team label")])
+    problems = pu.team_conflicts(after, usual)
+    assert [p.split(":")[0] for p in problems] == ["30번 Driver 30"]
+    assert after.rows[2]["constructor_id"] == "rb" and after.rows[1]["constructor_id"] == "rb"
+    assert after.rows[2]["review_note"] == (
+        "사람 검수(2026-11-13, k): 이 대회 결과에서 22번은 red_bull이지만 표의 팀 표기와 값은 "
+        "교체 전 좌석이라 팀 표기의 좌석(rb)으로 이음"
+    )
+    assert after.reviews.unapplied() == []
+    after.rows[2].update(constructor_id="red_bull", review_note="")
+    after.reviews = pu.Reviews([decision("k", "seat_by_team_label", "22 and 30 team label")])
+    assert pu.team_conflicts(after, usual) == [] and after.reviews.unapplied() == []
+    assert [(r["car_number"], r["constructor_id"]) for r in after.rows] == [
+        (1, "red_bull"), (30, "red_bull"), (22, "rb"), (6, "rb"),
+    ]  # fmt: skip
+    # 팀 표기의 컨스트럭터를 하나로 정할 수 없으면 적용하지 않는다
+    tie = {**usual, (2021, "racing bulls"): pu.Counter({"rb": 2, "red_bull": 2})}
+    after.rows[2].update(constructor_id="red_bull", review_note="")
+    after.reviews = pu.Reviews([decision("k", "seat_by_team_label", "22 team label")])
+    assert pu.team_conflicts(after, tie) and len(after.reviews.unapplied()) == 1
+
+
+def test_decrease_accepted_by_a_human_keeps_both_documents_ok():
+    """i04, i05 꼴: 두 칸 모두 원문 값을 받아들였으면 감소는 적되 문서를 검수 대기로 두지 않는다."""
+    earlier = document("pu_used", 14, [seat("williams", 2, 5, 1)])
+    later = document("pu_used", 15, [seat("williams", 2, 4, 1)])
+    found = pu.check_decrease(earlier, later)
+    assert [r["kind"] for r in found] == ["snapshot_decrease"]
+    assert earlier.problems and later.problems
+    earlier = document("pu_used", 14, [{**seat("williams", 2, 5, 1), "review_accepted": {"ICE"}}])
+    later = document("pu_used", 15, [{**seat("williams", 2, 4, 1), "review_accepted": {"ICE"}}])
+    found = pu.check_decrease(earlier, later)
+    assert len(found) == 1 and "받아들였으므로" in found[0]["note"]
+    assert earlier.problems == [] and later.problems == []
+    # 한쪽만 받아들였으면 그대로 검수 대기다
+    later = document("pu_used", 15, [seat("williams", 2, 4, 1)])
+    pu.check_decrease(earlier, later)
+    assert earlier.problems and later.problems
+
+
+def test_document_reviews_are_keyed_narrowly():
+    """선언 문서는 원문 URL이 같은 결정만, 누적 문서는 같은 대회의 누적 문서 모두에 쓴다."""
+    listed = [
+        {"doc_type": "pu_used", "season": "2023", "event": "Dutch Grand Prix", "url": "a.pdf"},
+        {"doc_type": "pu_used", "season": "2023", "event": "Dutch Grand Prix", "url": "a_0.pdf"},
+        {"doc_type": "pu_used", "season": "2023", "event": "Italian Grand Prix", "url": "b.pdf"},
+        {"doc_type": "pu_new", "season": "2023", "event": "Dutch Grand Prix", "url": "c.pdf"},
+        {"doc_type": "pu_new", "season": "2023", "event": "Dutch Grand Prix", "url": "c_0.pdf"},
+    ]
+    rows = [
+        {**decision("u", "printed_value_is", "2 EX", "4"), "season": "2023", "source_url": "a.pdf"},
+        {**decision("n", "blank_is", "4 CE previously used", "1"), "doc_type": "pu_new",
+         "season": "2023", "source_url": "c.pdf"},
+        {**decision("w", "printed_value_is", "2 EX", "4"), "season": "2022", "source_url": "b.pdf"},
+    ]  # fmt: skip
+    ids = {m["url"]: [r["id"] for r in pu.document_reviews(m, rows, listed).rows] for m in listed}
+    assert ids == {"a.pdf": ["u"], "a_0.pdf": ["u"], "b.pdf": [], "c.pdf": ["n"], "c_0.pdf": []}
+
+
+PU_REVIEW_IDS = {"i01", "i02", "i03", "i04", "i05", "i06", "i07"}
+
+
+def test_every_pu_review_points_at_a_listed_document():
+    rows = [r for kind in pu.DOC_TYPES for r in review.decisions(kind)]
+    assert {r["id"] for r in rows} == PU_REVIEW_IDS
+    listed = {
+        (r["doc_type"], r["season"], r["url"]) for r in manifest.read_rows(fia_docs.INDEX_MANIFEST)
+    }
+    for r in rows:
+        assert (r["doc_type"], r["season"], r["source_url"]) in listed, r["id"]
+        assert r["decision"] in pu.REVIEW_TARGETS, r["id"]
+        assert pu.REVIEW_TARGETS[r["decision"]].match(r["target"]), r["id"]
+
+
+def test_human_review_decisions_are_applied(used, new, usage, documents, inconsistencies):
+    """human_review.csv i01-i07이 정제 데이터에 적용되었는지 본다."""
+    status = documents.set_index("url")["status"]
+    notes = lambda table: table[table["review_note"] != ""]  # noqa: E731
+    reviewed_new = notes(new).set_index(["season", "round", "car_number", "element"])
+    reviewed_used = notes(used)
+    # i01: 2022 벨기에 문서 60. Gasly 문장을 22번 Tsunoda의 다섯 번째 MGU-K로 읽는다
+    i01 = reviewed_new.loc[(2022, 14, 22, "MGU-K")]
+    assert i01["previously_used"] == 4 and not i01["within_allocation"]
+    assert "Pierre Gasly is the fifth" in i01["allocation_text"] and "i01" in i01["review_note"]
+    # i02, i03: 빈 Previously used 칸을 1로 읽는다
+    for key, id_ in (((2023, 5, 81, "CE"), "i02"), ((2024, 1, 4, "CE"), "i03")):
+        row = reviewed_new.loc[key]
+        assert row["previously_used"] == 1 and id_ in row["review_note"]
+        assert "원문 빈칸을 1개로 읽음" in row["review_note"]
+    assert len(reviewed_new) == 3
+    for url in set(notes(new)["source_url"]):
+        assert status[url] == "ok", url
+    # i04, i05: 2023 Sargeant EX는 원문대로 R13, R14 5(R12 선언과 맞다), R15부터 4다
+    sargeant = used[
+        (used["season"] == 2023) & (used["car_number"] == 2) & (used["element"] == "EX")
+        & (used["document_status"] == "ok")
+    ]  # fmt: skip
+    by_round = sargeant.set_index("round")["used"]
+    assert (by_round[12], by_round[13], by_round[14], by_round[15]) == (4, 5, 5, 4)
+    marked = sargeant[sargeant["review_note"] != ""]
+    assert list(zip(marked["round"], marked["review_note"], strict=True)) == [
+        (14, "사람 검수(2026-11-13, i04): 원문 5개를 그대로 받아들임"),
+        (15, "사람 검수(2026-11-13, i05): 원문 4개를 그대로 받아들임"),
+    ]
+    decrease = inconsistencies[
+        (inconsistencies["kind"] == "snapshot_decrease") & (inconsistencies["season"] == 2023)
+    ]
+    assert list(zip(decrease["car_number"], decrease["earlier_round"], decrease["later_round"],
+                    strict=True)) == [(2, 14, 15)]  # fmt: skip
+    assert "i04" in decrease["note"].iloc[0] and "i05" in decrease["note"].iloc[0]
+    for url in (decrease["earlier_url"].iloc[0], decrease["later_url"].iloc[0]):
+        assert status[url] == "ok", url
+    # i06: 2025 중국 Hadjar 행은 6번이다
+    hadjar = reviewed_used[(reviewed_used["season"] == 2025) & (reviewed_used["round"] == 2)]
+    assert set(zip(hadjar["car_number"], hadjar["driver_id"], hadjar["constructor_id"],
+                   strict=True)) == {(6, "hadjar", "rb")}  # fmt: skip
+    assert len(hadjar) == 7 and status[hadjar["source_url"].iloc[0]] == "ok"
+    china = used[used["source_url"] == hadjar["source_url"].iloc[0]]
+    assert not china.duplicated(["car_number", "element"]).any()
+    # i07: 2025 일본은 22번 행을 Racing Bulls 좌석, 30번 행을 Red Bull 좌석으로 잇는다
+    japan = reviewed_used[(reviewed_used["season"] == 2025) & (reviewed_used["round"] == 3)]
+    assert set(zip(japan["car_number"], japan["driver_id"], japan["constructor_id"],
+                   japan["team_text"], strict=True)) == {
+        (22, "tsunoda", "rb", "Racing Bulls Honda RBPT"),
+        (30, "lawson", "red_bull", "Red Bull Racing Honda RBPT"),
+    }  # fmt: skip
+    assert japan["review_note"].str.contains("교체 전 좌석이라 팀 표기의 좌석").all()
+    japan_url = japan["source_url"].iloc[0]
+    bahrain = documents[(documents["season"] == 2025) & (documents["round"] == 4)
+                        & (documents["doc_type"] == "pu_used")]  # fmt: skip
+    assert status[japan_url] == "ok" and (bahrain["status"] == "ok").all()
+    assert not inconsistencies["note"].fillna("").str.contains("i07").any()
+    assert (inconsistencies["later_url"] != japan_url).all()
+    assert len(usage[(usage["season"] == 2025) & (usage["round"] == 4)]) == 140
+    assert len(usage[(usage["season"] == 2025) & (usage["round"] == 3)]) == 140
+    # 결정이 붙은 행은 위의 것뿐이다
+    assert len(reviewed_used) == 2 + 7 + 14
+    # 파생 표: 결정이 쓰인 칸의 basis에 결정을 적는다
+    cell = usage.set_index(["season", "round", "car_number", "element"])
+    for key in [
+        (2022, 14, 22, "MGU-K"),
+        (2023, 5, 81, "CE"),
+        (2023, 14, 2, "EX"),
+        (2025, 2, 6, "ICE"),
+    ]:
+        assert "; review=사람 검수(2026-11-13, i0" in cell.loc[key, "basis"], key
+    assert cell.loc[(2023, 5, 81, "CE"), "used_after_event"] == 2
+    # 이 문서들은 더는 검수 대기가 아니다
+    failures = {r["url"] for r in manifest.read_rows("parse_failures.csv")}
+    rows = [r for kind in pu.DOC_TYPES for r in review.decisions(kind)]
+    for r in rows:
+        for url in documents.loc[
+            (documents["season"] == int(r["season"])) & (documents["round"] == int(r["round"]))
+            & (documents["doc_type"] == r["doc_type"]), "url"
+        ]:  # fmt: skip
+            if r["doc_type"] == "pu_used" or url == r["source_url"]:
+                assert status[url] in ("ok", "superseded") and url not in failures, (r["id"], url)
+    # 결정을 적용한 값과 견준 불일치에는 결정을 함께 적는다
+    noted = inconsistencies[inconsistencies["note"].fillna("").str.contains("사람 검수")]
+    assert {(r.season, r.later_round, r.car_number) for r in noted.itertuples()} == {(2023, 15, 2)}

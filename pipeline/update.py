@@ -178,9 +178,9 @@ def refresh_openf1_maps(
     if drivers is None:
         drivers = pd.read_parquet(ot.OUT / "drivers.parquet")
     meeting_map = ot.build_meeting_map(sessions)
-    meeting_map.to_csv(ot.OUT / "meeting_map.csv", index=False)
+    ot.write_map(meeting_map, "meeting_map")  # 사람 검수 표시는 내용이 같은 행만 이어받는다
     driver_map = ot.build_driver_map(meeting_map, drivers)
-    driver_map.to_csv(ot.OUT / "driver_map.csv", index=False)
+    ot.write_map(driver_map, "driver_map")
     return {"meeting_map": len(meeting_map), "driver_map": len(driver_map)}
 
 

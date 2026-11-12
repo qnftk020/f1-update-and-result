@@ -32,6 +32,22 @@ SAMPLE = [
     ("2022", "sporting", "2022-10-19"),  # 취소선이 가장 많은 판
     ("2025", "technical", "2025-04-07"),  # 여백 밖으로 내어 쓴 번호(3.7.6-3.7.8), 부록 표
 ]
+# 사이트 운영자가 원문 번호 오류로 확인한 판(data/curated/review/human_review.csv, 2026-11-13)
+HUMAN_REVIEWED = {
+    (2021, "sporting", "2020-12-16"): "i08",
+    (2025, "sporting", "2025-04-30"): "i09",
+    (2021, "technical", "2019-10-31"): "i10",
+    (2021, "technical", "2020-03-06"): "i11",
+    (2022, "technical", "2020-03-30"): "i12",
+    (2022, "technical", "2020-10-30"): "i13",
+    (2022, "technical", "2021-02-19"): "i14",
+    (2022, "technical", "2021-04-30"): "i15",
+    (2022, "technical", "2021-07-08"): "i16",
+    (2022, "technical", "2021-09-13"): "i17",
+    (2022, "technical", "2021-12-15"): "i18",
+}
+# 파서를 고쳐 검수 대기에서 벗어난 판(human_review.csv i19)
+PARSER_FIXED = (2023, "technical", "2023-02-22")
 MARGIN = 70.9
 BODY = 99.2
 
@@ -820,29 +836,91 @@ def test_sibling_number_gap_is_a_problem():
     assert gaps == [("1.1", "1.3"), ("1.3", "1.3.2")]
 
 
-def test_verified_gaps_and_source_numbering_errors(monkeypatch):
+def review_row(key, pages="", rid="i99"):
+    season, section, version = key
+    return {
+        "id": rid, "reviewed_at": "2030-01-02", "doc_type": reg.DOC_TYPES[section],
+        "season": str(season), "round": "", "source_url": "", "page": pages, "target": version,
+        "decision": reg.ACCEPT_SOURCE_NUMBERING, "value": "", "note": "지어낸 검수 메모",
+    }  # fmt: skip
+
+
+def test_verified_gaps_and_human_reviewed_numbering(monkeypatch):
     key = (2030, "technical", "2030-01-01")
     problems = [
         reg.gap_problem(5, "1.1", "1.3"),
         reg.gap_problem(6, "2.1", "2.4"),
         "7쪽: 조항 번호 순서가 어긋난다(3.2 다음 3.2)",
+        "9쪽: 조항 번호 순서가 어긋난다(4.3 다음 4.3)",
         "조항 번호 3.2가 2번 나온다",
+        "조항 번호 4.3가 2번 나온다",
+        "8쪽: 들여 쓴 줄이 다음 조항 번호로 시작한다(3.3)",
     ]
     monkeypatch.setitem(reg.VERIFIED_GAPS, key, {("1.1", "1.3"): "invented check"})
-    monkeypatch.setitem(reg.SOURCE_NUMBERING_ERRORS, key, {"3.2": "원문 번호 오류(지어낸 예)"})
-    assert reg.review_problems(key, problems) == [
-        reg.gap_problem(6, "2.1", "2.4"), "원문 번호 오류(지어낸 예)",
-    ]  # fmt: skip
+    reviews = {key: review_row(key, "6;7")}
+    kept, accepted = reg.review_problems(key, problems, reviews)
+    # 검수한 쪽(6, 7)의 번호 문제와, 뺀 순서 문제의 겹친 번호(3.2)만 뺀다. 검수 밖의 쪽(9)과 번호
+    # 문제가 아닌 글은 남는다.
+    assert accepted == [problems[1], problems[2], problems[4]]
+    assert kept == [problems[3], problems[5], problems[6]]
+    # 쪽을 적지 않은 검수는 모든 쪽의 번호 문제를 뺀다.
+    kept, accepted = reg.review_problems(key, problems[:6], {key: review_row(key)})
+    assert kept == [] and len(accepted) == 5
+    # 검수가 없는 판은 VERIFIED_GAPS만 반영한다.
     other = (2030, "sporting", "2030-01-01")
-    assert reg.review_problems(other, problems) == problems
+    assert reg.review_problems(other, problems, reviews) == (problems, [])
+    # 적용할 번호 문제를 찾지 못한 검수는 문제로 남긴다(조용히 넘어가지 않는다).
+    kept, accepted = reg.review_problems(key, [], reviews)
+    assert accepted == [] and kept[0].startswith("사람 검수(2030-01-02, i99)")
 
 
-def test_source_numbering_error_text_is_explicit():
-    """2025년 스포팅 규정 Issue 5의 23.6 두 번은 렌더링한 25쪽에서 확인한 원문 오류다."""
-    text = reg.SOURCE_NUMBERING_ERRORS[(2025, "sporting", "2025-04-30")]["23.6"]
-    assert text.startswith("25쪽: 원문 번호 오류") and "렌더링" in text
-    problems = ["25쪽: 조항 번호 순서가 어긋난다(23.6 다음 23.6)", "조항 번호 23.6가 2번 나온다"]
-    assert reg.review_problems((2025, "sporting", "2025-04-30"), problems) == [text]
+def test_human_review_note_names_the_review_and_duplicate_keys():
+    key = (2030, "technical", "2030-01-01")
+    note = reg.review_note(review_row(key), ["15.2.3"])
+    assert note.startswith("사람 검수(2030-01-02, i99): 조항 번호 문제는 FIA 원문에 찍힌 그대로다.")
+    assert "지어낸 검수 메모." in note and "15.2.3#2" in note and "\u2014" not in note
+
+
+def test_duplicate_clause_numbers_get_distinct_keys():
+    """원문에 같은 번호가 두 번 찍히면 두 번째 조항 키에 "#2"를 붙인다. 문제는 그대로 적는다."""
+    lines = tech_start() + body(
+        line("1.2 First", bold=1.0), line("Some text.", x0=BODY),
+        line("1.2 Second", bold=1.0), line("Other text.", x0=BODY),
+        line("1.3 Third", bold=1.0), line("More text.", x0=BODY),
+    )  # fmt: skip
+    clauses, problems, _ = reg.segment(lines, "technical")
+    keys = [c.clause_no for c in clauses]
+    assert keys == ["1", "1.1", "1.2", "1.2#2", "1.3"]
+    assert "조항 번호 1.2가 2번 나온다" in problems
+    assert reg.number_key("1.2#2") == (1, 2) and reg.split_clause_no("A1-3.2#2") == ("A1", (3, 2))
+    assert sorted(["1.3", "1.2#2", "1.2"], key=reg.clause_sort_key) == ["1.2", "1.2#2", "1.3"]
+    # 짝짓기는 키가 겹치지 않아 두 조항을 따로 본다.
+    old = [c for c in clauses if c.clause_no != "1.2#2"]
+    rows, counts = reg.compare(old, clauses)
+    assert [(r["clause_no"], r["change"]) for r in rows] == [("1.2#2", "added")]
+
+
+def test_number_font_ratio_catches_pasted_paragraph():
+    """조항 번호 9pt 뒤에 10pt 본문이 오는 줄(2023년 기술 규정 Issue 5의 2.9.2)도 번호
+    글꼴로 본다. 본문과 같은 크기로 찍힌 상호 참조는 번호 글꼴이 아니다."""
+    assert reg.NUMBER_SIZE_RATIO * 10.0 > 9.0
+    assert reg.NUMBER_SIZE_RATIO * 11.0 <= 11.0
+    lines = tech_start() + body(
+        line("1.2 Planes", bold=1.0),
+        line("1.2.1 Reference plane: text.", small_number=True),
+        line("more text.", x0=BODY),
+        line("1.2.2 Centre plane: text.", x0=MARGIN + 14.2, small_number=True),
+        line("1.2.3 Plane A-A: text.", small_number=True),
+    )  # fmt: skip
+    clauses, problems, _ = reg.segment(lines, "technical")
+    assert [c.clause_no for c in clauses] == ["1", "1.1", "1.2", "1.2.1", "1.2.2", "1.2.3"]
+    assert problems == []
+
+
+def test_numbering_reviews_come_from_human_review_csv():
+    """human_review.csv의 accept_source_numbering 행 11개가 판 키로 읽힌다."""
+    reviews = reg.numbering_reviews()
+    assert sorted((k, r["id"]) for k, r in reviews.items()) == sorted(HUMAN_REVIEWED.items())
 
 
 def test_unbold_appendix_section_is_a_clause_only_with_its_first_subclause():
@@ -979,11 +1057,13 @@ def test_cache_key_covers_parser_source_and_pdfplumber():
 def documents():
     frame = pd.read_csv(
         OUT / "documents.csv",
-        dtype={"issue": str, "variant": str, "version_key": str, "pdf_sha256": str},
-    )
+        dtype={"issue": str, "variant": str, "version_key": str, "pdf_sha256": str,
+               "problems": str, "review_note": str},
+    )  # fmt: skip
     return frame.fillna(
-        {"issue": "", "variant": "", "problems": "", "pdf_sha256": "", "sha256_check": ""}
-    )
+        {"issue": "", "variant": "", "problems": "", "review_note": "", "pdf_sha256": "",
+         "sha256_check": ""}
+    )  # fmt: skip
 
 
 @pytest.fixture(scope="module")
@@ -1071,8 +1151,6 @@ def test_failures_match_documents_needing_review(documents):
     assert {r["url"] for r in failures} == set(review["url"])
     assert {r["doc_type"] for r in failures} <= set(reg.DOC_TYPES.values())
     every = manifest.read_rows("parse_failures.csv")
-    others = {r["doc_type"] for r in every}
-    assert "car_presentation" in others  # 다른 파서의 실패 행은 그대로 남는다
     # 어느 파서가 마지막에 써도 같은 순서다
     assert every == sorted(every, key=manifest._failure_order)
 
@@ -1117,9 +1195,14 @@ def test_articles_keys_values_and_order(articles, documents):
     assert len(parsed.merge(ok)) == len(parsed) == len(ok)
     assert articles["text_sha256"].str.fullmatch(r"[0-9a-f]{64}").all()
     assert (articles["char_count"] >= 0).all() and (articles["page"] >= 1).all()
-    for (_, _, _), doc in articles.groupby(["season", "section", "version_key"], sort=False):
+    reviews = reg.numbering_reviews()
+    for key, doc in articles.groupby(["season", "section", "version_key"], sort=False):
         order = [reg.clause_sort_key(k) for k in doc["clause_no"]]
-        assert order == sorted(order) and len(set(order)) == len(order)
+        assert len(set(order)) == len(order)
+        # 사람이 원문 번호 오류로 확인한 판은 원문에 찍힌 순서 그대로다(2021년 기술 규정 Issue 2의
+        # 5.25.2 다음 5.23.3, 2022년 기술 규정 Issue 6의 8.18 다음 8.17).
+        if key not in reviews:
+            assert order == sorted(order), key
         pages = list(doc["page"])
         assert pages == sorted(pages)
         for row in doc.itertuples():
@@ -1479,16 +1562,19 @@ def test_every_unparsed_version_is_listed_as_skipped(comparisons, documents):
             if r["status"] != "ok":
                 assert f"{season}:{r['version_key']}" in listed, (season, section, r["version_key"])
                 checked += 1
-    assert checked
+    # 2026-11-13 사람 검수 뒤로는 파싱되지 않은 판이 없어 셀 판이 없을 수 있다.
+    assert checked == len(listed)
 
 
 def test_sibling_numbers_are_continuous_in_ok_documents(articles):
-    """ok 문서의 형제 번호는 1부터 이어진다. 원문에서 확인한 건너뜀(VERIFIED_GAPS)만 예외다."""
+    """ok 문서의 형제 번호는 1부터 이어진다. 원문에서 확인한 건너뜀(VERIFIED_GAPS)과 사람이 원문
+    오류로 확인한 쪽의 건너뜀(human_review.csv)만 예외다."""
+    reviews = reg.numbering_reviews()
     for (season, section, version), doc in articles.groupby(["season", "section", "version_key"]):
         clauses = [reg.Clause(r.clause_no, "", 0, r.page, "", "", "") for r in doc.itertuples()]
-        allowed = reg.VERIFIED_GAPS.get((season, section, version), {})
-        gaps = [(a, b) for _, a, b in reg.sibling_gaps(clauses)]
-        assert all(gap in allowed for gap in gaps), (season, section, version, gaps)
+        gaps = [reg.gap_problem(*gap) for gap in reg.sibling_gaps(clauses)]
+        kept, _ = reg.review_problems((season, section, version), gaps, reviews)
+        assert all(p.startswith("사람 검수(") for p in kept), (season, section, version, kept)
 
 
 def failure_urls():
@@ -1645,7 +1731,9 @@ def test_parser_reproduces_curated_clauses_from_source(articles, documents):
         if row["sha256"]:
             assert recorded.iloc[0] == row["sha256"]
         parsed = reg.parse_document(path, row["section"])
-        problems = reg.review_problems(reg.doc_key(row), parsed.problems)
+        problems, _ = reg.review_problems(
+            reg.doc_key(row), parsed.problems, reg.numbering_reviews()
+        )
         assert parsed.clauses and not problems, problems
         expected = live_all(articles, row)
         got = [(c.clause_no, c.text_sha256, c.page, c.heading) for c in parsed.clauses]
@@ -1659,6 +1747,65 @@ def live_all(articles, row):
         & (articles["version_key"] == reg.version_key(row))
     ]
     return [(r.clause_no, r.text_sha256, r.page, r.heading) for r in doc.itertuples()]
+
+
+def test_human_reviewed_versions_are_ok_and_say_so(documents, comparisons):
+    """사람이 원문 번호 오류로 확인한 11개 판과 파서를 고친 판은 ok이고 판 사이 비교에 들어간다.
+    확인한 판은 review_note에 검수 id를 적는다."""
+    by = {(r.season, r.section, r.version_key): r for r in documents.itertuples()}
+    for key, rid in HUMAN_REVIEWED.items():
+        row = by[key]
+        assert row.status == "ok" and row.problems == "", key
+        assert row.review_note.startswith(f"사람 검수(2026-11-13, {rid}): "), key
+        assert "FIA 원문" in row.review_note
+    fixed = by[PARSER_FIXED]
+    assert fixed.status == "ok" and fixed.problems == "" and fixed.review_note == ""
+    compared = set(
+        zip(comparisons["section"], comparisons["from_season"], comparisons["from_version"],
+            strict=True)
+    ) | set(
+        zip(comparisons["section"], comparisons["to_season"], comparisons["to_version"],
+            strict=True)
+    )  # fmt: skip
+    for season, section, version in [*HUMAN_REVIEWED, PARSER_FIXED]:
+        assert (section, season, version) in compared, (season, section, version)
+
+
+def test_duplicate_numbers_in_reviewed_versions_have_distinct_keys(articles):
+    """원문에 두 번 찍힌 번호는 두 번째 조항이 "#2" 키를 갖고, 판 안의 조항 키는 겹치지 않는다."""
+    assert not articles.duplicated(["season", "section", "version_key", "clause_no"]).any()
+    marked = articles[articles["clause_no"].str.contains(reg.DUPLICATE_MARK, regex=False)]
+    got = {(r.season, r.section, r.version_key, r.clause_no) for r in marked.itertuples()}
+    assert got == {
+        (2021, "sporting", "2020-12-16", "42.12#2"),
+        (2025, "sporting", "2025-04-30", "23.6#2"),
+        (2021, "technical", "2019-10-31", "8.2.5#2"),
+        (2021, "technical", "2019-10-31", "15.2.3#2"),
+        (2021, "technical", "2020-03-06", "8.2.5#2"),
+        (2021, "technical", "2020-03-06", "15.2.3#2"),
+        (2022, "technical", "2020-03-30", "8.2.5#2"),
+        (2022, "technical", "2020-03-30", "15.2.3#2"),
+        (2022, "technical", "2020-10-30", "15.2.3#2"),
+        (2022, "technical", "2021-02-19", "15.2.3#2"),
+        (2022, "technical", "2021-04-30", "15.2.3#2"),
+        (2022, "technical", "2021-07-08", "15.2.3#2"),
+        (2022, "technical", "2021-12-15", "14.3.3#2"),
+    }
+
+
+def test_indented_clause_2_9_2_is_parsed(articles):
+    """2023년 기술 규정 Issue 5 8쪽의 2.9.2(번호 9pt, 본문 10pt로 들여 찍힘)를 조항으로 읽는다."""
+    season, section, version = PARSER_FIXED
+    doc = articles[
+        (articles["season"] == season)
+        & (articles["section"] == section)
+        & (articles["version_key"] == version)
+    ]
+    numbers = doc["clause_no"].tolist()
+    i = numbers.index("2.9.1")
+    assert numbers[i : i + 3] == ["2.9.1", "2.9.2", "2.9.3"]
+    row = doc[doc["clause_no"] == "2.9.2"].iloc[0]
+    assert row.page == 8 and row.char_count > 0
 
 
 def test_sample_documents_are_parsed(documents):

@@ -35,13 +35,60 @@ def test_driver_map_has_only_known_exceptions():
     있고 OpenF1 결승 세션에는 없다.
     """
     driver_map = pd.read_csv(OF / "driver_map.csv")
-    check = driver_map[driver_map["review"] == "check"]
+    # 자동 대응의 check 조건(한쪽에만 있거나 약어가 다르다). 검수 뒤에는 review가 human이라
+    # 조건을 열 값으로 다시 본다.
+    check = driver_map[
+        (driver_map["unmatched"] > 0) | (driver_map["name_acronym"] != driver_map["abbreviation"])
+    ]
     assert [(r.season, r.driver_number, r.driver_id) for r in check.itertuples()] == [
         (2023, 18, "stroll")
     ]
-    matched = driver_map[driver_map["review"] == "auto"]
-    assert (matched["name_acronym"] == matched["abbreviation"]).all()
-    assert not matched.duplicated(["season", "driver_number", "first_round"]).any()
+    assert not driver_map.duplicated(["season", "driver_number", "first_round"]).any()
+
+
+def test_maps_carry_the_human_review():
+    """두 대응표의 모든 행은 2026-11-13 사람 검수(human_review.csv m1, m2)를 거쳤다."""
+    from pipeline import review
+
+    approved = {
+        r["id"]: r["target"]
+        for doc_type in ("openf1_meeting_map", "openf1_driver_map")
+        for r in review.decisions(doc_type)
+        if r["decision"] == "approve"
+    }
+    for name, rid in (("meeting_map", "m1"), ("driver_map", "m2")):
+        df = pd.read_csv(OF / f"{name}.csv", dtype=str, keep_default_na=False)
+        assert list(df.columns[-2:]) == ["review", "review_id"], name
+        assert (df["review"] == "human").all() and (df["review_id"] == rid).all(), name
+        assert approved[rid] == f"{name}.csv"
+
+
+def test_regenerated_maps_keep_human_review_only_for_unchanged_rows(tmp_path, monkeypatch):
+    """다시 만든 대응표는 앞 파일에서 검수한 행과 내용이 같은 행만 human을 이어받는다."""
+    from pipeline.transforms import openf1_tables as ot
+
+    monkeypatch.setattr(ot, "OUT", tmp_path)
+    monkeypatch.setattr(ot, "approved_reviews", lambda name: {"m9": {}})
+    prev = pd.DataFrame(
+        {"season": [2025, 2025], "driver_number": [1, 4], "review": ["human", "human"],
+         "review_id": ["m9", "m9"]}
+    )  # fmt: skip
+    prev.to_csv(tmp_path / "driver_map.csv", index=False)
+    new = pd.DataFrame(
+        {"season": [2025, 2025, 2025], "driver_number": [1, 5, 4],
+         "review": ["auto", "auto", "check"]}
+    )  # fmt: skip
+    new["driver_number"] = new["driver_number"].astype("Int64")
+    out = ot.write_map(new, "driver_map")
+    assert out["review"].tolist() == ["human", "auto", "human"]
+    assert out["review_id"].tolist() == ["m9", "", "m9"]
+    # 승인 행이 human_review.csv에서 사라지면 표시도 이어받지 않는다.
+    monkeypatch.setattr(ot, "approved_reviews", lambda name: {})
+    out = ot.write_map(new, "driver_map")
+    assert out["review"].tolist() == ["auto", "auto", "check"]
+    # 대응표에 review 열이 없으면(미팅 대응표) auto로 시작한다.
+    meetings = ot.write_map(pd.DataFrame({"season": [2025], "round": [1]}), "meeting_map")
+    assert meetings["review"].tolist() == ["auto"]
 
 
 def test_weather_has_no_impossible_values():

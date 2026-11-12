@@ -621,10 +621,6 @@ def split_problems(text: str | None) -> list[str]:
     return [p.strip() for p in (text or "").split(" / ") if p.strip()]
 
 
-SOURCE_ERROR = re.compile(
-    r"^(?P<page>\d+)쪽: 원문 번호 오류\(렌더링한 쪽에서 확인\)\. 원문에 (?P<no>\S+?)[이가] 두 번 "
-    r"찍혀 (?:있다\.\s*|있고\s*)(?P<rest>.*)$"
-)
 DUPLICATE = re.compile(r"^조항 번호 (?P<no>\S+?)[이가] (?P<n>\d+)번 나온다$")
 ORDER = re.compile(r"^(?P<page>\d+)쪽: 조항 번호 순서가 어긋난다\((?P<a>\S+) 다음 (?P<b>\S+)\)$")
 GAP = re.compile(r"^(?P<page>\d+)쪽: 조항 번호가 건너뛴다\((?P<a>\S+) 다음 (?P<b>\S+)\)$")
@@ -637,9 +633,10 @@ MORE = re.compile(r"^외 (?P<n>\d+)건$")
 def review_reasons(problems: str | None) -> list[str]:
     """검수 대기 판의 문제(파서가 적은 글)를 사람이 읽을 한국어 설명으로 묶는다.
 
-    렌더링한 쪽에서 확인한 원문 번호 오류는 "FIA 원문에 같은 조항 번호가 두 번 인쇄되어 있다"로
-    적는다. 파서가 찾았지만 사람이 확인하지 않은 문제는 종류별로 묶고, 원문 오류인지 파싱 오류인지
-    아직 확인하지 않았다고 덧붙인다. 알아보지 못한 글은 그대로 옮긴다.
+    파서가 찾았지만 사람이 확인하지 않은 문제는 종류별로 묶고, 원문 오류인지 파싱 오류인지 아직
+    확인하지 않았다고 덧붙인다. 알아보지 못한 글은 그대로 옮긴다. 사람이 원문 번호 오류로 확인한
+    판은 ok가 되어 여기 오지 않고, 그 확인 내용은 판 설명(note_ko, documents.csv review_note)으로
+    보인다.
     """
     items = split_problems(problems)
     if not items:
@@ -651,16 +648,8 @@ def review_reasons(problems: str | None) -> list[str]:
     inline: list[str] = []
     other: list[str] = []
     more = 0
-    verified = False
     for item in items:
-        if m := SOURCE_ERROR.match(item):
-            verified = True
-            rest = m["rest"].strip().rstrip(".")
-            out.append(
-                f"FIA 원문에 같은 조항 번호가 두 번 인쇄되어 있다({m['page']}쪽 {m['no']}). "
-                "렌더링한 쪽을 보고 확인했다." + (f" {rest}." if rest else "")
-            )
-        elif m := DUPLICATE.match(item):
+        if m := DUPLICATE.match(item):
             dup.append(m["no"])
         elif m := ORDER.match(item):
             if m["a"] != m["b"]:  # 같은 번호가 이어진 경우는 겹친 번호로 이미 센다
@@ -687,8 +676,7 @@ def review_reasons(problems: str | None) -> list[str]:
     out += [f"{x}." for x in other]
     if more:
         out.append(f"그 밖에 {more}건이 더 있다.")
-    if not verified:
-        out.append("원문의 오류인지 파싱의 오류인지 아직 사람이 확인하지 않았다.")
+    out.append("원문의 오류인지 파싱의 오류인지 아직 사람이 확인하지 않았다.")
     return out
 
 
@@ -778,7 +766,8 @@ def _reg_documents(year: int, links, legacy, current) -> list[dict]:
                     "grade": grade,
                     # ok: 조항 파싱, needs_review: 검수 대기, not_downloaded: 목록만 확인
                     "status": _reg_status(status),
-                    "note_ko": None,
+                    # 사람이 원문 번호 오류로 확인한 판의 설명(검수 id 포함)
+                    "note_ko": _str(getattr(r, "review_note", None)),
                     "pages": _val(r.pages),
                     "clauses": _val(r.clauses),
                     "problems": split_problems(problems) if review else [],

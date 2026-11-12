@@ -74,6 +74,10 @@ MARGIN_RIGHT = 8.0
 HEADER_BAND = 0.09  # 쪽 위쪽 9%
 FOOTER_BAND = 0.88  # 쪽 아래쪽 12%
 STRIKE_BAND = (0.3, 0.7)  # 글자 높이 안에서 취소선이 지나는 위치(위에서부터 비율)
+# 조항 번호 글꼴로 볼 첫 낱말 글자 크기의 상한(뒤따르는 글 글자 크기 중앙값에 대한 비).
+# FIA는 조항 번호를 9pt, 본문을 11pt로 찍는다(비 0.82). 다른 문서에서 옮겨 붙인 문단은 본문이
+# 10pt라 비가 꼭 0.9다(2023년 기술 규정 Issue 5 8쪽 2.9.2). 본문 속 상호 참조는 본문과 같은 크기다.
+NUMBER_SIZE_RATIO = 0.95
 
 
 # --- 글 정규화 ---------------------------------------------------------------------------
@@ -130,8 +134,19 @@ def page_at(clause: Clause, offset: int) -> int:
     return page
 
 
+# 원문에 같은 번호가 두 번 이상 찍힌 조항의 키 표시. 두 번째부터 "15.2.3#2"처럼 붙인다(segment).
+DUPLICATE_MARK = "#"
+
+
+def split_duplicate(number: str) -> tuple[str, int]:
+    """번호와 몇 번째로 나온 번호인지: "15.2.3#2" -> ("15.2.3", 2), "15.2.3" -> ("15.2.3", 1)."""
+    base, _, nth = number.partition(DUPLICATE_MARK)
+    return base, int(nth) if nth else 1
+
+
 def number_key(number: str) -> tuple[int, ...]:
-    return tuple(int(p) for p in number.split("."))
+    """번호의 숫자 단계. 겹친 번호 표시("#2")는 빼고 읽는다."""
+    return tuple(int(p) for p in split_duplicate(number)[0].split("."))
 
 
 def appendix_key(label: str) -> tuple[int, str]:
@@ -419,9 +434,9 @@ def make_line(raw: dict, number: int, page, in_table: bool, tables: list) -> Lin
     first = text.split()[0]
     head = chars[: len(first)]
     rest = chars[len(first) :]
-    small_number = bool(rest) and max(c["size"] for c in head) < 0.9 * statistics.median(
-        c["size"] for c in rest
-    )
+    small_number = bool(rest) and max(
+        c["size"] for c in head
+    ) < NUMBER_SIZE_RATIO * statistics.median(c["size"] for c in rest)
     in_table = in_table or any(inside(chars[0], t.bbox) for t in tables)
     if raw["top"] < page.height * HEADER_BAND:
         band = "header"
@@ -782,8 +797,10 @@ def at_margin(line: Line, margin: float) -> bool:
 def split_clause_no(clause_no: str) -> tuple[str, tuple[int, ...]]:
     """조항 키를 (부록 접두어, 번호)로 나눈다.
 
-    "A1-15.2" -> ("A1", (15, 2)), "3.5" -> ("", (3, 5)), "A1" -> ("A1", ()).
+    "A1-15.2" -> ("A1", (15, 2)), "3.5" -> ("", (3, 5)), "A1" -> ("A1", ()). 겹친 번호 표시
+    ("15.2.3#2")는 뺀다.
     """
+    clause_no = split_duplicate(clause_no)[0]
     if clause_no.startswith("A"):
         label, _, rest = clause_no.partition("-")
         return label, number_key(rest) if rest else ()
@@ -1060,10 +1077,19 @@ def segment(lines: list[Line], section: str) -> tuple[list[Clause], list[str], C
         if n > 1:
             problems.append(f"조항 번호 {key}가 {n}번 나온다")
     # 형제 번호가 건너뛰면 조항 하나를 앞 조항에 붙였을 수 있다(강조 상자 안의 번호). 렌더링한
-    # 쪽에서 원문에도 번호가 빠져 있음을 확인한 곳만 build()가 VERIFIED_GAPS로 문제에서 뺀다.
+    # 쪽에서 원문에도 번호가 빠져 있음을 확인한 곳(VERIFIED_GAPS)과 사람이 원문 오류로 확인한
+    # 곳(human_review.csv)만 build()가 review_problems로 문제에서 뺀다.
     gaps = sibling_gaps(clauses)
     stats["number_gaps"] = len(gaps)
     problems += [gap_problem(*gap) for gap in gaps]
+    # 같은 번호가 두 번 이상 나오면 문서 순서로 두 번째부터 키에 "#2", "#3"을 붙인다. 조항 키는
+    # 판 안에서 하나뿐이어야 짝짓기(Matcher)와 정제 테이블이 조항을 섞지 않는다. 겹친 번호는 위에서
+    # 문제로 적었으므로, 이 키가 남는 판은 사람이 원문 오류로 확인한 판(build())뿐이다.
+    seen: Counter = Counter()
+    for c in clauses:
+        seen[c.clause_no] += 1
+        if seen[c.clause_no] > 1:
+            c.clause_no = f"{c.clause_no}{DUPLICATE_MARK}{seen[c.clause_no]}"
     for c in clauses:
         c.text, c.page_starts = join_lines(c.lines, c.line_pages)
         c.not_used = is_not_used(c)
@@ -1254,8 +1280,9 @@ def numbered_start(
         and number_key(m.group(1)) in successors(last)
         and (not line.in_table or at_margin(line, margin))
     ):
-        # 여백 열에서 밀려 찍힌 조항(2023년 판 12.5.2, 51.1). FIA는 조항 번호를 본문보다 작은
-        # 글자로 찍고, 본문 속 상호 참조는 본문 글자 크기다. 다음 번호이면서 작은 글자면 조항이다.
+        # 여백 열에서 밀려 찍힌 조항(2023년 판 12.5.2, 51.1, 2023년 기술 규정 Issue 5의 2.9.2).
+        # FIA는 조항 번호를 본문보다 작은 글자로 찍고(NUMBER_SIZE_RATIO), 본문 속 상호 참조는 본문
+        # 글자 크기다. 다음 번호이면서 작은 글자면 조항이다.
         # 표로 읽힌 줄도 여백 열에서 시작하는 작은 글자의 다음 번호면 조항이다(칸 선이 있는 표
         # 안에 개정 강조로 조항이 통째로 들어간 경우).
         return m.group(1), (m.group(2) or "").strip()
@@ -1627,10 +1654,11 @@ def change_row(a: Clause | None, b: Clause | None, change: str, sim: float | Non
 
 def clause_sort_key(clause_no: str) -> tuple:
     """본문 조항을 먼저, 부록을 뒤에 두는 번호 순서."""
+    nth = split_duplicate(clause_no)[1]
     if clause_no.startswith("A"):
-        label, _, rest = clause_no[1:].partition("-")
-        return (1, appendix_key(label), number_key(rest) if rest else ())
-    return (0, (0, ""), number_key(clause_no))
+        label, _, rest = split_duplicate(clause_no)[0][1:].partition("-")
+        return (1, appendix_key(label), number_key(rest) if rest else (), nth)
+    return (0, (0, ""), number_key(clause_no), nth)
 
 
 # --- 규정에서 읽는 사실 ------------------------------------------------------------------
@@ -1775,50 +1803,84 @@ VERIFIED_GAPS: dict[tuple[int, str, str], dict[tuple[str, str], str]] = {
     (2022, "sporting", "2022-06-29"): {("A10", "A10-30"): A10_NOTE},
 }
 
-# 렌더링한 쪽에서 확인한 원문의 번호 오류. 정책대로 문서는 needs_review로 두고, 그 번호에 대한
-# 문제 글(순서 어긋남, 겹친 번호)을 아래 설명 하나로 바꾼다. 사이트는 이 글로 원문 오류임을 밝힌다.
-SOURCE_NUMBERING_ERRORS: dict[tuple[int, str, str], dict[str, str]] = {
-    (2021, "sporting", "2020-12-16"): {
-        "42.12": (
-            "47쪽: 원문 번호 오류(렌더링한 쪽에서 확인). 원문에 42.12가 두 번 찍혀 있다. 다음 판"
-            "(2021-02-19)은 두 번째 조항을 42.13으로 고쳐 매겼다"
-        ),
-    },
-    (2025, "sporting", "2025-04-30"): {
-        "23.6": (
-            "25쪽: 원문 번호 오류(렌더링한 쪽에서 확인). 원문에 23.6이 두 번 찍혀 있고 두 번째 "
-            "23.6은 이 판에 새로 넣은 분홍 글이다"
-        ),
-    },
-}
+# 원문 번호 오류의 사람 검수(data/curated/review/human_review.csv, decision
+# accept_source_numbering). 사이트 운영자가 원문을 보고 번호 문제(겹친 번호, 순서 어긋남, 건너뜀)가
+# FIA 원문에 그대로 찍혀 있음을 확인한 판은, 그 번호 문제를 문제에서 빼고 ok로 둔다. 그래서 그 판도
+# 판 사이 비교와 시즌 사실(PU 할당, 연료 조항)에 들어간다. 확인 내용은 documents.csv의 review_note에
+# 검수 id와 함께 남기고, 사이트는 그 글을 판 설명으로 보인다. 겹친 번호의 두 번째 조항은 키에
+# "#2"를 붙인다(segment). 검수 행의 target은 판 키(version_key, 판 날짜)이고 page는 ";"로 이은 쪽
+# 번호다. 문제에 쪽이 붙어 있으면 그 쪽이 page에 있어야 뺀다. 쪽이 없는 겹친 번호 문제("조항 번호
+# 15.2.3가 2번 나온다")는 뺀 순서 문제에 같은 번호가 이어진 곳("15.2.3 다음 15.2.3")이 있어야 뺀다.
+# 그 밖의 문제나 검수한 쪽 밖의 번호 문제는 그대로 남아 판은 needs_review가 된다.
+ACCEPT_SOURCE_NUMBERING = "accept_source_numbering"
+ORDER_PROBLEM = re.compile(r"^(\d+)쪽: 조항 번호 순서가 어긋난다\((\S+) 다음 (\S+)\)$")
+DUPLICATE_PROBLEM = re.compile(r"^조항 번호 (\S+?)가 \d+번 나온다$")
 
 
-def review_problems(key: tuple[int, str, str], problems: list[str]) -> list[str]:
-    """파서가 적은 문제에 확인 결과를 반영한다.
+def numbering_reviews(path: Path | None = None) -> dict[tuple[int, str, str], dict[str, str]]:
+    """(시즌, 구분, 판 키) -> 원문 번호 오류를 확인한 사람 검수 행."""
+    from pipeline import review
 
-    VERIFIED_GAPS에 있는 건너뜀은 뺀다. SOURCE_NUMBERING_ERRORS의 번호에 대한 문제는 그 설명으로
-    바꾼다(문제는 남는다).
+    out: dict[tuple[int, str, str], dict[str, str]] = {}
+    for section, doc_type in DOC_TYPES.items():
+        for row in review.decisions(doc_type, path):
+            if row["decision"] == ACCEPT_SOURCE_NUMBERING:
+                out[(int(row["season"]), section, row["target"])] = row
+    return out
+
+
+def review_problems(
+    key: tuple[int, str, str],
+    problems: list[str],
+    reviews: dict[tuple[int, str, str], dict[str, str]] | None = None,
+) -> tuple[list[str], list[str]]:
+    """파서가 적은 문제에 확인 결과를 반영해 (남은 문제, 사람 검수로 뺀 문제)를 돌려준다.
+
+    VERIFIED_GAPS에 있는 건너뜀은 그냥 뺀다. reviews(numbering_reviews)에 이 판이 있으면 검수한
+    쪽의 번호 문제를 뺀다(위 ACCEPT_SOURCE_NUMBERING 설명).
     """
+    from pipeline import review
+
     allowed = VERIFIED_GAPS.get(key, {})
-    errors = SOURCE_NUMBERING_ERRORS.get(key, {})
-    out: list[str] = []
+    row = (reviews or {}).get(key)
+    reviewed = review.pages(row) if row else set()
+    kept: list[str] = []
+    accepted: list[str] = []
+    repeated: set[str] = set()
     for problem in problems:
         gap = GAP_PROBLEM.match(problem)
         if gap and (gap.group(2), gap.group(3)) in allowed:
             continue
-        hit = next(
-            (
-                no
-                for no in errors
-                if f"({no} 다음 {no})" in problem or problem.startswith(f"조항 번호 {no}가 ")
-            ),
-            None,
-        )
-        if hit is None:
+        order = ORDER_PROBLEM.match(problem)
+        numbered = gap or order
+        if row and numbered and (not reviewed or int(numbered.group(1)) in reviewed):
+            accepted.append(problem)
+            if order and order.group(2) == order.group(3):
+                repeated.add(order.group(2))
+            continue
+        kept.append(problem)
+    out: list[str] = []
+    for problem in kept:
+        dup = DUPLICATE_PROBLEM.match(problem)
+        if row and dup and dup.group(1) in repeated:
+            accepted.append(problem)
+        else:
             out.append(problem)
-        elif errors[hit] not in out:
-            out.append(errors[hit])
-    return out
+    if row and not accepted:
+        out.append(review.unapplied(row))
+    return out, accepted
+
+
+def review_note(row: dict[str, str], duplicates: list[str]) -> str:
+    """사람 검수로 ok가 된 판의 설명(documents.csv review_note, 사이트 판 설명)."""
+    from pipeline import review
+
+    note = row["note"].rstrip(".")
+    text = f"{review.label(row)}: 조항 번호 문제는 FIA 원문에 찍힌 그대로다. {note}."
+    if duplicates:
+        keys = ", ".join(f"{no}{DUPLICATE_MARK}2" for no in duplicates)
+        text += f" 두 번 찍힌 번호의 두 번째 조항은 {keys}로 적는다."
+    return text
 
 
 class ShrinkError(RuntimeError):
@@ -1868,7 +1930,9 @@ def build(only_cached: bool = False, allow_shrink: bool = False) -> dict[str, in
 
     only_cached=False면 먼저 fia_regulations.download()로 빠진 원문을 받는다. True면 캐시에 있는
     원문만 처리하고 나머지는 not_downloaded로 적는다(파싱 실패가 아니다). 그 결과가 커밋된
-    documents.csv보다 줄어들면 아무것도 쓰지 않고 멈춘다(check_shrink).
+    documents.csv보다 줄어들면 아무것도 쓰지 않고 멈춘다(check_shrink). 사람이 원문 번호 오류로
+    확인한 판(human_review.csv, numbering_reviews)은 그 번호 문제를 빼고 판정하고 review_note를
+    적는다.
     """
     import pandas as pd
 
@@ -1887,6 +1951,7 @@ def build(only_cached: bool = False, allow_shrink: bool = False) -> dict[str, in
     rows.sort(key=lambda r: (int(r["season"]), r["section"], version_order(r)))
 
     warm_cache([(r, fia_regulations.local_path(r)) for r in rows])
+    reviews = numbering_reviews()
     doc_rows, article_rows, failures = [], [], []
     parsed: dict[tuple[int, str, str], ParsedDocument] = {}
     for row in rows:
@@ -1899,8 +1964,8 @@ def build(only_cached: bool = False, allow_shrink: bool = False) -> dict[str, in
         }  # fmt: skip
         if not path.exists():
             doc_rows.append({**base, "pages": None, "clauses": None, "characters": None,
-                             "status": "not_downloaded", "problems": "", "pdf_sha256": "",
-                             "sha256_check": ""})  # fmt: skip
+                             "status": "not_downloaded", "problems": "", "review_note": "",
+                             "pdf_sha256": "", "sha256_check": ""})  # fmt: skip
             continue
         digest = file_sha256(path)
         problems: list[str] = []
@@ -1915,16 +1980,21 @@ def build(only_cached: bool = False, allow_shrink: bool = False) -> dict[str, in
             doc = ParsedDocument(path, 0, [], [], {})
         else:
             doc = parse_cached(row, path, digest)
-        problems += review_problems((season, section, vkey), doc.problems)
+        remaining, accepted = review_problems((season, section, vkey), doc.problems, reviews)
+        problems += remaining
         if not doc.clauses and not problems:
             problems.append("조항을 하나도 읽지 못했다")
         status = "needs_review" if problems else "ok"
+        note = ""
+        if accepted:
+            duplicates = [m.group(1) for p in accepted if (m := DUPLICATE_PROBLEM.match(p))]
+            note = review_note(reviews[(season, section, vkey)], duplicates)
         doc_rows.append(
             {
                 **base, "pages": doc.pages, "clauses": len(doc.clauses),
                 "characters": sum(c.char_count for c in doc.clauses), "status": status,
-                "problems": summarise(problems), "pdf_sha256": digest, "sha256_check": check,
-                **{name: doc.stats.get(name, 0) for name in DOCUMENT_STATS},
+                "problems": summarise(problems), "review_note": note, "pdf_sha256": digest,
+                "sha256_check": check, **{name: doc.stats.get(name, 0) for name in DOCUMENT_STATS},
             }
         )  # fmt: skip
         if problems:
@@ -1975,6 +2045,7 @@ def build(only_cached: bool = False, allow_shrink: bool = False) -> dict[str, in
         "parsed": len(parsed),
         "not_downloaded": sum(d["status"] == "not_downloaded" for d in doc_rows),
         "needs_review": len(failures),
+        "human_reviewed": sum(bool(d["review_note"]) for d in doc_rows),
         "clauses": len(article_rows),
         "comparisons": len(comparison_rows),
         "comparisons_with_skipped": sum(bool(c["skipped_versions"]) for c in comparison_rows),
@@ -1994,8 +2065,8 @@ DOCUMENT_STATS = [
 ]  # fmt: skip
 DOCUMENT_COLUMNS = [
     "season", "section", "issue", "variant", "version_key", "version_date", "published_at", "url",
-    "pages", "clauses", "characters", "status", "problems", "pdf_sha256", "sha256_check",
-    *DOCUMENT_STATS,
+    "pages", "clauses", "characters", "status", "problems", "review_note", "pdf_sha256",
+    "sha256_check", *DOCUMENT_STATS,
 ]  # fmt: skip
 ARTICLE_COLUMNS = [
     "season", "section", "version_key", "clause_no", "top_article", "top_title", "heading",

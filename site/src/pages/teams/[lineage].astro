@@ -16,7 +16,7 @@ import LineageRibbon from '../../components/team/LineageRibbon.astro';
 import TeamPu from '../../components/team/TeamPu.astro';
 import { CATS, buildTeam } from '../../components/team/model.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getTeam, labels, lineageIds, teams } from '../../lib/data.ts';
+import { getTeam, labels, lineageIds, status as siteStatus, teams } from '../../lib/data.ts';
 import { formatPoints, n0, num } from '../../lib/format.ts';
 import { badgeHtml, badgesHtml, extHtml, type BadgeKind } from '../../lib/markup.ts';
 import { routes, upgradesWith } from '../../lib/paths.ts';
@@ -330,7 +330,7 @@ const pageData = {
         { type: 'glyph', cat: 'other', label: '기타' },
         { type: 'zero', label: '변경 0건' },
         { type: 'nodoc', label: '공개 문서가 없는 대회' },
-        { type: 'review', label: '검수 대기 문서' },
+        ...(siteStatus.reviewDocuments.length > 0 ? [{ type: 'review', label: '검수 대기 문서' }] : []),
       ]}
       manual
       ariaLabel={unitsLabel}

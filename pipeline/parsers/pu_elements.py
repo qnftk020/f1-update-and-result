@@ -61,6 +61,11 @@ pu_ice_events의 순번(ice_number)은 Previously used + 1이다. 같은 대회 
 처분 문서("Infringement - Car 1 - PU elements ...")로만 밝힌 경우가 있어, 새 ICE 투입 이벤트는
 선언 문서에 나온 것만이고 누적 문서의 개수보다 적을 수 있다.
 
+사람이 원문을 보고 내린 결정(`data/curated/review/human_review.csv`, `pipeline/review.py`)은
+원문 URL, 쪽, 차량 번호(또는 드라이버 이름), 구성요소가 정확히 맞는 곳에만 적용한다(Reviews).
+원문 값은 지우지 않고, 적용한 행의 review_note에 결정 번호와 원문 값을 적는다. 적용할 곳을
+찾지 못한 결정은 그 문서의 문제로 남겨 문서를 검수 대기로 둔다.
+
 실행: uv run python -m pipeline.parsers.pu_elements [--cached]
 """
 
@@ -75,6 +80,7 @@ from pathlib import Path
 
 import pdfplumber
 
+from pipeline import review
 from pipeline.events import plain
 from pipeline.parsers.car_presentation import clean
 
@@ -189,6 +195,156 @@ def correction_note(lines: list[Line]) -> str:
     return (body or notes or [""])[0]
 
 
+# --- 사람 검수 결정 ---------------------------------------------------------------------------
+
+# human_review.csv의 target 표기. 결정마다 대상의 꼴이 정해져 있다.
+REVIEW_TARGETS = {
+    "printed_value_is": re.compile(r"^(?P<car>\d{1,2})\s+(?P<element>[A-Z-]+)$"),  # "2 EX"
+    "accept_printed": re.compile(r"^(?P<car>\d{1,2})\s+(?P<element>[A-Z-]+)$"),
+    "blank_is": re.compile(  # "81 CE previously used"
+        r"^(?P<car>\d{1,2})\s+(?P<element>[A-Z-]+)\s+previously\s+used$", re.I
+    ),
+    "car_number_is": re.compile(r"^(?P<driver>.+?)\s+car\s+number$", re.I),  # "Isack Hadjar ..."
+    "statement_driver_is": re.compile(r"^(?P<element>[A-Z-]+)\s+statement$", re.I),  # "MGU-K ..."
+    "seat_by_team_label": re.compile(r"^(?P<cars>\d{1,2}(?:\s+and\s+\d{1,2})*)\s+team\s+label$"),
+}
+
+
+@dataclass
+class Reviews:
+    """한 문서의 사람 검수 결정(pipeline.review). 적용한 결정의 id를 applied에 모은다.
+
+    결정은 쪽(적혀 있으면), 차량 번호나 드라이버 이름, 구성요소가 모두 맞는 곳에만 적용한다. 다 읽은
+    뒤에도 적용하지 못한 결정은 unapplied()가 문제 문구로 돌려준다.
+    """
+
+    rows: list[dict] = field(default_factory=list)
+    applied: set[str] = field(default_factory=set)
+
+    def find(self, decision: str, page: int | None = None, **wanted) -> dict | None:
+        """decision 결정 가운데 대상이 wanted와 맞는 행. 아직 적용한 것으로 치지 않는다."""
+        for row in self.rows:
+            if row["decision"] != decision:
+                continue
+            target = REVIEW_TARGETS[decision].match(row["target"])
+            if target is None:
+                continue
+            pages = review.pages(row)
+            if page is not None and pages and page not in pages:
+                continue
+            got = target.groupdict()
+            if "car" in wanted and int(got["car"]) != wanted["car"]:
+                continue
+            if "element" in wanted and element_code(got["element"]) != wanted["element"]:
+                continue
+            if "driver" in wanted and squash(got["driver"]) != squash(wanted["driver"]):
+                continue
+            if "cars" in wanted and wanted["cars"] not in map(int, re.findall(r"\d+", got["cars"])):
+                continue
+            return row
+        return None
+
+    def use(self, row: dict, text: str) -> str:
+        """결정을 적용한 것으로 치고 행에 붙일 메모를 돌려준다."""
+        self.applied.add(row["id"])
+        return f"{review.label(row)}: {text}"
+
+    def used_cell(
+        self, page: int, car: int, element: str, printed: int
+    ) -> tuple[int, str, bool] | None:
+        """누적 표 한 칸의 결정: (읽을 값, 메모, 원문 값을 받아들였는지). 결정이 없으면 None이다.
+
+        accept_printed는 원문 값이 결정의 값과 같을 때만 적용한다.
+        """
+        row = self.find("printed_value_is", page, car=car, element=element)
+        if row is not None:
+            value = int(row["value"])
+            return value, self.use(row, f"원문 {printed}개를 {value}개로 읽음"), False
+        row = self.find("accept_printed", page, car=car, element=element)
+        if row is not None and int(row["value"]) == printed:
+            return printed, self.use(row, f"원문 {printed}개를 그대로 받아들임"), True
+        return None
+
+    def car_number(self, page: int, driver: str, printed: int) -> tuple[int, str] | None:
+        row = self.find("car_number_is", page, driver=driver)
+        if row is None:
+            return None
+        value = int(row["value"])
+        return value, self.use(row, f"원문 {printed}번을 {value}번으로 읽음")
+
+    def blank(self, page: int, car: int, element: str) -> tuple[int, str] | None:
+        row = self.find("blank_is", page, car=car, element=element)
+        if row is None:
+            return None
+        value = int(row["value"])
+        return value, self.use(row, f"원문 빈칸을 {value}개로 읽음")
+
+    def unapplied(self) -> list[str]:
+        return [review.unapplied(row) for row in self.rows if row["id"] not in self.applied]
+
+
+def document_reviews(
+    meta: dict, decisions: list[dict] | None = None, manifest_rows: list[dict] = ()
+) -> Reviews:
+    """manifest의 문서 한 건(meta)에 적용할 사람 검수 결정.
+
+    선언 문서(pu_new)는 한 대회에 여러 건이 쌓이므로 원문 URL이 정확히 같은 결정만 쓴다. 누적
+    문서(pu_used)는 대회마다 표 하나가 유효하고 같은 대회에 다시 낸 문서가 앞 문서를 대체하므로
+    (mark_superseded), 같은 시즌, 같은 대회의 누적 문서 가운데 하나를 가리킨 결정을 그 대회의 누적
+    문서 모두에 쓴다(2023 네덜란드처럼 같은 표를 두 번 낸 대회에서 결정이 대체된 앞 문서의 URL을
+    가리켜도 실제로 쓰는 나중 문서에 적용된다).
+    decisions를 주지 않으면 human_review.csv에서 읽는다.
+    """
+    kind = meta["doc_type"]
+    if decisions is None:
+        decisions = review.decisions(kind)
+    urls = {meta["url"]}
+    if kind == "pu_used":
+        urls |= {
+            m["url"]
+            for m in manifest_rows
+            if m["doc_type"] == kind
+            and (m["season"], m["event"]) == (meta["season"], meta["event"])
+        }
+    return Reviews(
+        [
+            r
+            for r in decisions
+            if r["doc_type"] == kind
+            and r["season"] == str(meta["season"])
+            and r["source_url"] in urls
+        ]
+    )
+
+
+def add_note(row: dict, note: str) -> None:
+    """행의 review_note에 메모를 덧붙인다."""
+    row["review_note"] = "; ".join(n for n in (row.get("review_note", ""), note) if n)
+
+
+def reviewed_used_row(row: dict, page: int, reviews: Reviews | None) -> None:
+    """누적 표 한 행에 사람 검수 결정을 적용한다. 원문 값은 메모에 남긴다."""
+    if not reviews or not reviews.rows:
+        return
+    fixed = reviews.car_number(page, row["driver_name"], row["car_number"])
+    if fixed is not None:
+        row["car_number"] = fixed[0]
+        add_note(row, fixed[1])
+    for element, printed in row["used"].items():
+        cell = reviews.used_cell(page, row["car_number"], element, printed)
+        if cell is not None:
+            row["used"][element] = cell[0]
+            row.setdefault("review_notes", {})[element] = cell[1]
+            if cell[2]:
+                row.setdefault("review_accepted", set()).add(element)
+
+
+def review_note(row: dict, element: str | None = None) -> str:
+    """행(과 누적 표의 한 칸)에 붙은 사람 검수 메모."""
+    notes = [row.get("review_note", ""), (row.get("review_notes") or {}).get(element, "")]
+    return "; ".join(n for n in notes if n)
+
+
 # --- pu_used: 누적 사용 개수 표 -------------------------------------------------------------
 
 
@@ -273,8 +429,13 @@ def used_row(line: Line, columns: UsedColumns) -> tuple[dict | None, str | None]
     return row, None
 
 
-def parse_used_lines(lines: list[Line]) -> tuple[list[str], list[dict], list[str]]:
-    """줄 목록에서 누적 표를 읽는다. (구성요소 열, 행 목록, 문제 목록)을 돌려준다."""
+def parse_used_lines(
+    lines: list[Line], reviews: Reviews | None = None
+) -> tuple[list[str], list[dict], list[str]]:
+    """줄 목록에서 누적 표를 읽는다. (구성요소 열, 행 목록, 문제 목록)을 돌려준다.
+
+    reviews(사람 검수 결정)는 행을 읽은 바로 뒤, 차량 번호 중복을 보기 전에 적용한다.
+    """
     problems: list[str] = []
     columns: UsedColumns | None = None
     rows: list[dict] = []
@@ -293,6 +454,7 @@ def parse_used_lines(lines: list[Line]) -> tuple[list[str], list[dict], list[str
         if is_car_row(line, columns.car_x0):
             row, problem = used_row(line, columns)
             if row is not None:
+                reviewed_used_row(row, line.page, reviews)
                 rows.append(row)
             if problem:
                 problems.append(problem)
@@ -310,10 +472,10 @@ def parse_used_lines(lines: list[Line]) -> tuple[list[str], list[dict], list[str
     return [e[0] for e in columns.elements], rows, problems
 
 
-def parse_used(path: Path) -> UsedDocument:
+def parse_used(path: Path, reviews: Reviews | None = None) -> UsedDocument:
     """누적 사용 개수 문서 한 건을 읽는다."""
     lines = read_lines(path)
-    elements, rows, problems = parse_used_lines(lines)
+    elements, rows, problems = parse_used_lines(lines, reviews)
     return UsedDocument(path, cover_number(lines), elements, rows, correction_note(lines), problems)
 
 
@@ -520,11 +682,13 @@ def assign_wrapped(table: list[Line], car_x0: float) -> tuple[list[tuple[Line, l
 
 
 def new_row(
-    anchor: Line, extra: list[dict], columns: NewColumns, element: str
-) -> tuple[dict | None, str | None]:
+    anchor: Line, extra: list[dict], columns: NewColumns, element: str,
+    reviews: Reviews | None = None,
+) -> tuple[dict | None, str | None]:  # fmt: skip
     """선언 표의 한 행. 마지막 낱말이 "Previously used" 아래의 숫자여야 한다.
 
-    개수 칸이 비어 있으면(2024 바레인 CE) 원문대로 개수 없는 행을 남기고 문제로 적는다.
+    개수 칸이 비어 있으면(2024 바레인 CE) 원문대로 개수 없는 행을 남기고 문제로 적는다. 사람이 그
+    빈칸의 값을 정했으면(blank_is) 그 값으로 읽고 review_note에 남긴다.
     """
     number, count = anchor.words[0], anchor.words[-1]
     where = f"{anchor.page}쪽 {element} {number['text']}번"
@@ -543,7 +707,15 @@ def new_row(
         return None, f"{where}: 팀이나 드라이버 칸이 비어 있다: {anchor.text!r}"
     previously_used = None if blank else int(count["text"])
     row = declared_row(int(number["text"]), team, driver, element, previously_used)
-    return row, f"{where}: 이전 사용 개수 칸이 비어 있다" if blank else None
+    if not blank:
+        return row, None
+    decided = reviews.blank(anchor.page, row["car_number"], element) if reviews else None
+    if decided is None:
+        return row, f"{where}: 이전 사용 개수 칸이 비어 있다"
+    row["previously_used"] = decided[0]
+    add_note(row, decided[1])
+    row["printed_previously_used"] = None
+    return row, None
 
 
 def declared_row(
@@ -557,7 +729,9 @@ def declared_row(
     }  # fmt: skip
 
 
-def table_rows(block: NewBlock) -> tuple[list[dict], list[str], bool]:
+def table_rows(
+    block: NewBlock, reviews: Reviews | None = None
+) -> tuple[list[dict], list[str], bool]:
     """묶음의 표를 읽는다. (행, 문제, 행을 하나도 빠뜨리지 않았는지)를 돌려준다.
 
     팀 이름이 두 줄로 나뉜 칸은 가장 가까운 행에 붙인다. 표 없이 모든 드라이버를 가리키는 묶음은
@@ -570,7 +744,7 @@ def table_rows(block: NewBlock) -> tuple[list[dict], list[str], bool]:
     grouped, problems = assign_wrapped(block.table, block.columns.car_x0)
     rows: list[dict] = []
     for anchor, extra in grouped:
-        row, problem = new_row(anchor, extra, block.columns, block.element)
+        row, problem = new_row(anchor, extra, block.columns, block.element, reviews)
         if row is not None:
             rows.append(row)
         if problem:
@@ -674,11 +848,15 @@ def statement_facts(statement: str) -> dict:
     }
 
 
-def apply_statements(block: NewBlock, rows: list[dict]) -> list[str]:
+def apply_statements(
+    block: NewBlock, rows: list[dict], reviews: Reviews | None = None
+) -> list[str]:
     """배정 문장을 표의 행에 붙인다. 문장이 가리키는 행을 알 수 없으면 문제로 남긴다.
 
     이름을 적은 문장은 그 드라이버의 행에, "the above drivers"처럼 묶어 말한 문장은 이름으로 불리지
-    않은 나머지 행에 붙인다. 문장이 없는 행은 문서가 말하지 않은 것이므로 비워 둔다.
+    않은 나머지 행에 붙인다. 문장이 없는 행은 문서가 말하지 않은 것이므로 비워 둔다. 가리키는 행을
+    찾지 못한 문장은 사람이 그 쪽, 그 구성요소 문장의 차량을 정했으면(statement_driver_is) 그 차량의
+    행에 붙인다. 문장은 원문대로 allocation_text에 두고 행의 review_note에 결정을 남긴다.
     """
     problems: list[str] = []
     where = f"{block.page}쪽 {block.element}"
@@ -691,6 +869,18 @@ def apply_statements(block: NewBlock, rows: list[dict]) -> list[str]:
     for statement, group in zip(found, named, strict=True):
         generic = GENERIC_SUBJECT.search(statement)
         targets = group or ([r for r in rows if id(r) not in named_ids] if generic else [])
+        decision = (
+            reviews.find("statement_driver_is", block.page, element=block.element)
+            if reviews and not targets
+            else None
+        )
+        if decision is not None:
+            car = int(decision["value"])
+            targets = [r for r in rows if r["car_number"] == car]
+            if targets:
+                note = reviews.use(decision, f"배정 문장이 가리키는 행을 {car}번으로 읽음")
+                for row in targets:
+                    add_note(row, note)
         if not targets:
             problems.append(f"{where}: 배정 문장이 가리키는 행을 표에서 찾지 못했다: {statement!r}")
         for row in targets:
@@ -708,16 +898,18 @@ def apply_statements(block: NewBlock, rows: list[dict]) -> list[str]:
     return problems
 
 
-def read_declarations(lines: list[Line]) -> tuple[list[dict], list[str], bool]:
+def read_declarations(
+    lines: list[Line], reviews: Reviews | None = None
+) -> tuple[list[dict], list[str], bool]:
     """줄 목록에서 새 구성요소 선언을 읽는다. (행, 문제, 표의 행을 빠뜨리지 않았는지)를 돌려준다."""
     blocks, problems, complete = split_blocks(lines)
     rows: list[dict] = []
     for block in blocks:
-        block_rows, row_problems, block_complete = table_rows(block)
+        block_rows, row_problems, block_complete = table_rows(block, reviews)
         problems.extend(row_problems)
         complete = complete and block_complete
         if block_rows:
-            problems.extend(apply_statements(block, block_rows))
+            problems.extend(apply_statements(block, block_rows, reviews))
         rows.extend(block_rows)
     if not blocks:
         problems.append("새 구성요소 선언(도입 문장이나 표 머리글)을 찾지 못했다")
@@ -730,10 +922,10 @@ def parse_new_lines(lines: list[Line]) -> tuple[list[dict], list[str]]:
     return rows, problems
 
 
-def parse_new(path: Path) -> NewDocument:
+def parse_new(path: Path, reviews: Reviews | None = None) -> NewDocument:
     """새 구성요소 선언 문서 한 건을 읽는다."""
     lines = read_lines(path)
-    rows, problems, complete = read_declarations(lines)
+    rows, problems, complete = read_declarations(lines, reviews)
     number, correction = cover_number(lines), correction_note(lines)
     return NewDocument(path, number, rows, correction, problems, complete)
 
@@ -755,6 +947,8 @@ class Document:
     held_by: str = ""
     # 정정 표시 없이 다시 낸 나중 문서가 이 문서를 대체할 때, 이 문서에만 있던 선언 행
     dropped: list[dict] = field(default_factory=list)
+    # 이 문서의 사람 검수 결정(원문 URL이 같은 것)
+    reviews: Reviews = field(default_factory=Reviews)
 
     @property
     def kind(self) -> str:
@@ -802,13 +996,15 @@ class Document:
         return self.season, self.round or 0, self.meta["event"], self.published_at, self.url
 
 
-def parse_document(kind: str, path: Path) -> UsedDocument | NewDocument:
+def parse_document(
+    kind: str, path: Path, reviews: Reviews | None = None
+) -> UsedDocument | NewDocument:
     """문서 한 건을 읽는다. 읽다가 오류가 나면 빈 결과에 오류 내용을 문제로 적어 돌려준다.
 
     오류가 난 문서 하나 때문에 전체 빌드가 멈추지 않게 하고, 그 문서는 검수 대기로 남긴다.
     """
     try:
-        return parse_used(path) if kind == "pu_used" else parse_new(path)
+        return parse_used(path, reviews) if kind == "pu_used" else parse_new(path, reviews)
     except Exception as error:  # 어떤 오류든 그 문서의 문제로 남긴다
         problem = f"파싱 중 오류가 났다: {type(error).__name__}: {error}"
         if kind == "pu_used":
@@ -825,18 +1021,20 @@ def load_documents(manifest_rows: list[dict], raw_dir: Path) -> list[Document]:
     from pipeline.http import sha256_bytes
     from pipeline.sources import fia_docs
 
+    decisions = [r for kind in DOC_TYPES for r in review.decisions(kind)]
     documents: list[Document] = []
     for meta in manifest_rows:
         if meta["doc_type"] not in DOC_TYPES:
             continue
         season = int(meta["season"])
         doc = Document(meta, season, events.round_for(season, meta["event"]))
+        doc.reviews = document_reviews(meta, decisions, manifest_rows)
         path = raw_dir / "fia" / fia_docs.pdf_cache_path(meta)
         if path.exists():
             expected = meta.get("sha256", "")
             if expected and sha256_bytes(path.read_bytes()) != expected:
                 doc.problems.append("캐시에 있는 원문의 sha256이 manifest와 다르다")
-            doc.parsed = parse_document(doc.kind, path)
+            doc.parsed = parse_document(doc.kind, path, doc.reviews)
             doc.problems.extend(doc.parsed.problems)
             if doc.round is None:
                 doc.problems.append(f"대회명을 라운드에 맞추지 못했다: {meta['event']}")
@@ -968,6 +1166,8 @@ def link_documents(documents: list[Document], entries: Entries) -> None:
     for doc in parsed:
         doc.problems.extend(team_conflicts(doc, usual))
         doc.problems.extend(link_by_name(doc, entries, season_teams))
+        # 사람 검수 결정은 읽기(parse)와 연결(team_conflicts)에서 적용한다. 남은 것은 문제다.
+        doc.problems.extend(doc.reviews.unapplied())
 
 
 def team_conflicts(doc: Document, usual: dict[tuple[int, str], Counter]) -> list[str]:
@@ -976,6 +1176,11 @@ def team_conflicts(doc: Document, usual: dict[tuple[int, str], Counter]) -> list
     차량 번호, 드라이버, 팀 표기 가운데 하나가 그 대회 출전 기록과 맞지 않는다는 뜻이다(예: 2025
     일본 누적 문서는 드라이버 교체 전의 팀 표기를 싣고 있다). 그 시즌에 그 표기가 가장 많이 걸린
     컨스트럭터와 다른 행을 적는다. 어느 쪽이 맞는지 정하지 않는다.
+
+    사람이 팀 표기의 좌석으로 이으라고 정한 차량(seat_by_team_label, 2025 일본 i07)은 적지 않고, 그
+    행의 constructor_id를 팀 표기가 그 시즌에 가장 많이 걸린 컨스트럭터(좌석)로 바꾼다. 차량 번호,
+    드라이버 이름, 팀 표기는 원문대로 두고 review_note에 결정과 원래 연결된 컨스트럭터를 남긴다.
+    팀 표기의 컨스트럭터를 하나로 정할 수 없으면 결정을 적용하지 않는다.
     """
     problems: list[str] = []
     for team, ids in sorted(team_map(doc.rows).items()):
@@ -985,6 +1190,15 @@ def team_conflicts(doc: Document, usual: dict[tuple[int, str], Counter]) -> list
         expected = common[0][0] if len(common) == 1 or common[0][1] > common[1][1] else None
         for row in doc.rows:
             if plain(row["team_text"]) == team and row["constructor_id"] != expected:
+                decision = doc.reviews.find("seat_by_team_label", cars=row["car_number"])
+                if decision is not None and expected is not None:
+                    note = (
+                        f"이 대회 결과에서 {row['car_number']}번은 {row['constructor_id']}이지만 "
+                        f"표의 팀 표기와 값은 교체 전 좌석이라 팀 표기의 좌석({expected})으로 이음"
+                    )
+                    add_note(row, doc.reviews.use(decision, note))
+                    row["constructor_id"] = expected
+                    continue
                 problems.append(
                     f"{row['car_number']}번 {row['driver_name']}: 팀 표기 {row['team_text']!r}와 "
                     f"결과의 컨스트럭터({row['constructor_id']})가 맞지 않는다"
@@ -1251,25 +1465,43 @@ def inconsistency(doc: Document, kind: str, seat: Seat, element: str, **values) 
     return row
 
 
+def accepted(doc: Document, seat: Seat, element: str) -> bool:
+    """누적 문서의 이 칸을 사람이 검수해 원문 값을 받아들였는지(accept_printed)."""
+    row = next(
+        (r for r in doc.rows if (r["constructor_id"], r["car_number"]) == seat), None
+    )  # fmt: skip
+    return row is not None and element in row.get("review_accepted", set())
+
+
 def check_decrease(earlier: Document, later: Document) -> list[dict]:
     """같은 좌석의 누적 개수가 줄었으면 두 문서 모두에 문제로 남기고 불일치 행을 돌려준다.
 
-    어느 쪽이 틀렸는지 알 수 없으므로 한쪽만 고르지 않는다.
+    어느 쪽이 틀렸는지 알 수 없으므로 한쪽만 고르지 않는다. 두 칸 모두 사람이 원문 값을
+    받아들였으면(accept_printed, 2023 Sargeant EX의 i04, i05) 감소는 불일치 목록에만 남기고 문서는
+    정상으로 둔다.
     """
     before, after = seat_table(earlier), seat_table(later)
     found: list[dict] = []
     for a, b in pair_seats(set(before), set(after)):
         for element in before[a]:
             if element in after[b] and after[b][element] < before[a][element]:
-                change = f"{b[1]}번 {element} {before[a][element]} -> {after[b][element]}"
-                earlier.problems.append(f"다음 누적 문서(R{later.round})에서 값이 줄었다: {change}")
-                later.problems.append(f"앞선 누적 문서(R{earlier.round})보다 값이 줄었다: {change}")
+                reviewed = accepted(earlier, a, element) and accepted(later, b, element)
+                note = "두 문서의 원문 값을 사람이 검수해 받아들였으므로 두 문서 모두 정상으로 둔다"
+                if not reviewed:
+                    note = "두 문서 모두 검수 대기로 둔다"
+                    change = f"{b[1]}번 {element} {before[a][element]} -> {after[b][element]}"
+                    earlier.problems.append(
+                        f"다음 누적 문서(R{later.round})에서 값이 줄었다: {change}"
+                    )
+                    later.problems.append(
+                        f"앞선 누적 문서(R{earlier.round})보다 값이 줄었다: {change}"
+                    )
                 found.append(
                     inconsistency(
                         later, "snapshot_decrease", b, element, earlier_round=earlier.round,
                         earlier_value=before[a][element], new_declared=None,
                         expected=before[a][element], actual=after[b][element],
-                        earlier_url=earlier.url, note="두 문서 모두 검수 대기로 둔다",
+                        earlier_url=earlier.url, note=note,
                     )
                 )  # fmt: skip
     return found
@@ -1280,7 +1512,8 @@ def check_decreases(chain: list[Document]) -> list[dict]:
 
     chain은 표를 확실히 읽은 누적 문서다. 줄어든 쌍의 두 문서는 검수 대기가 되지만 사슬에서
     빼지 않는다. 빼고 다시 이으면 이웃하지 않은 문서끼리 비교해 같은 끊김을 여러 번 적고, 정확히
-    읽은 앞뒤 문서까지 검수 대기로 만든다(2023 Sargeant EX는 R14 5에서 R15 4로 한 번 줄었다).
+    읽은 앞뒤 문서까지 검수 대기로 만든다(2023 Sargeant EX는 R14 5에서 R15 4로 한 번 줄었다. 사람
+    검수 i04, i05가 두 값을 받아들여 두 문서는 정상이다).
     """
     found: list[dict] = []
     for season in sorted({d.season for d in chain}):
@@ -1481,6 +1714,29 @@ def pu_decisions(manifest_rows: list[dict]) -> dict[tuple[int, int], list[tuple[
     return {key: sorted(value) for key, value in found.items()}
 
 
+def attach_review_notes(inconsistencies: list[dict], documents: list[Document]) -> None:
+    """불일치 행이 가리키는 두 문서의 칸에 사람 검수 결정이 적용되어 있으면 note에 밝힌다.
+
+    불일치는 결정을 적용한 값으로 계산하므로, 읽는 사람이 원문 값과 결정을 함께 보도록 돕는다.
+    """
+    notes: dict[tuple[str, int, str], str] = {}
+    for doc in documents:
+        for row in doc.car_rows:
+            elements = doc.parsed.elements if doc.kind == "pu_used" else [row["element"]]
+            for element in elements:
+                note = review_note(row, element)
+                if note:
+                    notes[doc.url, row["car_number"], element] = note
+    for row in inconsistencies:
+        found = [
+            f"{side} 값은 {notes[key]}"
+            for side, url in (("earlier", row.get("earlier_url")), ("later", row.get("later_url")))
+            if (key := (url, row["car_number"], row["element"])) in notes
+        ]
+        if found:
+            row["note"] = ". ".join(n for n in (row["note"], *found) if n)
+
+
 def attach_decisions(inconsistencies: list[dict], decisions: dict) -> None:
     """불일치 행에 두 대회 사이(양 끝 포함)에 나온 같은 차량의 PU 처분 문서를 붙인다.
 
@@ -1576,10 +1832,12 @@ DOCUMENT_FIELDS = [
 ]  # fmt: skip
 ROW_KEYS = ["season", "round", "event", "doc_number", "published_at"]
 CAR_FIELDS = ["car_number", "team_text", "driver_name", "driver_id", "constructor_id"]
-USED_FIELDS = [*ROW_KEYS, *CAR_FIELDS, "element", "used", "document_status", "source_url"]
+USED_FIELDS = [
+    *ROW_KEYS, *CAR_FIELDS, "element", "used", "review_note", "document_status", "source_url",
+]  # fmt: skip
 NEW_FIELDS = [
     *ROW_KEYS, *CAR_FIELDS, "element", "previously_used", "allocation_text", "within_allocation",
-    "document_status", "source_url",
+    "review_note", "document_status", "source_url",
 ]  # fmt: skip
 USAGE_FIELDS = [
     "season", "round", "car_number", "driver_id", "constructor_id", "element",
@@ -1626,7 +1884,12 @@ def row_base(doc: Document, row: dict) -> dict:
 def used_rows(doc: Document) -> list[dict]:
     """누적 문서의 표를 문서 x 차량 x 구성요소 행으로 편다."""
     return [
-        {**row_base(doc, row), "element": element, "used": row["used"][element]}
+        {
+            **row_base(doc, row),
+            "element": element,
+            "used": row["used"][element],
+            "review_note": review_note(row, element),
+        }  # fmt: skip
         for row in doc.rows
         for element in doc.parsed.elements
     ]
@@ -1635,7 +1898,14 @@ def used_rows(doc: Document) -> list[dict]:
 def new_rows(doc: Document) -> list[dict]:
     """선언 문서의 행. 배정 문장과 적합 여부는 문서가 말한 대로만 싣는다."""
     names = ["element", "previously_used", "allocation_text", "within_allocation"]
-    return [{**row_base(doc, row), **{name: row[name] for name in names}} for row in doc.rows]
+    return [
+        {
+            **row_base(doc, row),
+            **{name: row[name] for name in names},
+            "review_note": review_note(row),
+        }
+        for row in doc.rows
+    ]
 
 
 def usage_seats(
@@ -1731,6 +2001,9 @@ def event_usage(
                 before = first["previously_used"]
                 basis = f"before=previously_used in pu_new {first['url']}"
             new, after, rest = count_basis(before, hits, seat, blocked, pending, listed)
+            notes = [review_note(info, element) if info["used"] else ""]
+            notes += [review_note(r) for r in hits]
+            rest += "".join(f"; review={n}" for n in dict.fromkeys(notes) if n)
             out.append(
                 {
                     "season": key[0], "round": key[1], "car_number": info["car_number"],
@@ -1803,7 +2076,9 @@ def ice_rows(documents: list[Document], inconsistencies: list[dict] = ()) -> lis
                 {
                     **{name: base[name] for name in ICE_FIELDS if name in base},
                     "ice_number": None if conflict else row["previously_used"] + 1,
-                    "printed_previously_used": row["previously_used"],
+                    "printed_previously_used": row.get(
+                        "printed_previously_used", row["previously_used"]
+                    ),
                     "stated_ordinal": row["ordinal"],
                     "within_allocation": row["within_allocation"],
                     "conflict": "; ".join(conflict),
@@ -1943,6 +2218,7 @@ def build(only_cached: bool = False) -> dict[str, int]:
     mark_superseded(documents)
     inconsistencies, stats = cross_checks(documents, entries)
     attach_decisions(inconsistencies, pu_decisions(manifest_rows))
+    attach_review_notes(inconsistencies, documents)
 
     out = CURATED_DIR / "fia"
     out.mkdir(parents=True, exist_ok=True)

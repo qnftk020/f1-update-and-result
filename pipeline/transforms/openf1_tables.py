@@ -4,11 +4,17 @@
 - 미팅은 시즌과 결승 날짜로 Jolpica 라운드에 맞추고, 서킷 대응의 일관성을 테스트로 본다.
 - 드라이버는 대회별 차량 번호로 맞춘 뒤 시즌 단위 대응표로 요약한다. 대응표는 사람이 검수한다.
 
+대응표의 review 열: auto(자동 대응), check(자동 대응에서 한쪽에만 있거나 약어가 다른 행, 드라이버
+대응표만), human(사람이 검수한 행). human 행은 review_id에 data/curated/review/human_review.csv의
+검수 id를 적는다. 다시 만들 때(write_map) 앞 파일에서 human이던 행과 내용이 모두 같은 행만 human을
+이어받는다. 내용이 바뀌거나 새로 생긴 행은 auto나 check로 돌아가 다시 검수를 기다린다.
+
 실행: uv run python -m pipeline.transforms.openf1_tables
 """
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
@@ -193,6 +199,83 @@ def build_driver_map(meeting_map: pd.DataFrame, drivers: pd.DataFrame) -> pd.Dat
     return grouped[cols].sort_values(["season", "driver_number", "first_round"])
 
 
+REVIEW_COLUMNS = ["review", "review_id"]
+MAP_DOC_TYPES = {"meeting_map": "openf1_meeting_map", "driver_map": "openf1_driver_map"}
+APPROVE = "approve"
+
+
+def approved_reviews(name: str) -> dict[str, dict[str, str]]:
+    """대응표 name("meeting_map", "driver_map")을 승인한 사람 검수 행(id -> 행)."""
+    from pipeline import review
+
+    return {
+        r["id"]: r
+        for r in review.decisions(MAP_DOC_TYPES[name])
+        if r["decision"] == APPROVE and r["target"] == f"{name}.csv"
+    }
+
+
+def _as_text(df: pd.DataFrame) -> pd.DataFrame:
+    """CSV로 쓴 모양 그대로의 글 값(정수 열의 결측, 소수점 표기까지 파일과 같게 비교한다)."""
+    return pd.read_csv(io.StringIO(df.to_csv(index=False)), dtype=str, keep_default_na=False)
+
+
+def keep_human_review(
+    new: pd.DataFrame, previous: pd.DataFrame | None, approved: set[str]
+) -> pd.DataFrame:
+    """앞 파일에서 사람이 검수한(human) 행과 내용이 같은 새 행에 검수 표시를 이어 준다.
+
+    내용은 review, review_id를 뺀 모든 열의 CSV 값으로 비교한다. 앞 행의 review_id가 지금
+    human_review.csv에서 승인(approve)으로 남아 있어야 이어받는다. 나머지 행은 자동 표시(auto,
+    check)를 그대로 두고 review_id를 비운다.
+    """
+    out = new.copy()
+    if "review" not in out.columns:
+        out["review"] = "auto"
+    out["review_id"] = ""
+    data = [c for c in out.columns if c not in REVIEW_COLUMNS]
+    if previous is None or not set(data + REVIEW_COLUMNS) <= set(previous.columns):
+        return out
+    prev = _as_text(previous)
+    prev = prev[(prev["review"] == "human") & prev["review_id"].isin(approved)]
+    reviewed = {tuple(r): rid for r, rid in zip(prev[data].values, prev["review_id"], strict=True)}
+    for i, row in zip(out.index, _as_text(out[data]).values, strict=True):
+        rid = reviewed.get(tuple(row))
+        if rid:
+            out.at[i, "review"] = "human"
+            out.at[i, "review_id"] = rid
+    return out
+
+
+def write_map(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    """대응표를 OUT/name.csv로 쓴다. 사람 검수 표시는 keep_human_review로 이어받는다."""
+    path = OUT / f"{name}.csv"
+    previous = pd.read_csv(path, dtype=str, keep_default_na=False) if path.exists() else None
+    out = keep_human_review(df, previous, set(approved_reviews(name)))
+    OUT.mkdir(parents=True, exist_ok=True)
+    out.to_csv(path, index=False)
+    return out
+
+
+def mark_reviewed(name: str, review_id: str) -> int:
+    """지금 OUT/name.csv의 모든 행을 사람 검수 행으로 표시한다. 표시한 행 수를 돌려준다.
+
+    사이트 운영자가 이 파일 그대로를 검수해 human_review.csv에 승인 행을 남긴 직후에만 쓴다.
+    그 뒤로는 write_map이 내용이 같은 행의 표시를 이어 간다. 2026-11-13 검수(m1, m2)를 이것으로
+    적었다.
+    """
+    if review_id not in approved_reviews(name):
+        raise ValueError(f"human_review.csv에 {name}.csv를 승인한 {review_id} 행이 없다")
+    path = OUT / f"{name}.csv"
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if "review" not in df.columns:
+        df["review"] = ""
+    df["review"] = "human"
+    df["review_id"] = review_id
+    df.to_csv(path, index=False)
+    return len(df)
+
+
 def write_parquet(df: pd.DataFrame, name: str) -> Path:
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / f"{name}.parquet"
@@ -222,10 +305,10 @@ def build(*, allow_partial: bool = False) -> dict[str, int]:
         write_parquet(df, endpoint)
         counts[endpoint] = len(df)
     meeting_map = build_meeting_map(sessions)
-    meeting_map.to_csv(OUT / "meeting_map.csv", index=False)
+    write_map(meeting_map, "meeting_map")
     counts["meeting_map"] = len(meeting_map)
     driver_map = build_driver_map(meeting_map, tables["drivers"])
-    driver_map.to_csv(OUT / "driver_map.csv", index=False)
+    write_map(driver_map, "driver_map")
     counts["driver_map"] = len(driver_map)
     return counts
 

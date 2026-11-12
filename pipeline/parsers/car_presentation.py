@@ -10,6 +10,10 @@
 
 - 문서마다 추출 행 수, 팀 수, "No updates submitted" 팀 수를 기록한다.
 - 팀 수가 그리드 팀 수와 다르면 실패로 처리한다. 추측으로 채우지 않는다.
+- 사람이 원문을 보고 내린 결정(`data/curated/review/human_review.csv`, `pipeline/review.py`)은 원문
+  URL과 쪽, 팀이 정확히 맞는 곳에만 적용하고, 그 팀 행의 note에 결정 번호를 남긴다. 지금 쓰는 결정은
+  `no_updates` 하나다: 표도 문구도 그림으로만 들어 있어 글자로 읽을 수 없는 쪽을 사람이 그림 속
+  문구("No updates submitted for this event.")로 확인한 경우다.
 
 실행: uv run python -m pipeline.parsers.car_presentation
 """
@@ -21,6 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pdfplumber
+
+from pipeline import review
 
 GRID_TEAMS = 10
 COLUMNS = ["item_no", "updated_component", "primary_reason", "geometric_differences", "description"]
@@ -146,6 +152,7 @@ class TeamPage:
     constructor_id: str | None
     no_updates: bool
     rows: list[dict] = field(default_factory=list)
+    note: str = ""  # 사람 검수 결정을 적용했으면 그 메모
 
 
 @dataclass
@@ -312,9 +319,31 @@ def merge_continuation(previous: list[dict], rows: list[dict]) -> None:
     previous.extend(rows)
 
 
-def parse_document(path: Path) -> ParsedDocument:
+def reviewed_no_updates(reviews: list[dict], page: int, constructor_id: str | None) -> dict | None:
+    """이 쪽의 팀을 "No updates submitted"로 읽으라는 사람 검수 결정. 없으면 None이다."""
+    for row in reviews:
+        if (
+            row["decision"] == "no_updates"
+            and row["target"] == constructor_id
+            and page in review.pages(row)
+        ):
+            return row
+    return None
+
+
+def document_reviews(url: str) -> list[dict]:
+    """원문 URL이 정확히 같은 Car Presentation 사람 검수 결정."""
+    return [r for r in review.decisions("car_presentation") if r["source_url"] == url]
+
+
+def parse_document(path: Path, reviews: list[dict] = ()) -> ParsedDocument:
+    """문서 한 건을 읽는다. reviews는 이 문서의 사람 검수 결정(document_reviews)이다.
+
+    적용할 곳을 찾지 못한 결정은 문제로 남긴다.
+    """
     teams: list[TeamPage] = []
     problems: list[str] = []
+    applied: set[str] = set()
     with pdfplumber.open(path) as pdf:
         for number, page in enumerate(pdf.pages, 1):
             text = page.extract_text() or ""
@@ -350,21 +379,38 @@ def parse_document(path: Path) -> ParsedDocument:
             if constructor_id is None:
                 problems.append(f"{number}쪽: 팀 이름을 알 수 없다: {name!r}")
                 continue
+            note = ""
             if not edges and not no_updates:
                 # 표가 그림으로만 들어간 쪽. 읽을 수 없으므로 팀만 기록하고 문제로 남긴다.
-                problems.append(f"{number}쪽: {name}: 표도 'No updates submitted'도 글자로 없다")
+                # 사람이 그림 속 문구를 확인한 쪽은 그 결정대로 "No updates submitted"로 본다.
+                decision = reviewed_no_updates(reviews, number, constructor_id)
+                if decision is None:
+                    problems.append(
+                        f"{number}쪽: {name}: 표도 'No updates submitted'도 글자로 없다"
+                    )
+                else:
+                    no_updates = True
+                    applied.add(decision["id"])
+                    note = (
+                        f"{review.label(decision)}: {number}쪽은 글자층 없는 그림이고 그림 속 "
+                        "문구가 'No updates submitted'라서 업데이트 없음으로 읽음"
+                    )
             previous = next((t for t in teams if t.constructor_id == constructor_id), None)
             if previous is not None:  # 같은 팀의 표가 다음 쪽으로 이어진 경우
                 merge_continuation(previous.rows, rows)
                 previous.no_updates = previous.no_updates and no_updates
+                previous.note = previous.note or note
                 continue
-            teams.append(TeamPage(number, name, constructor_id, no_updates, rows))
+            teams.append(TeamPage(number, name, constructor_id, no_updates, rows, note))
     if len(teams) != GRID_TEAMS:
         problems.append(f"팀 수가 {len(teams)}개다(그리드는 {GRID_TEAMS}개)")
     for t in teams:
         finish_rows(t.rows, problems, t.team_name)
         if t.rows and t.no_updates:
             problems.append(f"{t.team_name}: 표와 'No updates submitted'가 함께 있다")
+    for row in reviews:
+        if row["id"] not in applied:
+            problems.append(review.unapplied(row))
     return ParsedDocument(path, teams, problems)
 
 
@@ -394,7 +440,9 @@ def build() -> dict[str, int]:
     for doc in docs:
         season = int(doc["season"])
         round_no = events.round_for(season, doc["event"])
-        parsed = parse_document(RAW_DIR / "fia" / fia_docs.pdf_cache_path(doc))
+        parsed = parse_document(
+            RAW_DIR / "fia" / fia_docs.pdf_cache_path(doc), document_reviews(doc["url"])
+        )
         problems = list(parsed.problems)
         if round_no is None:
             problems.append(f"대회명을 라운드에 맞추지 못했다: {doc['event']}")
@@ -426,6 +474,7 @@ def build() -> dict[str, int]:
                 {
                     **key, "constructor_id": team.constructor_id, "team_name": team.team_name,
                     "status": team_status, "rows": len(team.rows), "page": team.page,
+                    "note": team.note,
                 }
             )  # fmt: skip
             for order, row in enumerate(team.rows, 1):

@@ -26,7 +26,7 @@ season,round,event,published_at,url,teams,rows,no_update_teams,status,problems
 2024,19,United States Grand Prix,2024-10-18 17:02,https://www.fia.com/sites/default/files/decision-document/2024%20United%20States%20Grand%20Prix%20-%20Car%20Presentation%20Submissions.pdf,10,37,2,ok,
 2024,20,Mexico City Grand Prix,2024-10-25 18:00,https://www.fia.com/sites/default/files/decision-document/2024%20Mexico%20City%20Grand%20Prix%20-%20Car%20Presentation%20Submissions.pdf,10,12,5,ok,
 2024,21,São Paulo Grand Prix,2024-11-01 13:00,https://www.fia.com/sites/default/files/decision-document/2024%20S%C3%A3o%20Paulo%20Grand%20Prix%20-%20Car%20Presentation%20Submissions.pdf,10,5,8,ok,
-2024,22,Las Vegas Grand Prix,2024-11-22 01:06,https://www.fia.com/sites/default/files/decision-document/2024%20Las%20Vegas%20Grand%20Prix%20-%20Car%20Presentation%20Submissions.pdf,10,19,0,needs_review,14쪽: Williams Racing: 표도 'No updates submitted'도 글자로 없다
+2024,22,Las Vegas Grand Prix,2024-11-22 01:06,https://www.fia.com/sites/default/files/decision-document/2024%20Las%20Vegas%20Grand%20Prix%20-%20Car%20Presentation%20Submissions.pdf,10,19,1,ok,
 2024,23,Qatar Grand Prix,2024-11-29 12:09,https://www.fia.com/sites/default/files/decision-document/2024%20Qatar%20Grand%20Prix%20-%20Car%20Presentation%20Submissions.pdf,10,3,8,ok,
 2024,24,Abu Dhabi Grand Prix,2024-12-06 07:57,https://www.fia.com/sites/default/files/decision-document/2024%20Abu%20Dhabi%20Grand%20Prix%20-%20Car%20Presentation%20Submissions.pdf,10,3,8,ok,
 2025,1,Australian Grand Prix,2025-03-14 00:02,https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_car_presentation_submissions.pdf,10,70,0,ok,
