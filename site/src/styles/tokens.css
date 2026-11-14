@@ -55,7 +55,10 @@
 
   /* 글자 */
   /* 웹 글꼴을 내려받지 않는다. 설치된 Pretendard가 있으면 쓰고, 없으면 운영체제의 한글 글꼴로 물러난다. */
-  --font-sans: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  /* Pretendard 동적 서브셋에 없는 라틴 악센트 글자와 −는 바로 뒤의 보조 글꼴(F1 Latin Supplement, Pretendard에서 뽑음)로 그린다.
+     그 뒤는 Pretendard 권장 대체 순서: 글꼴이 늦게 와 대체로 그리는 쪽은 Inter와 비슷한 시스템 라틴 글꼴(SF Pro, Segoe UI, Roboto)로,
+     한글은 운영체제 한글 글꼴로 그린다 */
+  --font-sans: "Pretendard Variable", "Pretendard", "F1 Latin Supplement", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --fs-display: clamp(1.75rem, 1.2rem + 1.6vw, 2.375rem); /* 28 ~ 38px, 페이지 제목 */
   --fs-lead: clamp(1.125rem, 1rem + 0.45vw, 1.3125rem);   /* 18 ~ 21px, 페이지 리드 */

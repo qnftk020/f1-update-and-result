@@ -22,7 +22,7 @@
 html.js .hm-nojs { display: none; }
 .hm-nojs { margin-top: var(--sp-2); }
 .hm-card { margin-top: var(--sp-4); border-top: 2px solid var(--brand-blue); padding-top: var(--sp-3); }
-.hm-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-4); }
+.hm-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-4); }
 .hm-year { font-size: var(--fs-h2); font-weight: 800; letter-spacing: -0.01em; }
 .hm-year b { font-weight: 800; font-variant-numeric: tabular-nums; }
 .hm-card-meta { font-size: var(--fs-small); color: var(--ink-2); }
@@ -77,11 +77,12 @@ html.js .hm-nojs { display: none; }
 
 /* 미니 순위(역대 기록, 계보 타이틀, PU 공급사) */
 .hm-rank { display: grid; gap: 0; margin-top: var(--sp-2); }
-.hm-rank li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; grid-template-areas: "r nm v" ". bar bar"; align-items: baseline; gap: 2px 8px; padding: 6px 0 8px; border-bottom: 1px solid var(--hair); font-size: var(--fs-table); }
+.hm-rank li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; grid-template-areas: "r nm v" ". bar bar"; align-items: baseline; gap: var(--sp-1) var(--sp-2); padding: var(--sp-2) 0; border-bottom: 1px solid var(--hair); font-size: var(--fs-table); }
 .hm-rank .r { grid-area: r; font-weight: 700; font-variant-numeric: tabular-nums; }
-.hm-rank .nm { grid-area: nm; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 이름과 보조 정보(출발 횟수, 활동 기간)는 자르지 않는다. 한 줄에 들어가지 않으면 보조 정보가 다음 줄로 넘어간다 */
+.hm-rank .nm { grid-area: nm; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--sp-2); }
 .hm-rank .nm a, .hm-rank .nm > span:first-child { font-weight: 650; }
-.hm-rank .nm small { font-size: var(--fs-micro); color: var(--ink-3); margin-left: 6px; }
+.hm-rank .nm small { min-width: 0; font-size: var(--fs-micro); color: var(--ink-3); }
 .hm-rank .v { grid-area: v; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 .hm-rank .bar { grid-area: bar; height: 6px; align-self: center; }
 .hm-rank .bar span { display: block; height: 100%; background: var(--s1); border-radius: 0 3px 3px 0; min-width: 2px; }
@@ -100,10 +101,11 @@ html.js .hm-nojs { display: none; }
 .hm-briefs > .sec .read { font-size: var(--fs-body); }
 @media (max-width: 1023px) { .hm-briefs { grid-template-columns: minmax(0, 1fr); } }
 .hm-share { margin-top: var(--sp-4); }
-.hm-share .share-list li { grid-template-columns: 16px minmax(0, 1fr) auto 60px; }
+/* 비율 칸은 글꼴을 키워도 '1% 미만'이 들어가도록 rem 최소 너비에 내용 너비까지 넓어진다 */
+.hm-share .share-list li { grid-template-columns: 16px minmax(0, 1fr) auto minmax(3.75rem, max-content); }
 .hm-share .share-p { white-space: nowrap; }
 .hm-issues { margin-top: var(--sp-2); }
-.hm-issues li { padding: 7px 0; border-bottom: 1px solid var(--hair); font-size: var(--fs-table); display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.hm-issues li { padding: var(--sp-2) 0; border-bottom: 1px solid var(--hair); font-size: var(--fs-table); display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
 .hm-issues li b { font-weight: 700; }
 .hm-issues li .badge { vertical-align: 1px; }
 .hm-rank.hm-wrap .nm { white-space: normal; overflow: visible; }

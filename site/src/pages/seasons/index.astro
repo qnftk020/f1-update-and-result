@@ -155,4 +155,16 @@ const segItems = decades.map((d, i) => ({ value: String(d.dec), label: `${d.dec}
       border-top: 1px solid var(--control);
     }
   }
+  /* 본문 폭이 21rem보다 좁으면(320px 화면, 글꼴을 키운 화면) "2020년대" 글자가 4칸에 들어가지 않으므로 2칸씩 놓는다 */
+  @container main (max-width: 21rem) {
+    .dec-row :global(#dec-pick) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .dec-row :global(#dec-pick button:nth-child(2n + 1)) {
+      border-left: 0;
+    }
+    .dec-row :global(#dec-pick button:nth-child(n + 3)) {
+      border-top: 1px solid var(--control);
+    }
+  }
 </style>

@@ -64,7 +64,8 @@ const exc = areas.exception;
         ex && (
           <li>
             계산 예: {ex.season}년 {ex.round}라운드 {ex.gp}. 세션 최고 랩은 {ex.bestLap}, <span lang="en">{ex.team}</span>의 최고 랩은{' '}
-            {ex.teamLap}이므로 지수는 <span class="nw">({ex.teamS} ÷ {ex.bestS} − 1) × 100 = {num(ex.v, 3)}%</span>다.
+            {ex.teamLap}이므로 지수는 <span class="nw">({ex.teamS} ÷ {ex.bestS} − 1)</span> <span class="nw">× 100</span>{' '}
+            <span class="nw">= {num(ex.v, 3)}%다</span>.
           </li>
         )
       }

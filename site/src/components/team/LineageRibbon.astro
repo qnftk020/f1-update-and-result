@@ -66,19 +66,27 @@ const at = (y: number) => ((y - first + 0.5) / span) * 100;
     display: block;
     height: 1.4em;
   }
+  /* 연도 네 자리를 6ch 상자 가운데에 둔다(줄바꿈 없음). transform으로 옮기면 소수 픽셀 위치에서 글자가 흐려질 수 있다 */
   .lin-axis span {
     position: absolute;
     top: 0;
-    transform: translateX(-50%);
+    width: 6ch;
+    margin-left: -3ch;
+    text-align: center;
+    white-space: nowrap;
   }
   .lin-axis span.first {
     left: 0;
-    transform: none;
+    width: auto;
+    margin-left: 0;
+    text-align: left;
   }
   .lin-axis span.end {
     right: 0;
     left: auto;
-    transform: none;
+    width: auto;
+    margin-left: 0;
+    text-align: right;
   }
   @media (max-width: 720px) {
     .ribbon-axis.lin-axis {

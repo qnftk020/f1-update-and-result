@@ -2,6 +2,10 @@
 // 모든 페이지의 틀: <head>(테마 부트, 전역 스타일), 건너뛰기 링크, 머리말과 상태 줄, 본문(main#main.wrap), 꼬리말.
 // 본문과 꼬리말은 마지막 조판 단계 typeset()을 한 번 거친다(라이선스 이름, 연도 범위, 구간 값을 .nw로 묶기).
 // 페이지에 figure.fig가 있으면 차트 모듈을 동적으로 불러 mountAll()을 부른다. 실패하면 모든 차트 자리를 표로 되돌린다.
+// 본문 글꼴 Pretendard Variable(SIL OFL 1.1). 동적 서브셋이라 페이지에 쓰인 글자 조각만 내려받는다
+import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+// Pretendard 동적 서브셋에 없는 라틴 악센트 글자와 −를 담은 보조 글꼴(scripts/make-latin-supplement.py가 만든다)
+import '../styles/latin-supplement.css';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import SiteFooter from '../components/SiteFooter.astro';

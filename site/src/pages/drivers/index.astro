@@ -154,9 +154,11 @@ const decades = [...new Set(drivers.flatMap((d) => {
   for (let y = Math.floor(d.first_season / 10) * 10; y <= d.last_season; y += 10) out.push(y);
   return out;
 }))].sort((a, z) => a - z);
+// 팀 이름은 영어 조각으로, 한국어 꼬리말 "외 N개"는 그 밖에 한 덩어리로 둔다('외 1 / 개'처럼 갈라지지 않게)
 const teamsShort = (d: DriverSummary) => {
   const names = d.teams.map((t) => esc(t.name));
-  return names.length > 3 ? `${names.slice(0, 3).join(', ')} 외 ${names.length - 3}개` : names.join(', ');
+  const en = `<span lang="en">${(names.length > 3 ? names.slice(0, 3) : names).join(', ')}</span>`;
+  return names.length > 3 ? `${en} <span class="nw">외 ${names.length - 3}개</span>` : en;
 };
 const listCols: Column<DriverSummary>[] = [
   {
@@ -171,7 +173,7 @@ const listCols: Column<DriverSummary>[] = [
   { label: '포디움', num: true, cls: 'hide-xs', render: (d) => String(d.podiums) },
   { label: '타이틀', num: true, render: (d) => (d.titles ? `<b>${d.titles}</b>` : '0') },
   { label: '최고 순위', num: true, cls: 'hide-sm', render: (d) => (d.best ? `${d.best}위` : '<span class="muted">미부여</span>') },
-  { label: '팀', cls: 'hide-sm', render: (d) => `<span lang="en">${teamsShort(d)}</span>` },
+  { label: '팀', cls: 'hide-sm', render: (d) => teamsShort(d) },
 ];
 // 표 본문은 문자열 하나로 만든다(행마다 컴포넌트 속성이 붙지 않게). 거르기 값은 data-*로 둔다:
 // f 첫 시즌, l 마지막 시즌, g 2025 출전, t 타이틀, w 우승, p 포디움, s 출발, x 인디 500만, k 검색어(영문 국적).

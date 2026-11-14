@@ -99,11 +99,13 @@ const read =
 </BaseLayout>
 
 <style>
-  /* 행 전체를 팀 페이지 링크로: 첫 칸의 링크가 행을 덮는다 */
-  :global(.team-list) tbody tr {
+  /* 행 전체를 팀 페이지 링크로: 첫 칸의 링크가 행을 덮는다.
+     행은 DataTable이 만들어 이 페이지의 범위 속성이 없으므로 선택자 전체를 :global()로 둔다.
+     tr에 position: relative가 빠지면 모든 행 링크의 ::after가 표 전체를 덮어 마지막 행으로만 이동한다. */
+  :global(.team-list tbody tr) {
     position: relative;
   }
-  :global(.team-list) tbody tr:hover {
+  :global(.team-list tbody tr:hover) {
     background: var(--paper-2);
   }
   :global(.team-list .row-link) {

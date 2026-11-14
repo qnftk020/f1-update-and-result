@@ -68,14 +68,29 @@ const TYPE: RegExp[] = [
   /\(?[−+]?\d[\d.,]* ~ [−+]?\d[\d.,]*\)?/g,
 ];
 
+// 영어 조각(<span lang="en">, <code lang="en">, <b lang="en">)과 바로 뒤의 한글 조사(1~3자)
+const EN_PARTICLE = /(<(span|code|b)\b[^>]*\blang="en"[^>]*>[^<]{1,40}<\/\2>)([가-힣]{1,3})(?![가-힣])/g;
+
+/**
+ * 영어 조각과 뒤따르는 조사를 .nw로 묶는다. 'OpenF1 / 이다'처럼 조사만 다음 줄로 넘어가지 않게 한다.
+ * script, style, 주석 안은 건드리지 않는다.
+ */
+export function glueParticles(html: string): string {
+  return html
+    .split(/(<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>|<!--[\s\S]*?-->)/i)
+    .map((chunk, i) => (i % 2 === 1 ? chunk : chunk.replace(EN_PARTICLE, (_m, a: string, _t: string, p: string) => `<span class="nw">${a}${p}</span>`)))
+    .join('');
+}
+
 /**
  * 마지막 조판 단계: 글 조각의 라이선스 이름, 연도 범위(1996-2025, 1981-85), 구간 값(−0.39 ~ +0.06),
- * "(이 사이트 계산)"을 .nw로 묶는다. 태그 속성과 script, style, option, title, textarea 안은 건드리지 않는다.
+ * "(이 사이트 계산)"을 .nw로 묶고, 영어 조각과 뒤의 조사를 붙인다(glueParticles).
+ * 태그 속성과 script, style, option, title, textarea 안은 건드리지 않는다.
  * BaseLayout이 본문(main)과 꼬리말 전체에 한 번 적용한다. 페이지에서 따로 부를 일은 없다.
  */
 export function typeset(html: string): string {
   return mapText(
-    html,
+    glueParticles(html),
     (text) => {
       let out = text;
       for (const rx of TYPE) out = out.replace(rx, (m) => `<span class="nw">${m}</span>`);
