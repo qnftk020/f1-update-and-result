@@ -8,6 +8,7 @@ import Section from '../../components/Section.astro';
 import SourceLine from '../../components/SourceLine.astro';
 import { lineageShort, ro } from '../../components/team/model.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { constructors } from '../../lib/constructors-data.ts';
 import { meta, teams } from '../../lib/data.ts';
 import { formatPoints, josa, num, pct } from '../../lib/format.ts';
 import { routes } from '../../lib/paths.ts';
@@ -78,6 +79,10 @@ const read =
           source={`이 사이트의 계보 테이블(F1DB chronology에서 출발), 순위와 점수는 ${JOLPICA}, 예선 지수는 이 사이트 계산, 업그레이드 항목은 FIA Car Presentation Submissions(2023-${last})`}
           asof={asofQualiIndex()}
         />
+        <p class="ctr-link">
+          <a class="btn" href={routes.constructors()}>역대 컨스트럭터 {constructors.length}곳 보기</a>
+          <span>2025 그리드 밖의 팀과 시즌별 상세(대회별 두 차의 결과, 시즌 중 순위)는 컨스트럭터 쪽에 있다.</span>
+        </p>
       </div>
       <aside class="notes" aria-label="계보 목록 주석">
         <div class="note">
@@ -99,6 +104,15 @@ const read =
 </BaseLayout>
 
 <style>
+  .ctr-link {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    margin-top: var(--sp-4);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
   /* 행 전체를 팀 페이지 링크로: 첫 칸의 링크가 행을 덮는다.
      행은 DataTable이 만들어 이 페이지의 범위 속성이 없으므로 선택자 전체를 :global()로 둔다.
      tr에 position: relative가 빠지면 모든 행 링크의 ::after가 표 전체를 덮어 마지막 행으로만 이동한다. */

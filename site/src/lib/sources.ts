@@ -68,7 +68,7 @@ export function footerRows(): { src: string; latin: boolean; use: string; asof: 
     {
       src: `${S.f1db.name} ${S.f1db.version}`,
       latin: true,
-      use: '예선 형식, 1996-2005 예선 기록, 엔진 제조사',
+      use: '예선 형식, 1996-2005 예선 기록, 엔진 제조사, 섀시와 엔진 모델',
       asof: `${nw(S.f1db.as_of)} 확인`,
       license: S.f1db.license,
     },

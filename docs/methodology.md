@@ -398,3 +398,47 @@ FIA 기술 대표가 대회마다 내는 누적 문서("PU elements used per dri
 | 1974 | 컨스트럭터 1위 McLaren | 72 | 73 |
 | 1977 | 컨스트럭터 1위 Ferrari | 84 | 95 |
 | 1995 | 컨스트럭터 1위 Benetton | 147 | 137 |
+
+## 컨스트럭터 통계와 시즌 상세
+
+컨스트럭터 쪽(`/constructors/`, `/constructors/<ID>/`, `/constructors/<ID>/<시즌>/`)의 수치는 `pipeline/site_constructors.py`가 만든다. 산출물은 `constructors.json`(통산 요약)과 `constructor/<컨스트럭터 ID>.json`(시즌별 성적, 드라이버 구성, 리타이어 원인, 차마다 한 줄의 대회별 결과)이다. 드라이버 쪽과 같은 결과 행 문맥(`site_drivers._Context`)을 쓰므로 두 쪽의 수치는 같다. 테스트는 `pipeline/quality/test_site_constructors.py`다.
+
+### 대상과 집계
+
+- 대상은 결승 결과 행이 한 번이라도 있는 Jolpica 컨스트럭터 203곳이다. ID 단위이므로 1950–1960년대 섀시와 엔진 조합(`cooper-climax` 등)은 따로 잡히고, 브랜드 단위 ID(`renault`, `mercedes`)에는 서로 다른 조직이 섞인다. 조직의 흐름은 계보 쪽에서 본다.
+- 출전(`entries`)은 결승 결과 행이 있는 대회 수이고, 결과(`cars`)는 결승 결과 행 수다.
+- 우승은 결승 `position`이 1인 행이 있는 대회 수, 포디움은 완주 분류 3위 이내 결과 행 수(`Tables.race_tally`와 같다), 원투(`one_two`)는 같은 대회에서 완주 분류 1위와 2위를 모두 낸 대회 수다.
+- 순위와 점수는 시즌 마지막 라운드의 Jolpica 컨스트럭터 순위 행(1958년부터)이다. `adjustment_type` 102는 `excluded`, 1은 `deducted`로 둔다.
+- 드라이버 타이틀(`driver_title_seasons`)은 그 시즌 드라이버 챔피언이 이 컨스트럭터로 결승에 한 번 이상 나선 시즌이다. 1954 Fangio처럼 한 시즌이 두 컨스트럭터에 잡힐 수 있다.
+- 엔진은 F1DB(https://github.com/f1db/f1db) 시즌 엔트런트의 엔진 제조사다. F1DB ID는 Jolpica ID의 밑줄을 하이픈으로 바꾼 값이고 다른 경우는 `data/curated/lineage/constructor_crosswalk.csv`를 따른다. 섀시와 엔진 조합 ID는 F1DB에 같은 ID가 없어 비운다.
+
+### 리타이어 원인 분류
+
+완주로 분류되지 않고 출발한 결과(결과 분류 R)를 `site_drivers.retire_cause`로 나눈다. 원자료는 Jolpica 덤프의 `status_code`와 `status_detail`이다.
+
+| 분류 | 키 | 규칙 |
+|---|---|---|
+| 사고·충돌 | `acc` | `status_code` 10(Accident, Collision, Spun off, Collision damage)과 Fatal accident |
+| 차량 문제 | `mech` | `status_code` 11 가운데 부품·고장 이름(Engine, Gearbox, Hydraulics, Puncture 등) |
+| 원인 미기재 | `unk` | 상태가 Retired이거나 비어 있음 |
+| 완주 미분류 | `nc` | `status_code` 1(Not classified, +N Laps) |
+| 그 밖 | `oth` | 드라이버 사정(Physical, Driver unwell, Injury, Illness)과 Withdrew 등 |
+
+2023년부터 API로 반영한 행은 원인 없이 Retired로만 적혀(2023–2025년 129행) 원인 미기재로 잡힌다. 실격(D)과 출발 안 함(N)은 리타이어와 따로 센다.
+
+### 시즌 상세
+
+- 최종 예선 순위(`q`)는 팀 동료 예선 비교와 같은 정렬 키(더 늦은 세션까지 남은 순, 같은 세션이면 그 세션 position 순)로 대회마다 1부터 매긴 값이다(`site_drivers.quali_ranks`). 1994년부터이고 스프린트 예선은 뺀다. 결승 출발 순위(`grid`)는 그리드 페널티로 다를 수 있다.
+- 드라이버 대회 행의 동료 결과(`m`)는 같은 대회 같은 `constructor_id`의 다른 드라이버 결과 [ID, 결과 분류, position]다. 동료가 4명 이상인 대회와 인디애나폴리스 500은 싣지 않는다.
+- 컨스트럭터 시즌 상세의 동료 비교는 그 시즌 출전이 가장 많은 두 드라이버를 팀 동료 비교와 같은 규칙으로 센다(인디애나폴리스 500 제외).
+- 라운드 뒤 순위와 누적 점수는 시즌 JSON의 라운드별 순위표 값이고, 1위와의 차이는 그 라운드 뒤 1위 누적 점수에서 뺀 값이다.
+
+### 섀시와 엔진
+
+- 자료: F1DB 릴리스의 `f1db-seasons-entrants-chassis.csv`, `f1db-seasons-entrants-engines.csv`(참가 팀별로 그 시즌 등록한 섀시와 엔진 모델), 이름은 `f1db-chassis.csv`, `f1db-engines.csv`의 `fullName`이다. 정제 테이블은 `data/curated/f1db/season_entrant_chassis.parquet`, `season_entrant_engines.parquet`다.
+- 몇 라운드부터 썼는지는 F1DB에 없다. 그래서 시즌 단위 목록으로만 싣고, 섀시와 엔진은 이름순으로 적는다. 예선을 통과하지 못한 참가 팀도 들어갈 수 있다.
+- Jolpica 컨스트럭터와 F1DB의 대응(`site_constructors.kit_map`): 결승 결과 행을 대회와 차 번호로 F1DB 결승 결과(`data/curated/f1db/race_entries.parquet`)에 맞춰, 그 Jolpica 컨스트럭터의 차가 F1DB에서 어느 컨스트럭터와 엔진 제조사로 적혔는지 센다. 한 대회에 같은 차 번호가 둘 이상인 행은 맞추지 않는다. F1DB 컨스트럭터는 이름 대응(계보 대응표, 밑줄을 하이픈으로 바꾼 ID)이 그 시즌 F1DB 섀시 표에 있으면 그것을, 없으면 가장 많이 맞은 것을 쓴다. 엔진 제조사는 그 컨스트럭터로 맞은 엔진 제조사들이다. 그래서 `cooper-climax` 같은 조합 ID에는 Climax 엔진을 쓴 참가 팀만 들어가고, `team_lotus`, `alfa`처럼 이름이 다른 ID도 맞는다.
+- 이름 대응이 있는 920개 컨스트럭터-시즌에서 차 번호 대조의 최다 F1DB 컨스트럭터는 이름 대응과 모두 같았다(2026-11-18 확인).
+- 맞추지 못한 시즌은 5개다(1961 `mbm`, 1962·1963 `team_lotus`, 1963 `tomaso`, 1965 `re`). 모두 결승 결과가 출발하지 않은 기록(Withdrew)뿐이라 F1DB 결승 결과에 차가 없다. 화면에는 맞추지 못했다고 적는다.
+- 2010–2021년은 싣지 않는다(2026-11-18 사용자 결정). 이 시기 팀들은 섀시 이름을 바꾸지 않고 부품만 바꿔, 한 시즌에 섀시를 둘 이상 등록한 기록이 2015 Force India 1건뿐이다. 한 시즌에 섀시를 둘 이상 등록한 참가 팀-시즌은 F1DB 전체 398건이고 1950년대 74, 1960년대 103, 1970년대 97, 1980년대 70, 1990년대 35, 2000년대 18, 2010년대 1건이다.
+- 부품 단위 업그레이드 목록(Car Presentation)과는 다른 자료라 업그레이드 탐색기에 섞지 않는다.

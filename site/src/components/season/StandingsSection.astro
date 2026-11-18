@@ -10,6 +10,7 @@ import { roundLabels } from '../../lib/chart-data.ts';
 import type { Season } from '../../lib/types.ts';
 import { esc, keepNames } from '../../lib/typeset.ts';
 import { driverLink } from '../../lib/driver-links.ts';
+import { constructorById, constructorLink } from '../../lib/constructors-data.ts';
 import { EMPTY, constructorLeadRead, driverLeadRead, pointsCell, posCell, shortName } from './season-text.ts';
 
 interface Props {
@@ -28,6 +29,10 @@ const cons = s.has_constructor_standings
   ? s.constructors.filter((c) => c.points).map((c) => ({ id: c.id, label: c.name, short: c.name, pos: c.position, pts: c.points as (number | null)[] }))
   : [];
 const hlCons = cons.slice(0, 3);
+// 이 시즌 결승에 나선 컨스트럭터의 시즌 상세(/constructors/<id>/<시즌>/) 링크. 순위 순, 순위가 없으면 이름 순.
+const conLinks = s.constructors
+  .filter((c) => constructorById.get(c.id)?.years.includes(year))
+  .map((c) => constructorLink(c.id, `<span lang="en" class="nw">${esc(c.name)}</span>`, year));
 
 function ptsColumns(nameKey: string): Column[] {
   return [
@@ -129,6 +134,14 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
       </EmptyState>
     )
   }
+  {
+    conLinks.length > 0 && (
+      <p class="con-links">
+        <span class="con-links-h">컨스트럭터별 시즌 상세</span>
+        <Fragment set:html={conLinks.join('<span aria-hidden="true"> · </span>')} />
+      </p>
+    )
+  }
 </Section>
 
 <style>
@@ -137,5 +150,17 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
   }
   :global(.con-empty) {
     margin-top: var(--sp-6);
+  }
+  .con-links {
+    margin-top: var(--sp-5);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+  .con-links-h {
+    display: block;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 2px;
   }
 </style>

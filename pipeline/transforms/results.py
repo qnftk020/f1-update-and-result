@@ -2,7 +2,7 @@
 
 원자료의 식별자와 값은 바꾸지 않는다. 팀 계보 연결은 lineage 테이블에서 따로 한다.
 
-실행: uv run python -m pipeline.transforms.results
+실행: uv run python -m pipeline.transforms.results [표 이름 ...]
 """
 
 from __future__ import annotations
@@ -165,6 +165,42 @@ OUTPUTS: dict[str, str] = {
         select id as engine_manufacturer_id, name, countryId as country_id
         from f1db_engine_manufacturers order by id
     """,
+    # 참가 팀(entrant)별로 시즌에 등록한 섀시와 엔진. 몇 라운드부터 썼는지는 F1DB에 없다.
+    "f1db/season_entrant_chassis": """
+        select sec.year::int as season, sec.entrantId as entrant_id, en.name as entrant_name,
+               sec.constructorId as f1db_constructor_id,
+               sec.engineManufacturerId as engine_manufacturer_id,
+               sec.chassisId as chassis_id, ch.name as chassis_name,
+               ch.fullName as chassis_full_name
+        from f1db_seasons_entrants_chassis sec
+        left join f1db_entrants en on en.id = sec.entrantId
+        left join f1db_chassis ch on ch.id = sec.chassisId
+        where sec.year::int between {first} and {last}
+        order by season, entrant_id, f1db_constructor_id, engine_manufacturer_id, chassis_id
+    """,
+    "f1db/season_entrant_engines": """
+        select see.year::int as season, see.entrantId as entrant_id, en.name as entrant_name,
+               see.constructorId as f1db_constructor_id,
+               see.engineManufacturerId as engine_manufacturer_id,
+               see.engineId as engine_id, eg.name as engine_name,
+               eg.fullName as engine_full_name, try_cast(eg.capacity as double) as capacity,
+               eg.configuration, eg.aspiration
+        from f1db_seasons_entrants_engines see
+        left join f1db_entrants en on en.id = see.entrantId
+        left join f1db_engines eg on eg.id = see.engineId
+        where see.year::int between {first} and {last}
+        order by season, entrant_id, f1db_constructor_id, engine_manufacturer_id, engine_id
+    """,
+    # 결승 결과 행의 차 번호와 컨스트럭터·엔진 제조사. Jolpica 컨스트럭터 ID와 F1DB ID를
+    # 대회와 차 번호로 맞추는 데 쓴다(pipeline/site_constructors.py).
+    "f1db/race_entries": """
+        select year::int as season, round::int as round,
+               try_cast(driverNumber as int) as car_number, driverId as f1db_driver_id,
+               constructorId as f1db_constructor_id,
+               engineManufacturerId as engine_manufacturer_id
+        from f1db_race_results where year::int between {first} and {last}
+        order by season, round, positionDisplayOrder::int
+    """,
 }
 
 F1DB_FILES = {
@@ -175,30 +211,48 @@ F1DB_FILES = {
     "f1db_entrants": "f1db-entrants.csv",
     "f1db_engine_manufacturers": "f1db-engine-manufacturers.csv",
     "f1db_qualifying": "f1db-races-qualifying-results.csv",
+    "f1db_seasons_entrants_chassis": "f1db-seasons-entrants-chassis.csv",
+    "f1db_seasons_entrants_engines": "f1db-seasons-entrants-engines.csv",
+    "f1db_chassis": "f1db-chassis.csv",
+    "f1db_engines": "f1db-engines.csv",
+    "f1db_race_results": "f1db-races-race-results.csv",
 }
 
 
-def connect(jolpica_dir: Path, f1db_dir: Path) -> duckdb.DuckDBPyConnection:
+def connect(jolpica_dir: Path | None, f1db_dir: Path) -> duckdb.DuckDBPyConnection:
+    """jolpica_dir가 None이면 F1DB 뷰만 만든다(F1DB 표만 다시 만들 때)."""
     con = duckdb.connect()
-    for t in JOLPICA_TABLES:
-        con.execute(
-            f"create view {t} as select * from "
-            f"read_csv('{jolpica_dir}/formula_one_{t}.csv', all_varchar=true, header=true)"
-        )
+    if jolpica_dir is not None:
+        for t in JOLPICA_TABLES:
+            con.execute(
+                f"create view {t} as select * from "
+                f"read_csv('{jolpica_dir}/formula_one_{t}.csv', all_varchar=true, header=true)"
+            )
     for view, filename in F1DB_FILES.items():
         con.execute(
             f"create view {view} as select * from "
             f"read_csv('{f1db_dir}/{filename}', all_varchar=true, header=true)"
         )
     con.execute(TO_MS)
-    con.execute(ENTRY_VIEW.format(first=FIRST_SEASON, last=LAST_SEASON))
+    if jolpica_dir is not None:
+        con.execute(ENTRY_VIEW.format(first=FIRST_SEASON, last=LAST_SEASON))
     return con
 
 
-def build(out_dir: Path = CURATED_DIR) -> dict[str, int]:
-    con = connect(jolpica.download_dump(), f1db.download_release())
+def build(out_dir: Path = CURATED_DIR, only: list[str] | None = None) -> dict[str, int]:
+    """정제 테이블을 만든다. only를 주면 그 이름의 표만 만든다.
+
+    only가 모두 f1db/ 표면 Jolpica 덤프를 다시 확인하지 않는다(덤프 목록 요청과 manifest 갱신 없음).
+    """
+    names = only or list(OUTPUTS)
+    unknown = [n for n in names if n not in OUTPUTS]
+    if unknown:
+        raise KeyError(f"없는 표: {unknown}")
+    f1db_only = all(n.startswith("f1db/") for n in names)
+    con = connect(None if f1db_only else jolpica.download_dump(), f1db.download_release())
     counts: dict[str, int] = {}
-    for name, sql in OUTPUTS.items():
+    for name in names:
+        sql = OUTPUTS[name]
         path = out_dir / f"{name}.parquet"
         path.parent.mkdir(parents=True, exist_ok=True)
         query = sql.format(first=FIRST_SEASON, last=LAST_SEASON)
@@ -208,5 +262,7 @@ def build(out_dir: Path = CURATED_DIR) -> dict[str, int]:
 
 
 if __name__ == "__main__":
-    for name, n in build().items():
+    import sys
+
+    for name, n in build(only=sys.argv[1:] or None).items():
         print(f"{name}: {n} rows")

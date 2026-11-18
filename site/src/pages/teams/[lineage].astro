@@ -16,6 +16,7 @@ import LineageRibbon from '../../components/team/LineageRibbon.astro';
 import TeamPu from '../../components/team/TeamPu.astro';
 import { CATS, buildTeam } from '../../components/team/model.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { constructorLink } from '../../lib/constructors-data.ts';
 import { getTeam, labels, lineageIds, status as siteStatus, teams } from '../../lib/data.ts';
 import { formatPoints, n0, num } from '../../lib/format.ts';
 import { badgeHtml, badgesHtml, extHtml, type BadgeKind } from '../../lib/markup.ts';
@@ -54,7 +55,7 @@ const statsOn = stats(M.totLin);
 const statsOff = stats(M.totCur);
 const segCols: Column[] = [
   { label: '기간', render: (s) => nw(s.from === s.to ? String(s.from) : `${s.from}-${s.to}`) },
-  { label: '팀', render: (s) => en(esc(s.team_name)) },
+  { label: '팀', render: (s) => constructorLink(s.constructor_id, en(esc(s.team_name))) },
   { label: '연결', render: (s) => esc(s.link_type_ko) },
   { label: 'Jolpica ID', render: (s) => `<span class="mono">${esc(s.constructor_id)}</span>` },
   { label: '메모', cls: 'hide-sm', render: (s) => (s.note ? esc(s.note) : '') },
@@ -187,7 +188,7 @@ const trendSrc =
 // ------------------------------------------------------------------ 시즌별 기록
 const recCols: Column[] = [
   { label: '시즌', render: (r) => String(r.season) },
-  { label: '팀', cls: 'who', render: (r) => `${en(esc(r.team_name))}${dup(r)}` },
+  { label: '팀', cls: 'who', render: (r) => `${constructorLink(r.constructor_id, en(esc(r.team_name)), r.season)}${dup(r)}` },
   { label: 'PU', cls: 'hide-sm', render: (r) => (r.pu ? en(esc(r.pu.name)) : '결측') },
   { label: '순위', num: true, render: (r) => (r.position ? `${r.position}위` : '<span class="muted">미부여</span>') },
   { label: '점수', num: true, render: (r) => formatPoints(r.points ?? 0) },

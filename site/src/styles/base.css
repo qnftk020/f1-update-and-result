@@ -207,6 +207,11 @@ html:not(.js) .seg-view, html:not(.js) [data-js-only], html:not(.js) .fig .legen
 .key-hollow::before { content: ""; position: absolute; left: 2px; top: 1px; width: 12px; height: 10px; border-radius: 2px; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--k, var(--ctx)); }
 .key-tri::before { content: ""; position: absolute; left: 3px; top: 1px; width: 10px; height: 9px; background: var(--s2); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .key-zero::before { content: ""; position: absolute; left: 4px; top: 7px; width: 8px; height: 2px; background: var(--ink-3); }
+.key-times::before, .key-times::after { content: ""; position: absolute; left: 2px; top: 5px; width: 12px; height: 2px; border-radius: 1px; background: var(--k, var(--ctx)); transform: rotate(45deg); }
+.key-times::after { transform: rotate(-45deg); }
+.key-sq::before { content: ""; position: absolute; left: 3px; top: 1px; width: 10px; height: 10px; background: var(--k); }
+.key-diamond::before { content: ""; position: absolute; left: 4px; top: 2px; width: 8px; height: 8px; background: var(--k); transform: rotate(45deg); }
+.key-tri-c::before { content: ""; position: absolute; left: 2px; top: 0; width: 12px; height: 11px; background: var(--k); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .key-glyph { width: 12px; }
 .key-glyph::before, .rk::before, .rk::after { content: ""; position: absolute; }
 .key-review { width: 14px; height: 14px; }

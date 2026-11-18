@@ -172,6 +172,11 @@ class Tables:
         )
         self.f1db_races = read("f1db/races.parquet")
         self.engines = read("f1db/engine_manufacturers.parquet")
+        self.season_entrants = read("f1db/season_entrants.parquet")
+        # 참가 팀별 시즌 섀시·엔진과 결승 차 번호(컨스트럭터 시즌 쪽 "섀시와 엔진")
+        self.entrant_chassis = read("f1db/season_entrant_chassis.parquet")
+        self.entrant_engines = read("f1db/season_entrant_engines.parquet")
+        self.f1db_race_entries = read("f1db/race_entries.parquet")
         self.constructor_seasons = read("lineage/constructor_seasons.parquet")
         self.quali_index = read("pace/qualifying_index.parquet")
         # 화면의 퀄리파잉 지수는 ms 기록에서 다시 계산한 값이다. 정제 테이블의 index_pct는 소수 넷째
@@ -203,6 +208,7 @@ class Tables:
             for r in self.drivers.itertuples()
         }
         self.constructor_names = {r.constructor_id: r.name for r in self.constructors.itertuples()}
+        self.constructor_info = {r.constructor_id: r for r in self.constructors.itertuples()}
         self.season_team = {
             (int(r.season), r.constructor_id): r for r in self.constructor_seasons.itertuples()
         }
@@ -1363,13 +1369,18 @@ def main() -> None:
         write_json(f"season/{season}.json", data)
     write_json("seasons.json", [season_summary(seasons[s]) for s in sorted(seasons, reverse=True)])
 
-    # 드라이버 페이지와 챔피언십 분석(drivers.json, driver/<id>.json, history.json)
-    from pipeline import site_drivers
+    # 드라이버 페이지와 챔피언십 분석(drivers.json, driver/<id>.json, history.json),
+    # 컨스트럭터 페이지(constructors.json, constructor/<id>.json). 두 쪽은 같은 결과 행 문맥을 쓴다.
+    from pipeline import site_constructors, site_drivers
 
     # driver/<id>.json은 Jolpica ID가 바뀌거나 빠지면 옛 파일이 남는다. 사이트는 이 폴더의 파일로
     # 링크 여부를 정하지 않지만(drivers.json을 따른다), 낡은 파일을 싣지 않도록 비우고 다시 쓴다.
+    # constructor/<id>.json도 같다.
     shutil.rmtree(SITE_DATA_DIR / "driver", ignore_errors=True)
-    site_drivers.build_all(t, seasons, write_json)
+    shutil.rmtree(SITE_DATA_DIR / "constructor", ignore_errors=True)
+    ctx = site_drivers.make_context(t, seasons)
+    site_drivers.build_all(t, seasons, write_json, ctx)
+    site_constructors.build_all(ctx, write_json)
 
     upgrades = build_upgrades(t)
     teams = [build_team(t, lineage, seasons, upgrades) for lineage in t.lineages.itertuples()]

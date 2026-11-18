@@ -1,0 +1,376 @@
+---
+// 컨스트럭터 쪽 /constructors/<컨스트럭터 ID>/. constructors.json의 모든 컨스트럭터(결승 행이 한 번이라도 있는
+// Jolpica 컨스트럭터 203곳)마다 하나다. 계보 쪽(/teams/<계보 ID>/)이 2025 그리드 10개 조직의 흐름을 본다면,
+// 이 쪽은 Jolpica ID 하나의 통산 기록을 본다.
+// 절: 챔피언십 순위, 우승과 포디움, 드라이버, 결과와 신뢰성, 시즌별 기록(시즌을 누르면 시즌 상세 쪽).
+// 자료는 constructor/<id>.json 하나만 읽는다. 시즌이 하나뿐이거나 비교할 값이 0인 절은 그리지 않는다.
+import DataTable, { type Column } from '../../../components/DataTable.astro';
+import Figure from '../../../components/Figure.astro';
+import PageHead from '../../../components/PageHead.astro';
+import Section from '../../../components/Section.astro';
+import SourceLine from '../../../components/SourceLine.astro';
+import Tiles from '../../../components/Tiles.astro';
+import { STANDINGS_FROM, buildConstructor, causeBars, posDist, pts } from '../../../components/constructor/model.ts';
+import { span, yearsText } from '../../../components/driver/model.ts';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { constructors, getConstructor, type ConstructorSeasonRow } from '../../../lib/constructors-data.ts';
+import { teams } from '../../../lib/data.ts';
+import { driverLink } from '../../../lib/driver-links.ts';
+import { n0, num } from '../../../lib/format.ts';
+import { routes } from '../../../lib/paths.ts';
+import { F1DB, JOLPICA, asofF1db, asofJolpica } from '../../../lib/sources.ts';
+import { en, esc, nw } from '../../../lib/typeset.ts';
+
+export function getStaticPaths() {
+  return constructors.map((c) => ({ params: { id: c.id } }));
+}
+
+const { id } = Astro.params as { id: string };
+const c = await getConstructor(id);
+const M = buildConstructor(c);
+const { rows } = M;
+const from = c.first_season;
+const to = c.last_season;
+const multi = rows.length >= 2;
+const ASOF = asofJolpica();
+const SRC_RES = `${JOLPICA} 결승 결과`;
+const SRC_ST = `${JOLPICA} 컨스트럭터 순위(시즌 마지막 라운드)`;
+const linName = new Map(teams.map((t) => [t.lineage_id, t.name_ko]));
+
+// ------------------------------------------------------------------ 챔피언십 순위
+const hasSteps = M.stepRows.length >= 2 && M.stepRows.some((r) => r.pos != null);
+const stFrom = M.stepRows[0]?.s ?? from;
+const stepCols: Column[] = [
+  { label: '시즌', render: (r) => String(r.s) },
+  { label: '이름', render: (r) => en(esc(r.team)) },
+  { label: '순위', num: true, render: (r) => (r.pos ? `${r.pos}위` : r.ex ? '제외' : '<span class="muted">미부여</span>') },
+  { label: '점수', num: true, render: (r) => (r.pts != null ? pts(r.pts) : '') },
+  { label: '1위 점수', num: true, render: (r) => pts(r.cp) },
+];
+
+// ------------------------------------------------------------------ 우승과 포디움
+const hasPod = multi && c.podiums > 0;
+const podCols: Column[] = [
+  { label: '시즌', render: (r) => String(r.s) },
+  { label: '결과 (차)', num: true, render: (r) => String(r.e) },
+  { label: '우승', num: true, render: (r) => String(r.w) },
+  { label: '2·3위', num: true, render: (r) => String(r.p - r.w) },
+  { label: '포디움', num: true, render: (r) => String(r.p) },
+];
+
+// ------------------------------------------------------------------ 드라이버
+const ROSTER_MAX = 20;
+const roster = M.roster.slice(0, ROSTER_MAX);
+const rosterFrom = Math.min(...roster.flatMap((d) => d.seasons.map((x) => x.s)));
+const rosterTo = Math.max(...roster.flatMap((d) => d.seasons.map((x) => x.s)));
+const hasRoster = roster.length >= 2;
+const rosterTwin: Column[] = [
+  { label: '드라이버', render: (d) => en(esc(d.name)) },
+  { label: '기간', render: (d) => nw(d.span) },
+  { label: '출전', num: true, render: (d) => String(d.e) },
+  { label: '우승', num: true, render: (d) => String(d.w) },
+  { label: '포디움', num: true, render: (d) => String(d.p) },
+];
+const driverCols: Column[] = [
+  { label: '드라이버', cls: 'stick', render: (d) => driverLink(d.id, en(esc(d.name))) },
+  { label: '시즌', render: (d) => nw(yearsText(d.seasons)) },
+  { label: '출전', num: true, render: (d) => String(d.n) },
+  { label: '우승', num: true, render: (d) => String(d.w) },
+  { label: '포디움', num: true, cls: 'hide-xs', render: (d) => String(d.p) },
+  { label: '결승 득점', num: true, cls: 'hide-sm', render: (d) => pts(d.pts) },
+];
+
+// ------------------------------------------------------------------ 결과와 신뢰성
+const allRaces = c.races;
+const dist = posDist(allRaces);
+const causes = causeBars(allRaces);
+const hasDist = dist.some((d) => d.n > 0);
+const finN = allRaces.filter((r) => r.o === 'F').length;
+const distCols: Column[] = [
+  { label: '결과', render: (d) => (typeof d.k === 'number' ? `${d.k}위` : esc(d.k)) },
+  { label: '횟수', num: true, render: (d) => String(d.n) },
+  { label: '완주 결과 가운데', num: true, render: (d) => (finN ? `${num((d.n / finN) * 100, 1)}%` : '') },
+];
+const causeCols: Column[] = [
+  { label: '결과', render: (d) => esc(d.name) },
+  { label: '횟수', num: true, render: (d) => String(d.v) },
+];
+const outCols: Column[] = [
+  { label: '시즌', render: (r) => String(r.s) },
+  { label: '결과', num: true, render: (r) => String(r.n) },
+  { label: '완주 분류', num: true, render: (r) => String(r.F) },
+  { label: '차량 문제', num: true, render: (r) => String(r.mech) },
+  { label: '사고·충돌', num: true, render: (r) => String(r.acc) },
+  { label: '그 밖', num: true, render: (r) => String(r.other) },
+];
+
+// ------------------------------------------------------------------ 시즌별 기록 (최근 시즌부터)
+const recRows = [...rows].reverse();
+const recCols: Column<ConstructorSeasonRow>[] = [
+  { label: '시즌', render: (r) => `<a href="${routes.constructorSeason(id, r.s)}">${r.s}</a>` },
+  { label: '이름', cls: 'who', render: (r) => en(esc(r.name)) },
+  { label: '엔진', cls: 'hide-sm', render: (r) => (r.engine ? en(esc(r.engine)) : '<span class="muted">결측</span>') },
+  {
+    label: '드라이버',
+    cls: 'hide-xs',
+    render: (r) =>
+      [...r.drivers]
+        .sort((a, z) => z.n - a.n)
+        .slice(0, 3)
+        .map((d) => driverLink(d.id, `<span lang="en" class="nw">${esc(d.name.split(' ').slice(-1)[0])}</span>`))
+        .join(', ') + (r.drivers.length > 3 ? ` <span class="nw">외 ${r.drivers.length - 3}명</span>` : ''),
+  },
+  { label: '출전', num: true, render: (r) => `${r.entries}<span class="of">/${r.rounds}</span>` },
+  { label: '우승', num: true, render: (r) => String(r.wins) },
+  { label: '포디움', num: true, cls: 'hide-sm', render: (r) => String(r.podiums) },
+  { label: '점수', num: true, render: (r) => (r.pts != null ? pts(r.pts) : r.s < STANDINGS_FROM ? '<span class="muted">이전</span>' : '<span class="muted">미부여</span>') },
+  { label: '순위', num: true, cls: 'pos', render: (r) => (r.pos ? `${r.pos}위` : r.excluded ? '제외' : '') },
+];
+const titleSet = new Set(c.title_seasons);
+const hasEngine = rows.some((r) => r.engine);
+const lineageLinks = c.lineages.map((l) => `<a href="${routes.team(l)}">${esc(linName.get(l) ?? l)}</a>`);
+
+const description = `${c.name}의 F1 결승 기록(${span(from, to)}): 컨스트럭터 순위, 우승과 포디움, 드라이버, 결과와 신뢰성, 시즌별 기록`;
+const jumps = [
+  hasSteps && ['standings', '순위'],
+  hasPod && ['wins', '우승'],
+  ['drivers', '드라이버'],
+  hasDist && ['results', '결과'],
+  ['seasons', '시즌별 기록'],
+].filter(Boolean) as [string, string][];
+---
+
+<BaseLayout title={c.name} description={description} current="teams">
+  <PageHead
+    kicker={[`<a href="${routes.constructors()}">컨스트럭터</a>`, c.nationality_ko ? esc(c.nationality_ko) : '국적 결측', nw(span(from, to))]}
+    title={en(esc(c.name))}
+    lead={M.lead}
+    facts={M.facts}
+  >
+    {
+      lineageLinks.length > 0 && (
+        <p class="lin-note">
+          이 컨스트럭터의 일부 시즌은 2025 그리드 팀의 계보에 이어진다: <Fragment set:html={lineageLinks.join(', ')} />. 계보 쪽은 이름이 바뀐 시기를 한 흐름으로 묶어 본다.
+        </p>
+      )
+    }
+  </PageHead>
+  <Tiles items={M.tiles} />
+  <nav class="page-jump" aria-label="이 쪽의 절">
+    {jumps.map(([h, t]) => <a href={`#${h}`}>{t}</a>)}
+  </nav>
+
+  {
+    hasSteps && (
+      <Section id="standings" title="챔피언십 순위" read={M.reads.st}>
+        <Figure
+          id="f-steps"
+          title="시즌 최종 컨스트럭터 순위"
+          scope={`${span(stFrom, to)} · ${M.stepRows.length}개 시즌`}
+          sub="시즌 마지막 라운드의 컨스트럭터 순위다. 위가 1위다. 출전하지 않은 해와 순위가 없는 시즌에서 선이 끊긴다. 컨스트럭터 순위는 1958년부터다."
+          legend={[
+            { type: 'dot', color: 's1', label: '시즌 최종 순위' },
+            ...(c.titles ? [{ type: 'dot' as const, color: 's2', label: '컨스트럭터 챔피언 시즌' }] : []),
+            ...(M.stepRows.some((r) => r.pos == null) ? [{ type: 'ring' as const, color: 'ctx', label: '순위 미부여 또는 제외 (맨 아래 줄)' }] : []),
+          ]}
+          chart="driverSteps"
+          data={M.stepRows}
+          opts={{ kind: 'constructor', label: '시즌 최종 컨스트럭터 순위' }}
+          source={SRC_ST}
+          asof={ASOF}
+          twin={{ caption: '시즌 최종 컨스트럭터 순위', columns: stepCols, rows: M.stepRows }}
+          notes={[
+            { head: '순위 미부여', body: '그 시즌 점수가 0이면 Jolpica 컨스트럭터 순위표에 순위가 없는 경우가 많다. 1958년 이전에는 컨스트럭터 순위가 없다.' },
+          ]}
+        />
+      </Section>
+    )
+  }
+
+  {
+    hasPod && (
+      <Section id="wins" title="우승과 포디움" read={M.reads.win}>
+        <Figure
+          id="f-pod"
+          title="시즌별 우승과 포디움"
+          scope={`${span(from, to)} · 결승만, 차 기준`}
+          sub="옅은 막대가 그 시즌 결과 수(차 기준)이고, 그 안에 우승과 2·3위를 쌓았다. 두 차가 함께 포디움에 오르면 두 번으로 센다."
+          legend={[
+            { type: 'rect', color: 's2', label: '우승' },
+            { type: 'rect', color: 's1', label: '2·3위' },
+            { type: 'band', label: '결과 (차 기준)' },
+          ]}
+          chart="driverPodiums"
+          data={M.podRows}
+          opts={{ eLabel: '결과 (차 기준)', eUnit: '개' }}
+          source={SRC_RES}
+          asof={ASOF}
+          twin={{ caption: '시즌별 우승과 포디움', columns: podCols, rows: M.podRows }}
+        />
+      </Section>
+    )
+  }
+
+  <Section id="drivers" title="드라이버" read={M.reads.roster}>
+    {
+      hasRoster && (
+        <Figure
+          id="f-roster"
+          title="드라이버별 출전 시즌"
+          scope={`${span(rosterFrom, rosterTo)} · ${M.roster.length > ROSTER_MAX ? `출전이 많은 ${ROSTER_MAX}명` : `${roster.length}명`}`}
+          sub="한 줄이 한 드라이버이고 한 칸이 한 시즌이다. 출전이 많은 순이다. 핑크 칸은 그 드라이버가 이 컨스트럭터로 드라이버 챔피언이 된 시즌이다."
+          legend={[
+            { type: 'rect', color: 's1', label: '출전 시즌' },
+            ...(c.driver_titles ? [{ type: 'rect' as const, color: 's2', label: '드라이버 챔피언 시즌' }] : []),
+          ]}
+          chart="driverTeams"
+          data={roster}
+          opts={{ from: rosterFrom, to: rosterTo, label: '드라이버별 출전 시즌' }}
+          source={SRC_RES}
+          asof={ASOF}
+          twin={{ caption: '드라이버별 출전 시즌', columns: rosterTwin, rows: roster }}
+        />
+      )
+    }
+    <h3 class="sub-title"><span>드라이버별 통산</span><span class="sec-meta">{c.drivers.length}명 · 출전 많은 순</span></h3>
+    <DataTable
+      caption={`${c.name} 드라이버별 통산`}
+      columns={driverCols}
+      rows={c.drivers}
+      expand={c.drivers.length > 15 ? { first: 12, summary: `나머지 ${c.drivers.length - 12}명 보기`, captionRest: `${c.name} 드라이버별 통산, 나머지` } : undefined}
+    />
+    <SourceLine source={SRC_RES} asof={ASOF} />
+    {
+      from < 1980 && (
+        <p class="tbl-note">1980년 이전은 참가 팀 구분이 자료에 없어, 같은 섀시를 쓴 다른 참가 팀(개인 참가 포함)의 드라이버도 이 컨스트럭터의 드라이버로 센다. 인디애나폴리스 500(1950-1960) 참가자도 섀시 제작사 기준으로 들어간다.</p>
+      )
+    }
+  </Section>
+
+  {
+    hasDist && (
+      <Section id="results" title="결과와 신뢰성" read={M.reads.rel}>
+        {multi && (
+          <Figure
+            id="f-out"
+            title="시즌별 결과 구성"
+            scope={`${span(from, to)} · 결승 결과(차 기준)의 비율`}
+            sub="한 막대가 한 시즌의 결과 전체(100%)다. 아래부터 완주로 분류된 결과, 차량 문제 리타이어, 사고·충돌 리타이어, 그 밖이다. 막대 위에 올리면 수가 보인다."
+            legend={[
+              { type: 'rect', color: 's1', label: '완주 분류' },
+              { type: 'rect', color: 's3', label: '차량 문제' },
+              { type: 'rect', color: 's2', label: '사고·충돌' },
+              { type: 'rect', color: 'ctx', label: '그 밖 (원인 미기재, 완주 미분류, 실격, 출발 안 함 등)' },
+            ]}
+            chart="outcomeShare"
+            data={M.outcomeRows}
+            source={`${SRC_RES}의 상태(status), 분류는 이 사이트`}
+            asof={ASOF}
+            twin={{ caption: '시즌별 결과 구성', columns: outCols, rows: M.outcomeRows }}
+            notes={[
+              { head: '분류', body: 'Jolpica 상태 분류의 사고(Accident, Collision, Spun off)는 사고·충돌, 부품이나 고장 이름(Engine, Gearbox 등)은 차량 문제로 묶었다. 정의는 방법론에 있다.' },
+              { head: '주의', body: '2023년부터 Jolpica는 리타이어 원인을 적지 않아(Retired) 그 시즌들의 리타이어는 대부분 그 밖(원인 미기재)으로 잡힌다. 시대마다 차량 수와 완주 기준이 달라 비율을 해끼리 견줄 때 주의가 필요하다.', caution: true },
+            ]}
+          />
+        )}
+        <div class="pair">
+          <Figure
+            pair
+            id="f-dist"
+            title="완주 순위 분포"
+            scope={`${span(from, to)} · 완주로 분류된 결과 ${n0(finN)}개`}
+            sub="완주로 분류된 결과가 몇 위였는지 센 막대다. 1위(우승)는 핑크다."
+            legend={[
+              { type: 'rect', color: 's2', label: '1위' },
+              { type: 'rect', color: 's1', label: '2위 이하' },
+            ]}
+            chart="posBars"
+            data={dist}
+            opts={{ unit: '번', what: '완주 결과', label: '완주 순위 분포' }}
+            source={SRC_RES}
+            asof={ASOF}
+            twin={{ caption: '완주 순위 분포', columns: distCols, rows: dist }}
+          />
+          {
+            causes.length > 0 && (
+              <Figure
+                pair
+                id="f-cause"
+                title="완주하지 못한 결과"
+                scope={`${span(from, to)} · ${n0(causes.reduce((a, x) => a + x.v, 0))}개`}
+                sub="완주로 분류되지 않은 결과를 원인 분류별로 센 막대다. 많은 순이 아니라 분류 순서다."
+                chart="rankBars"
+                data={causes}
+                opts={{ unit: '번', label: '완주하지 못한 결과', abbr: false }}
+                source={`${SRC_RES}의 상태(status), 분류는 이 사이트`}
+                asof={ASOF}
+                twin={{ caption: '완주하지 못한 결과', columns: causeCols, rows: causes }}
+              />
+            )
+          }
+        </div>
+      </Section>
+    )
+  }
+
+  <Section
+    id="seasons"
+    title="시즌별 기록"
+    meta="최근 시즌부터"
+    read={`${rows.length}개 시즌의 이름, 엔진, 드라이버, 출전, 우승, 포디움, 순위표 점수와 순위다. 시즌을 누르면 대회별 두 차의 결과와 시즌 중 순위를 보는 시즌 상세 쪽으로 간다.`}
+  >
+    <DataTable
+      caption={`${c.name} 시즌별 기록`}
+      columns={recCols}
+      rows={recRows}
+      rowClass={(r) => (titleSet.has(r.s) ? 'hl' : '')}
+      expand={recRows.length > 14 ? { first: 12, summary: `${recRows[11].s}년 이전 ${recRows.length - 12}개 시즌 펼치기`, captionRest: `${c.name} 시즌별 기록, ${recRows[11].s}년 이전` } : undefined}
+    />
+    <SourceLine source={`${JOLPICA} 결승 결과와 컨스트럭터 순위${hasEngine ? `, 엔진은 ${F1DB}` : ''}`} asof={hasEngine ? `${ASOF}, 엔진 ${asofF1db()}` : ASOF} />
+    <p class="tbl-note">
+      출전은 그 시즌 대회 수 가운데 결승 결과 행이 있는 대회 수다. 점수와 순위는 시즌 마지막 라운드의 컨스트럭터 순위표다.
+      {c.titles > 0 && ' 바탕색 행이 컨스트럭터 챔피언 시즌이다.'}
+      {hasEngine && rows.some((r) => !r.engine) && ' 엔진 결측은 Jolpica ID가 섀시와 엔진 조합(cooper-climax 등)이라 F1DB 엔트런트와 바로 맞지 않는 경우다.'}
+    </p>
+  </Section>
+</BaseLayout>
+
+<style>
+  .lin-note {
+    margin-top: var(--sp-4);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+  .page-jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
+    margin-top: var(--sp-5);
+    font-size: var(--fs-small);
+  }
+  .page-jump a {
+    color: var(--ink-2);
+  }
+  :global(#drivers h3.sub-title) {
+    margin-top: var(--sp-6);
+  }
+  :global(#drivers h3 .sec-meta) {
+    font-size: var(--fs-small);
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+  :global(#results .pair) {
+    margin-top: var(--sp-6);
+  }
+  .tbl-note {
+    margin-top: var(--sp-2);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+  :global(.dt .of) {
+    color: var(--ink-3);
+    font-size: var(--fs-micro);
+  }
+</style>

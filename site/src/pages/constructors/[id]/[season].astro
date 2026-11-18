@@ -1,0 +1,361 @@
+---
+// 컨스트럭터 시즌 상세 /constructors/<컨스트럭터 ID>/<시즌>/. 컨스트럭터가 결승에 나선 시즌마다 하나다.
+// 절: 대회별 결과(차마다), 드라이버(동료 비교), 섀시와 엔진(F1DB), 시즌 중 컨스트럭터 순위, 예선 페이스(지수가 있는 시즌).
+// 자료는 constructor/<id>.json과 그 시즌 JSON(season/<연도>.json)을 읽는다. 라운드 이름과 순위 추이,
+// 퀄리파잉 지수는 시즌 JSON에서 와서 시즌 쪽과 같은 값이다.
+import DataTable, { type Column } from '../../../components/DataTable.astro';
+import Figure from '../../../components/Figure.astro';
+import LinkPick from '../../../components/LinkPick.astro';
+import PageHead from '../../../components/PageHead.astro';
+import Section from '../../../components/Section.astro';
+import SourceLine from '../../../components/SourceLine.astro';
+import Tiles from '../../../components/Tiles.astro';
+import { DRIVER_KEYS, STANDINGS_FROM, buildConstructorSeason, outcomeCell, pts } from '../../../components/constructor/model.ts';
+import { gridCell } from '../../../components/driver/model.ts';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { qualiRounds } from '../../../lib/chart-data.ts';
+import { constructors, getConstructor, type ConstructorKit, type ConstructorRace } from '../../../lib/constructors-data.ts';
+import { getSeason, teams } from '../../../lib/data.ts';
+import { driverLink } from '../../../lib/driver-links.ts';
+import { n0, num } from '../../../lib/format.ts';
+import { routes } from '../../../lib/paths.ts';
+import { F1DB, JOLPICA, OPENF1, asofF1db, asofJolpica, asofQualiIndex } from '../../../lib/sources.ts';
+import { aside, b, en, esc, nw } from '../../../lib/typeset.ts';
+
+export function getStaticPaths() {
+  return constructors.flatMap((c) => c.years.map((s) => ({ params: { id: c.id, season: String(s) } })));
+}
+
+const { id, season: seasonParam } = Astro.params as { id: string; season: string };
+const season = Number(seasonParam);
+const c = await getConstructor(id);
+const row = c.season_rows.find((r) => r.s === season)!;
+const S = getSeason(season);
+const M = buildConstructorSeason(c, row);
+const { races, drivers } = M;
+const ASOF = asofJolpica();
+const SRC_RES = `${JOLPICA} 결승 결과`;
+const idx = c.years.indexOf(season);
+const prev = idx > 0 ? c.years[idx - 1] : null;
+const next = idx < c.years.length - 1 ? c.years[idx + 1] : null;
+const linName = new Map(teams.map((t) => [t.lineage_id, t.name_ko]));
+
+// ------------------------------------------------------------------ 대회별 결과
+const drvName = new Map(drivers.map((d) => [d.id, d.name]));
+const shownDrivers = drivers.length <= 4 ? drivers : drivers.slice(0, 3);
+const stripLegend = [
+  ...shownDrivers.map((d, i) => ({ ...DRIVER_KEYS[i], label: `<span lang="en">${esc(d.name)}</span>` })),
+  ...(drivers.length > 4 ? [{ ...DRIVER_KEYS[3], label: `그 밖의 드라이버 ${drivers.length - 3}명` }] : []),
+  { type: 'times' as const, color: 'ink-2', label: '리타이어 또는 출발 안 함 (맨 아래 줄)' },
+  ...(races.some((r) => r.o === 'D') ? [{ type: 'hollow' as const, color: 'ink-2', label: '실격 (맨 아래 줄)' }] : []),
+];
+const raceCols: Column<ConstructorRace>[] = [
+  { label: 'R', num: true, render: (r) => String(r.r) },
+  { label: '대회', render: (r) => `${esc(r.n)}${r.x ? '<span class="sub-line">한 대회에 결과 행이 여럿(차량 공유 또는 교대)</span>' : ''}` },
+  { label: '드라이버', render: (r) => driverLink(r.d, en(esc(drvName.get(r.d) ?? r.d))) },
+  ...(season >= 1994 ? [{ label: '예선', num: true, cls: 'hide-xs', render: (r: ConstructorRace) => (r.q != null ? String(r.q) : '') }] : []),
+  { label: '출발', num: true, render: (r) => gridCell(r.g) },
+  { label: '결과', num: true, render: (r) => (r.o === 'F' && r.p <= 3 ? `<b class="podium">${outcomeCell(r)}</b>` : outcomeCell(r)) },
+  { label: '상태', cls: 'hide-sm', render: (r) => `<span lang="en">${esc(r.st)}</span>` },
+  { label: '점수', num: true, render: (r) => (r.pts ? pts(r.pts) : '0') },
+];
+const roundCount = S.rounds.length;
+
+// ------------------------------------------------------------------ 드라이버와 동료 비교
+// 결승: 완주로 분류된 쪽이 앞이고, 둘 다 분류되면 순위가 작은 쪽이 앞이다(드라이버 쪽 팀 동료 비교와 같다).
+// 예선: 두 드라이버 모두 최종 예선 순위가 있는 대회만 센다(1994년부터).
+const pair = drivers.length >= 2 ? [drivers[0], drivers[1]] : null;
+let h2h: { n: number; ra: number; rb: number; qa: number; qb: number } | null = null;
+if (pair) {
+  h2h = { n: 0, ra: 0, rb: 0, qa: 0, qb: 0 };
+  const best = (list: ConstructorRace[]) => [...list].sort((a, z) => Number(a.o !== 'F') - Number(z.o !== 'F') || a.p - z.p)[0];
+  for (let r = 1; r <= roundCount; r++) {
+    // 인디애나폴리스 500(1950-1960)은 섀시 제작사 하나에 참가자가 여럿이라 동료로 보지 않는다(드라이버 쪽과 같다).
+    if (S.rounds[r - 1]?.name === 'Indianapolis 500') continue;
+    const a = races.filter((x) => x.r === r && x.d === pair[0].id);
+    const z = races.filter((x) => x.r === r && x.d === pair[1].id);
+    if (!a.length || !z.length) continue;
+    h2h.n += 1;
+    const A = best(a);
+    const Z = best(z);
+    const af = A.o === 'F';
+    const zf = Z.o === 'F';
+    if (af && !zf) h2h.ra += 1;
+    else if (zf && !af) h2h.rb += 1;
+    else if (af && zf && A.p !== Z.p) A.p < Z.p ? (h2h.ra += 1) : (h2h.rb += 1);
+    if (A.q != null && Z.q != null && A.q !== Z.q) A.q < Z.q ? (h2h.qa += 1) : (h2h.qb += 1);
+  }
+}
+const nm = (d: { name: string }) => en(esc(d.name));
+let mateRead = `${drivers.length}명이 이 컨스트럭터로 결승에 나섰다.`;
+if (pair && h2h && h2h.n) {
+  mateRead = `출전이 가장 많은 두 드라이버${aside(`${nm(pair[0])}, ${nm(pair[1])}`)}가 함께 나선 대회는 ${b(`${h2h.n}개`)}다. 결승 순서는 ${nm(pair[0])} ${h2h.ra}번, ${nm(pair[1])} ${h2h.rb}번 앞섰다.${h2h.n - h2h.ra - h2h.rb ? ` 둘 다 완주하지 못하는 등 순서를 가를 수 없는 대회는 ${h2h.n - h2h.ra - h2h.rb}개다.` : ''}`;
+  if (h2h.qa + h2h.qb) mateRead += ` 예선은 ${nm(pair[0])} ${h2h.qa}번, ${nm(pair[1])} ${h2h.qb}번 앞섰다.`;
+}
+if (row.driver_champ) {
+  const champ = drivers.find((d) => d.id === row.driver_champ);
+  if (champ) mateRead += ` 이 시즌 드라이버 챔피언은 ${nm(champ)}다.`;
+}
+const driverCols: Column[] = [
+  { label: '드라이버', cls: 'stick', render: (d) => driverLink(d.id, en(esc(d.name))) },
+  { label: '출전', num: true, render: (d) => String(d.n) },
+  { label: '우승', num: true, render: (d) => String(d.w) },
+  { label: '포디움', num: true, render: (d) => String(d.p) },
+  { label: '결승 득점', num: true, render: (d) => pts(d.pts) },
+  { label: '최고 결과', num: true, cls: 'hide-xs', render: (d) => (d.best ? `${d.best}위` : '<span class="muted">완주 없음</span>') },
+  { label: '드라이버 순위', num: true, cls: 'hide-sm', render: (d) => {
+    const s = S.drivers.find((x) => x.id === d.id);
+    return s?.position ? `${s.position}위` : '<span class="muted">미부여</span>';
+  } },
+];
+
+// ------------------------------------------------------------------ 섀시와 엔진
+// F1DB 참가 팀별 시즌 섀시·엔진 표(pipeline/site_constructors.kit_rows). 몇 라운드부터 썼는지는 자료에 없다.
+// kit가 null이면 싣지 않는 시즌(2010-2021), []이면 F1DB 결승 결과와 맞추지 못한 시즌이다.
+const KIT_SKIP = '2010-2021';
+const kit = row.kit;
+const kitChassis = kit ? [...new Set(kit.flatMap((k) => k.c))].sort() : [];
+const kitEngines = kit ? [...new Set(kit.flatMap((k) => k.g))].sort() : [];
+const kitMulti = kit ? kit.filter((k) => k.c.length > 1).length : 0;
+// 이름 안의 하이픈("F2003-GA")에서 갈리지 않게 빈칸으로 나뉜 조각마다 묶는다. 한 항목이 한 줄이다.
+const lines = (list: string[]) => list.map((x) => `<span class="kit-item" lang="en">${x.split(' ').map((w) => nw(esc(w))).join(' ')}</span>`).join('');
+const kitCols: Column<ConstructorKit>[] = [
+  { label: '참가 팀', render: (k) => `<span lang="en">${esc(k.e)}</span>` },
+  { label: '섀시', render: (k) => lines(k.c) },
+  { label: '엔진', render: (k) => (k.g.length ? lines(k.g) : '<span class="muted">결측</span>') },
+];
+let kitRead = '';
+if (kit && kit.length === 1) {
+  kitRead = `이 시즌 이 컨스트럭터로 등록한 참가 팀은 ${en(esc(kit[0].e))} 하나이고, 섀시 ${b(`${kitChassis.length}종`)}과 엔진 ${kitEngines.length}종을 등록했다.`;
+  if (kitChassis.length > 1) kitRead += ' 어느 라운드에 어느 섀시를 썼는지는 자료에 없다.';
+} else if (kit && kit.length > 1) {
+  kitRead = `이 시즌 이 컨스트럭터로 등록한 참가 팀은 ${b(`${kit.length}곳`)}이고, 섀시 ${kitChassis.length}종과 엔진 ${kitEngines.length}종을 등록했다.`;
+  if (kitMulti) kitRead += ` 섀시를 둘 이상 등록한 참가 팀은 ${b(`${kitMulti}곳`)}이다. 어느 라운드에 어느 섀시를 썼는지는 자료에 없다.`;
+}
+
+// ------------------------------------------------------------------ 시즌 중 순위
+const series = S.constructors.find((x) => x.id === id);
+const hasRound = Boolean(series?.positions?.some((p) => p != null));
+const leaderPts = S.rounds.map((_, i) => Math.max(...S.constructors.map((x) => x.points?.[i] ?? 0)));
+const roundRows = S.rounds.map((r, i) => ({ r: r.round, n: r.short_ko, pos: series?.positions?.[i] ?? null, pts: series?.points?.[i] ?? null, lp: leaderPts[i] }));
+const roundCols: Column[] = [
+  { label: 'R', num: true, render: (r) => String(r.r) },
+  { label: '대회', render: (r) => esc(r.n) },
+  { label: '순위', num: true, render: (r) => (r.pos ? `${r.pos}위` : '') },
+  { label: '누적 점수', num: true, render: (r) => (r.pts != null ? pts(r.pts) : '') },
+  { label: '1위와 차이', num: true, render: (r) => (r.pts != null ? (r.lp - r.pts > 0.001 ? `−${pts(Math.round((r.lp - r.pts) * 100) / 100)}` : '선두') : '') },
+];
+const leadRounds = roundRows.filter((r) => r.pos === 1).length;
+let roundRead = '';
+if (hasRound) {
+  const fin = [...roundRows].reverse().find((r) => r.pos != null);
+  const bestPos = Math.min(...roundRows.filter((r) => r.pos != null).map((r) => r.pos as number));
+  roundRead = `라운드가 끝날 때마다의 컨스트럭터 순위다. 시즌 가운데 가장 높았던 순위는 ${b(`${bestPos}위`)}이고${leadRounds ? `, 1위로 마친 라운드는 ${leadRounds}개` : ''}다. 마지막 라운드 뒤에는 ${fin?.pos}위다.`;
+}
+
+// ------------------------------------------------------------------ 예선 페이스
+const qRounds = qualiRounds(S);
+const hasQ = qRounds.some((r) => r.teams[id] != null) && qRounds.filter((r) => r.wet !== 'wet' && r.teams[id] != null).length >= 2;
+const f1dbRounds = S.rounds.filter((r) => r.quali?.source === 'f1db').map((r) => r.round);
+const qSrc = `${JOLPICA} 예선 기록${f1dbRounds.length ? `, R${f1dbRounds.join(', R')}는 ${F1DB}` : ''}${season >= 2023 ? `. 우천 판정 ${OPENF1}` : ''}. 지수는 이 사이트 계산`;
+const qCols: Column[] = [
+  { label: 'R', num: true, render: (r) => String(r.round) },
+  { label: '대회', render: (r) => esc(r.short) },
+  { label: '지수 (%)', num: true, render: (r) => (r.teams[id] != null ? num(r.teams[id]) : '결측') },
+  { label: '필드 중앙값', num: true, render: (r) => (r.field ? num(r.field.med) : '') },
+  { label: '노면', render: (r) => (r.wet === 'wet' ? '우천' : r.wet === 'dry' ? '마른 노면' : '미분류') },
+];
+let qRead = '';
+if (hasQ) {
+  const dry = qRounds.filter((r) => r.wet !== 'wet' && r.teams[id] != null);
+  const ahead = dry.filter((r) => r.field && (r.teams[id] as number) < r.field.med).length;
+  const zero = dry.filter((r) => r.teams[id] === 0).length;
+  qRead = `세션 최고 랩 대비 팀 최고 랩의 차이(%)다. 지수가 있는 예선 ${dry.length}개 가운데 필드 중앙값보다 빠른 예선은 ${b(`${ahead}개`)}${zero ? `, 가장 빠른 팀이었던 예선은 ${zero}개` : ''}다.${row.quali_mean != null ? ` 시즌 평균은 ${num(row.quali_mean)}%다.` : ''}`;
+}
+
+// ------------------------------------------------------------------ 시즌 고르기
+const decades = new Map<number, number[]>();
+for (const y of c.years) {
+  const d = Math.floor(y / 10) * 10;
+  if (!decades.has(d)) decades.set(d, []);
+  decades.get(d)!.push(y);
+}
+const pickGroups = [...decades.entries()].reverse().map(([d, ys]) => ({
+  label: `${d}년대`,
+  links: ys.map((y) => ({ href: routes.constructorSeason(id, y), text: String(y), current: y === season })),
+}));
+const facts: [string, string][] = [
+  ['이름', `<span lang="en">${esc(row.name)}</span>`],
+  ['엔진', row.engine ? `<span lang="en">${esc(row.engine)}</span>` : '결측'],
+  ['드라이버', drivers.map((d) => driverLink(d.id, `<span lang="en" class="nw">${esc(d.name)}</span>`)).join(', ')],
+];
+if (kitChassis.length) {
+  facts.push(['섀시', kitChassis.length <= 3 ? kitChassis.map((x) => `<span lang="en" class="nw">${esc(x)}</span>`).join(', ') : `${kitChassis.length}종 (아래 섀시와 엔진 표)`]);
+}
+if (row.lineage_id) facts.push(['계보', `<a href="${routes.team(row.lineage_id)}">${esc(linName.get(row.lineage_id) ?? row.lineage_id)}</a>`]);
+
+const title = `${c.name} ${season}`;
+const description = `${c.name}의 ${season} 시즌 결승 기록: 대회별 결과, 드라이버 비교, 섀시와 엔진, 시즌 중 컨스트럭터 순위, 예선 페이스`;
+---
+
+<BaseLayout title={title} description={description} current="teams">
+  <PageHead
+    kicker={[`<a href="${routes.constructors()}">컨스트럭터</a>`, `<a href="${routes.constructorPage(id)}" lang="en">${esc(c.name)}</a>`, `<a href="${routes.season(season)}">${season} 시즌</a>`]}
+    title={`${en(esc(c.name))} <span class="yr">${season}</span>`}
+    lead={M.lead}
+    facts={facts}
+  >
+    <div class="season-nav">
+      {prev ? <a class="chip-link" href={routes.constructorSeason(id, prev)} rel="prev">← {prev}</a> : <span class="chip-link is-off" aria-hidden="true">← 처음</span>}
+      {next ? <a class="chip-link" href={routes.constructorSeason(id, next)} rel="next">{next} →</a> : <span class="chip-link is-off" aria-hidden="true">마지막 →</span>}
+      {c.years.length > 2 && <LinkPick summary={`다른 시즌 고르기 (${c.years.length}개)`} navLabel={`${c.name}의 시즌`} groups={pickGroups} />}
+    </div>
+  </PageHead>
+  <Tiles items={M.tiles} />
+
+  <Section id="races" title="대회별 결과" read={M.reads.strip}>
+    <Figure
+      id="f-strip"
+      title="대회별 결과, 차마다"
+      scope={`${season} · ${roundCount}개 대회 · 위가 1위다`}
+      sub="한 점이 한 차의 결승 결과다. 드라이버마다 색과 모양이 다르고, 옅은 선이 같은 드라이버의 완주 결과를 잇는다. 완주로 분류되지 않은 결과는 맨 아래 줄에 찍는다."
+      legend={stripLegend}
+      chart="teamStrip"
+      data={races}
+      opts={{ rounds: roundCount, drivers: drivers.map((d) => ({ id: d.id, name: d.name })), label: `${c.name} ${season} 대회별 결과` }}
+      source={SRC_RES}
+      asof={ASOF}
+      twin={{ caption: `${c.name} ${season} 대회별 결승 결과`, columns: raceCols, rows: races }}
+      notes={[
+        { head: '결과', body: '결과의 순위는 완주로 분류된 경우만 적는다. 리타이어 원인은 Jolpica 상태를 사고·충돌, 차량 문제, 원인 미기재 등으로 묶은 것이다.' },
+        ...(season >= 1994 ? [{ head: '예선', body: '표의 예선은 최종 예선 순위다. 출발 순위는 그리드 페널티로 다를 수 있다.' }] : []),
+        ...(season < 1980
+          ? [{ head: '주의', body: '1980년 이전은 참가 팀 구분이 자료에 없어, 같은 섀시를 쓴 다른 참가 팀(개인 참가 포함)의 차도 이 컨스트럭터의 결과로 잡힌다.', caution: true }]
+          : []),
+      ]}
+    />
+  </Section>
+
+  <Section id="drivers" title="드라이버" read={mateRead}>
+    <DataTable caption={`${c.name} ${season} 드라이버`} columns={driverCols} rows={drivers} />
+    <SourceLine source={`${SRC_RES}와 드라이버 순위${pair ? ', 동료 비교는 이 사이트 계산' : ''}`} asof={ASOF} />
+  </Section>
+
+  {
+    kit && kit.length > 0 && (
+      <Section id="kit" title="섀시와 엔진" read={kitRead}>
+        <DataTable caption={`${c.name} ${season} 참가 팀별 섀시와 엔진`} columns={kitCols} rows={kit} />
+        <p class="pre-note">
+          참가 팀은 이 시즌 이 컨스트럭터의 섀시로 등록한 팀이고, 예선을 통과하지 못한 팀도 들어갈 수 있다. 섀시와 엔진은 이름순이고 쓴 순서가 아니다.
+        </p>
+        <SourceLine source={`${F1DB} 시즌별 참가 팀 섀시와 엔진, 컨스트럭터 대응은 이 사이트 계산(대회와 차 번호로 결승 결과 대조)`} asof={asofF1db()} />
+      </Section>
+    )
+  }
+  {kit === null && <p class="pre-note">섀시와 엔진 기록은 {KIT_SKIP}년 시즌에는 아직 싣지 않았다.</p>}
+  {kit && kit.length === 0 && <p class="pre-note">F1DB 결승 결과에서 이 컨스트럭터의 차를 찾지 못해 섀시와 엔진을 맞추지 못했다.</p>}
+
+  {
+    hasRound && (
+      <Section id="standing" title="시즌 중 컨스트럭터 순위" read={roundRead}>
+        <Figure
+          id="f-round"
+          title="라운드 뒤 컨스트럭터 순위"
+          scope={`${season} · ${roundCount}개 라운드 · 위가 1위다`}
+          sub="라운드가 끝날 때마다의 Jolpica 컨스트럭터 순위다. 핑크 점은 1위로 마친 라운드다."
+          legend={[
+            { type: 'line', color: 's1', label: '라운드 뒤 순위' },
+            ...(leadRounds ? [{ type: 'dot' as const, color: 's2', label: '1위였던 라운드' }] : []),
+          ]}
+          chart="roundSteps"
+          data={roundRows}
+          opts={{ label: `${c.name} ${season} 라운드 뒤 컨스트럭터 순위` }}
+          source={`${JOLPICA} 컨스트럭터 순위`}
+          asof={ASOF}
+          twin={{ caption: `${c.name} ${season} 라운드 뒤 컨스트럭터 순위`, columns: roundCols, rows: roundRows }}
+        />
+      </Section>
+    )
+  }
+  {
+    !hasRound && season < STANDINGS_FROM && (
+      <p class="pre-note">컨스트럭터 순위는 {STANDINGS_FROM}년부터라 이 시즌은 시즌 중 순위를 그리지 않는다.</p>
+    )
+  }
+
+  {
+    hasQ && (
+      <Section id="pace" title="예선 페이스" read={qRead}>
+        <Figure
+          id="f-q"
+          title={`<span lang="en">${esc(row.name)}</span> 퀄리파잉 지수와 필드`}
+          scope={`${season} · 라운드별 · 위가 빠르다`}
+          sub="세션 최고 랩 대비 팀 최고 랩의 차이(%)다. 0이 그 예선의 가장 빠른 팀이고, 위로 갈수록 빠르다. 회색 선과 띠는 그 대회 필드의 중앙값과 가운데 절반이다."
+          legend={[
+            { type: 'line', color: 's1', label: `<span lang="en">${esc(row.name)}</span>` },
+            { type: 'line', color: 'ctx', label: '필드 중앙값' },
+            { type: 'band', label: '가운데 절반의 팀' },
+            ...(qRounds.some((r) => r.wet === 'wet') ? [{ type: 'ring' as const, color: 's1', label: '우천 예선 (분석 제외)' }] : []),
+          ]}
+          chart="paceTrend"
+          data={qRounds}
+          opts={{ cid: id, team: row.name, rail: [], label: `${row.name} 퀄리파잉 지수와 필드` }}
+          source={qSrc}
+          asof={asofQualiIndex()}
+          twin={{ caption: `${c.name} ${season} 퀄리파잉 지수`, columns: qCols, rows: qRounds }}
+          notes={[
+            ...(season <= 2022 ? [{ head: '우천 미분류', body: '2022년 이전은 우천 여부를 판정할 자료가 없어 우천 예선이 섞여 있을 수 있다.' }] : []),
+            ...(qRounds.some((r) => r.ref) ? [{ head: '참고용 형식', body: '결승 연료를 싣거나 두 세션 기록을 합산한 예선 형식은 참고용이다.' }] : []),
+            { head: '주의', body: '지수는 팀의 가장 빠른 차 하나의 기록이다. 두 드라이버의 차이는 담지 않는다.', caution: true },
+          ]}
+        />
+      </Section>
+    )
+  }
+
+  <nav class="season-foot" aria-label="이웃 시즌">
+    {prev && <a href={routes.constructorSeason(id, prev)} rel="prev">← {prev} 시즌</a>}
+    <a href={routes.constructorPage(id)}><span lang="en">{c.name}</span> 통산 기록</a>
+    <a href={routes.season(season)}>{season} 시즌 전체</a>
+    {next && <a href={routes.constructorSeason(id, next)} rel="next">{next} 시즌 →</a>}
+  </nav>
+</BaseLayout>
+
+<style>
+  .yr {
+    color: var(--ink-3);
+    font-weight: 600;
+  }
+  .season-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--sp-2);
+    margin-top: var(--sp-4);
+  }
+  .is-off {
+    color: var(--ink-3);
+    border-style: dashed;
+  }
+  .pre-note {
+    margin-top: var(--sp-6);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+  /* 표 칸은 DataTable이 set:html로 넣으므로 전역으로 둔다 */
+  :global(.kit-item) {
+    display: block;
+  }
+  :global(.kit-item + .kit-item) {
+    margin-top: var(--sp-1, 4px);
+  }
+  .season-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-5);
+    margin-top: var(--sp-7, 48px);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--hair);
+    font-size: var(--fs-small);
+  }
+</style>

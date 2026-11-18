@@ -11,12 +11,15 @@ export function esc(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
+// 괄호 안이 빈칸 없는 조각이면 60자까지, 빈칸이 있으면 16자까지만 묶는다. 빈칸이 있는 긴 괄호
+// ("(사고·충돌 3개, 차량 문제 15개, 실격 1개)")를 통째로 묶으면 320px 화면에서 가로로 넘친다.
 const GLUE =
-  /(<b>[^<]{1,40}<\/b>|[^\s<>()]{1,24})(<span class="aside">\([^<]{1,60}\)<\/span>)([가-힣]{0,3})/g;
+  /(<b>[^<]{1,40}<\/b>|[^\s<>()]{1,24})(<span class="aside">\((?:[^<\s]{1,60}|[^<]{1,16})\)<\/span>)([가-힣]{0,3})/g;
 
 /**
  * 이름이나 수치, 바로 뒤의 괄호 보조 정보(.aside), 그 뒤 조사를 한 덩어리로 묶는다.
  * 예: '<b>Max Verstappen</b><span class="aside">(Red Bull)</span>의', '529건<span class="aside">(62%)</span>으로'
+ * 빈칸이 있는 16자 넘는 괄호는 묶지 않는다(좁은 화면에서 넘치지 않게).
  */
 export function glue(html: string): string {
   return html.replace(GLUE, (_m, a: string, b: string, c: string) => `<span class="nw">${a}${b}${c}</span>`);

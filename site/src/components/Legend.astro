@@ -1,11 +1,11 @@
 ---
 // 범례. 계열이 둘 이상이면 언제나 둔다. 열쇠 모양: line, dot, ring, rect, band, tri, glyph(cat 필요), wet, ref,
-// nodoc, zero, hollow, review. color는 토큰 이름이다('s1', 'ctx', 'ink-2'). label은 HTML 조각이다.
+// nodoc, zero, hollow, review, times(×), sq(채운 네모), diamond, tri-c(색을 받는 세모). color는 토큰 이름이다('s1', 'ctx', 'ink-2'). label은 HTML 조각이다.
 import { iconSvg } from '../lib/markup.ts';
 import type { ReasonCategory } from '../lib/types.ts';
 
 export interface LegendItem {
-  type: 'line' | 'dot' | 'ring' | 'rect' | 'band' | 'tri' | 'glyph' | 'wet' | 'ref' | 'nodoc' | 'zero' | 'hollow' | 'review';
+  type: 'line' | 'dot' | 'ring' | 'rect' | 'band' | 'tri' | 'glyph' | 'wet' | 'ref' | 'nodoc' | 'zero' | 'hollow' | 'review' | 'times' | 'sq' | 'diamond' | 'tri-c';
   label: string;
   color?: string;
   cat?: ReasonCategory;

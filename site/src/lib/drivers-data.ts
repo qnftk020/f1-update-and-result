@@ -84,6 +84,12 @@ export interface DriverRace {
   o: 'F' | 'D' | 'N' | 'R';
   st: string;
   pts: number;
+  /** 최종 예선 순위(1994년부터, 결승 행만) */
+  q?: number;
+  /** 리타이어 원인 분류(o가 R일 때): acc 사고·충돌, mech 차량 문제, unk 원인 미기재, nc 완주 미분류, oth 그 밖 */
+  rc?: 'acc' | 'mech' | 'unk' | 'nc' | 'oth';
+  /** 같은 대회 같은 컨스트럭터 동료의 결과 [드라이버 ID, 결과 분류, position] (결승 행만, 동료 3명 이하) */
+  m?: [string, 'F' | 'D' | 'N' | 'R', number][];
   x?: 1;
 }
 

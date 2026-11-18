@@ -51,10 +51,11 @@ function clip(text, px, size = 12) {
  * data: [{id, name, v, active, sub}] 많은 순. active(2025 시즌 출전)는 핑크, 나머지는 블루.
  * 동률은 자료 순서(Jolpica 기준 정렬)를 그대로 둔다.
  */
-export function rankBars(data, { width, unit = "번", label = "통산 순위" }) {
+export function rankBars(data, { width, unit = "번", label = "통산 순위", abbr = true }) {
   const narrow = width < 560;
   const rowH = 24;
-  const rows = data.map((d, i) => ({ ...d, k: String(i), lab: narrow ? shortLabel(d.name) : d.name }));
+  // abbr: 좁은 화면에서 사람 이름을 "M. Schumacher"로 줄인다. 이름이 아닌 라벨(리타이어 원인 등)은 false로 준다.
+  const rows = data.map((d, i) => ({ ...d, k: String(i), lab: narrow && abbr ? shortLabel(d.name) : d.name }));
   const ml = Math.min(narrow ? 118 : 170, Math.max(...rows.map((d) => textWidth(d.lab, 12.5))) + 12);
   const max = Math.max(1, ...rows.map((d) => d.v));
   const H = rows.length * rowH + 34;
@@ -138,7 +139,8 @@ export function championWins(data, { width, label = "시즌별 챔피언의 우�
  * rows: [{s, pos, pts, cp, team, champ, ex}] 시즌 순. 위가 1위다. 순위가 없는 시즌(미부여, 실격)은
  * 그림 맨 아래 "미부여" 줄에 빈 고리로 찍고 선을 끊는다. 출전하지 않은 해도 선을 끊는다.
  */
-export function driverSteps(rows, { width, label = "시즌 최종 드라이버 순위" }) {
+export function driverSteps(rows, { width, label = "시즌 최종 드라이버 순위", kind = "driver" }) {
+  const board = kind === "constructor" ? "컨스트럭터" : "드라이버";
   const narrow = width < 560;
   const from = rows[0].s;
   const to = rows[rows.length - 1].s;
@@ -184,7 +186,7 @@ export function driverSteps(rows, { width, label = "시즌 최종 드라이버 �
       ...(d.pts != null ? [{ value: `${pt(d.pts)}점`, label: "시즌 점수" }] : []),
       { value: `${pt(d.cp)}점`, label: "그 시즌 1위 점수" },
     ],
-    note: d.ex ? "시즌 결과에서 실격 처리되어 순위가 없다." : d.pos ? null : "Jolpica 드라이버 순위표에 순위가 없는 시즌이다.",
+    note: d.ex ? (kind === "constructor" ? "시즌 결과에서 제외되어 순위가 없다." : "시즌 결과에서 실격 처리되어 순위가 없다.") : d.pos ? null : `Jolpica ${board} 순위표에 순위가 없는 시즌이다.`,
   }));
   const w = frameOf(svg);
   readout(w, svg, stops, { axis: "x", label });
@@ -238,7 +240,7 @@ export function driverShare(rows, { width, label = "시즌 점수의 1위 점수
 /* ------------------------------------------------------------------ 드라이버: 시즌별 우승과 포디움 */
 
 /** rows: [{s, e, w, p, team}] e 출전, w 우승, p 포디움(우승 포함). 출전은 옅은 띠, 그 위에 2·3위(블루)와 우승(핑크)을 쌓는다. */
-export function driverPodiums(rows, { width, label = "시즌별 우승과 포디움" }) {
+export function driverPodiums(rows, { width, label = "시즌별 우승과 포디움", eLabel = "출전 대회", eUnit = "회" }) {
   const narrow = width < 560;
   const from = rows[0].s;
   const to = rows[rows.length - 1].s;
@@ -259,7 +261,7 @@ export function driverPodiums(rows, { width, label = "시즌별 우승과 포디
       Plot.rect(rows.filter((d) => d.p > d.w), { x1: (d) => d.s - hb, x2: (d) => d.s + hb, y1: "w", y2: "p", fill: C.s1 }),
       Plot.rect(rows.filter((d) => d.w > 0), { x1: (d) => d.s - hb, x2: (d) => d.s + hb, y1: 0, y2: "w", fill: C.s2 }),
       Plot.ruleY([0], { stroke: C.axis }),
-      Plot.axisY({ tickSize: 0, tickPadding: 6, ticks: 4, label: null, tickFormat: (d, i, a) => (Number.isInteger(d) ? (i === a.length - 1 ? `${d}회` : d) : "") }),
+      Plot.axisY({ tickSize: 0, tickPadding: 6, ticks: 4, label: null, tickFormat: (d, i, a) => (Number.isInteger(d) ? (i === a.length - 1 ? `${d}${eUnit}` : d) : "") }),
       Plot.axisX({ tickSize: 0, tickPadding: 6, label: null, ticks: yearTicks(from, to, narrow), tickFormat: String }),
     ],
   });
@@ -271,7 +273,7 @@ export function driverPodiums(rows, { width, label = "시즌별 우승과 포디
     rows: [
       { value: `${d.w}번`, label: "우승", key: { type: "rect", color: C.s2 } },
       { value: `${d.p - d.w}번`, label: "2·3위", key: { type: "rect", color: C.s1 } },
-      { value: `${d.e}회`, label: "출전 대회", key: { type: "rect", color: C.band } },
+      { value: `${d.e}${eUnit}`, label: eLabel, key: { type: "rect", color: C.band } },
     ],
   }));
   const w = frameOf(svg);

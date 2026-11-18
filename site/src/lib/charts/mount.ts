@@ -12,6 +12,7 @@
 // 차트는 페이지 스크립트가 ready를 기다려 handles에서 손잡이를 받아 redraw()하거나, data-chart 없이
 // 둔 .viz에 mount()를 직접 부른다.
 import * as charts from './charts.js';
+import * as detailCharts from './detail.js';
 import * as driverCharts from './drivers.js';
 import * as historyCharts from './history.js';
 import { puTeamSteps } from '../../components/engines/pu-charts.js';
@@ -59,6 +60,12 @@ export const REGISTRY = {
   driverPodiums: driverCharts.driverPodiums,
   mateBars: driverCharts.mateBars,
   driverTeams: driverCharts.driverTeams,
+  // 시즌 상세와 결과 분포(/drivers/<id>/, /constructors/): lib/charts/detail.js
+  raceStrip: detailCharts.raceStrip,
+  roundSteps: detailCharts.roundSteps,
+  posBars: detailCharts.posBars,
+  teamStrip: detailCharts.teamStrip,
+  outcomeShare: detailCharts.outcomeShare,
   // 챔피언십 역사(/seasons/, /teams/): lib/charts/history.js
   seasonBars: historyCharts.seasonBars,
   titleDots: historyCharts.titleDots,

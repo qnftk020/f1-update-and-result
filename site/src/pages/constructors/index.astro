@@ -1,0 +1,280 @@
+---
+// 컨스트럭터 목록 /constructors/: 1950-2025 결승에 한 번이라도 나선 Jolpica 컨스트럭터 전부.
+// 절: 타이틀과 우승 순위, 컨스트럭터 찾기(거르기 표). 표는 빌드 때 모든 컨스트럭터를 싣고, 스크립트가 있으면
+// 거르기와 정렬이 붙는다. 계보(/teams/)는 2025 그리드 10개 조직의 흐름이고, 이 목록은 Jolpica ID 단위다.
+import Figure from '../../components/Figure.astro';
+import PageHead from '../../components/PageHead.astro';
+import Section from '../../components/Section.astro';
+import SourceLine from '../../components/SourceLine.astro';
+import type { Column } from '../../components/DataTable.astro';
+import { span } from '../../components/driver/model.ts';
+import { yearsText } from '../../components/driver/model.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { constructors, type ConstructorSummary } from '../../lib/constructors-data.ts';
+import { meta, teams } from '../../lib/data.ts';
+import { n0, num } from '../../lib/format.ts';
+import { routes } from '../../lib/paths.ts';
+import { competitionRanks } from '../../lib/rank.ts';
+import { JOLPICA, asofJolpica } from '../../lib/sources.ts';
+import { aside, b, en, esc, nw } from '../../lib/typeset.ts';
+
+const last = meta.last_season;
+const first = Math.min(...constructors.map((c) => c.first_season));
+const ASOF = asofJolpica();
+const linName = new Map(teams.map((t) => [t.lineage_id, t.name_ko]));
+const champs = constructors.filter((c) => c.titles > 0);
+const winners = constructors.filter((c) => c.wins > 0);
+const grid = constructors.filter((c) => c.in_2025);
+const topT = constructors[0];
+const topW = [...constructors].sort((a, z) => z.wins - a.wins)[0];
+const lead =
+  `${first}년부터 ${last}년까지 결승에 한 번 이상 나선 컨스트럭터는 Jolpica ID 기준 ${b(`${constructors.length}곳`)}이다. ` +
+  `1958년부터 열린 컨스트럭터 챔피언십을 ${champs.length}곳이 나눠 가졌고, 가장 많은 타이틀은 ${en(esc(topT.name))}의 ${b(`${topT.titles}번`)}이다. ` +
+  `통산 최다 우승은 ${en(esc(topW.name))}${aside(`${topW.wins}번`)}이고, 우승을 한 번 이상 한 컨스트럭터는 ${winners.length}곳이다.`;
+
+// ------------------------------------------------------------------ 타이틀과 우승 순위
+const titleData = champs.map((c) => ({ id: c.id, name: c.name, v: c.titles, active: c.in_2025, sub: [{ value: yearsText(c.title_seasons), label: '타이틀 시즌' }] }));
+const winList = [...winners].sort((a, z) => z.wins - a.wins || a.entries - z.entries).filter((c, i, arr) => c.wins >= arr[Math.min(19, arr.length - 1)].wins);
+const winData = winList.map((c) => ({ id: c.id, name: c.name, v: c.wins, active: c.in_2025, sub: [{ value: `${n0(c.entries)}개`, label: '출전 대회' }] }));
+const barLegend = [
+  { type: 'rect' as const, color: 's1', label: `${last} 시즌 미출전` },
+  { type: 'rect' as const, color: 's2', label: `${last} 시즌 출전` },
+];
+const titleRanks = competitionRanks(titleData, (r) => r.v);
+const winRanks = competitionRanks(winData, (r) => r.v);
+const titleCols: Column[] = [
+  { label: '순위', num: true, cls: 'pos', render: (_r, i) => String(titleRanks[i]) },
+  { label: '컨스트럭터', render: (r) => en(esc(r.name)) },
+  { label: '타이틀', num: true, render: (r) => String(r.v) },
+  // 연도 구간마다만 묶어 쉼표에서 줄이 바뀌게 한다(긴 목록이 표를 넓히지 않게)
+  { label: '시즌', render: (r) => r.sub[0].value.split(', ').map(nw).join(', ') },
+];
+const winCols: Column[] = [
+  { label: '순위', num: true, cls: 'pos', render: (_r, i) => String(winRanks[i]) },
+  { label: '컨스트럭터', render: (r) => en(esc(r.name)) },
+  { label: '우승', num: true, render: (r) => String(r.v) },
+  { label: '출전 대회', num: true, render: (r) => r.sub[0].value },
+];
+
+// ------------------------------------------------------------------ 찾기 표
+const decades: number[] = [];
+for (let d = Math.floor(first / 10) * 10; d <= last; d += 10) decades.push(d);
+const listCols: Column<ConstructorSummary>[] = [
+  { label: '컨스트럭터', cls: 'who', render: (c) => `<a href="${routes.constructorPage(c.id)}" lang="en">${esc(c.name)}</a>${c.nationality_ko ? `<span class="sub-line">${esc(c.nationality_ko)}</span>` : ''}` },
+  { label: '기간', render: (c) => nw(span(c.first_season, c.last_season)) },
+  { label: '시즌', num: true, cls: 'hide-sm', render: (c) => String(c.seasons) },
+  { label: '출전', num: true, render: (c) => String(c.entries) },
+  { label: '우승', num: true, render: (c) => String(c.wins) },
+  { label: '포디움', num: true, cls: 'hide-xs', render: (c) => String(c.podiums) },
+  { label: '타이틀', num: true, render: (c) => (c.titles ? `<b>${c.titles}</b>` : '0') },
+  { label: '드라이버', num: true, cls: 'hide-sm', render: (c) => `${c.drivers_n}명` },
+  { label: '계보', cls: 'hide-sm', render: (c) => c.lineages.map((l) => `<a href="${routes.team(l)}">${esc(linName.get(l) ?? l)}</a>`).join(', ') },
+];
+const cellCls = (c: Column<ConstructorSummary>) => [c.num ? 'num' : '', c.cls ?? ''].filter(Boolean).join(' ');
+const listBody = constructors
+  .map((c, i) => {
+    const tds = listCols.map((col) => `<td${cellCls(col) ? ` class="${cellCls(col)}"` : ''}>${col.render ? col.render(c, i) : ''}</td>`).join('');
+    return `<tr data-i="${i}" data-f="${c.first_season}" data-l="${c.last_season}" data-g="${c.in_2025 ? 1 : 0}" data-t="${c.titles}" data-w="${c.wins}" data-p="${c.podiums}" data-e="${c.entries}" data-q="${esc([c.name, c.id, ...c.names, c.nationality_ko ?? '', c.nationality ?? ''].join(' ').toLowerCase())}">${tds}</tr>`;
+  })
+  .join('');
+---
+
+<BaseLayout title="컨스트럭터" description={`${first}-${last} F1 결승에 나선 컨스트럭터 ${constructors.length}곳의 통산 기록과 시즌별 상세`} current="teams">
+  <PageHead
+    kicker={[`<a href="${routes.teams()}">팀</a>`, '컨스트럭터', nw(`${first}-${last}`)]}
+    title="컨스트럭터"
+    lead={lead}
+    facts={[
+      ['컨스트럭터', `${constructors.length}곳`],
+      ['컨스트럭터 챔피언', `${champs.length}곳`],
+      ['우승 경험', `${winners.length}곳`],
+      [`${last} 그리드`, `${grid.length}곳`],
+    ]}
+  >
+    <p class="lin-note">
+      이 목록은 Jolpica 컨스트럭터 ID 단위다. 이름이 바뀌어도 이어진 2025 그리드 10개 조직의 흐름은 <a href={routes.teams()}>팀(계보)</a>에서 본다. 1950-1960년대에는 섀시와 엔진 조합이 따로 ID를 가진다(<span lang="en">Cooper-Climax</span> 등).
+    </p>
+  </PageHead>
+
+  <Section id="records" title="타이틀과 우승 순위" read={`컨스트럭터 챔피언 ${champs.length}곳과 통산 우승 20위와 같은 수까지 ${winList.length}곳이다.`}>
+    <div class="pair">
+      <Figure
+        pair
+        id="f-titles"
+        title="통산 컨스트럭터 타이틀"
+        scope={`1958-${last} · ${champs.length}곳`}
+        sub="시즌 마지막 라운드 컨스트럭터 순위 1위 횟수다. 같은 수는 첫 타이틀이 이른 순이다."
+        legend={barLegend}
+        chart="rankBars"
+        data={titleData}
+        opts={{ unit: '번', label: '통산 컨스트럭터 타이틀' }}
+        source={`${JOLPICA} 컨스트럭터 순위`}
+        asof={ASOF}
+        twin={{ caption: '통산 컨스트럭터 타이틀', columns: titleCols, rows: titleData }}
+      />
+      <Figure
+        pair
+        id="f-wins"
+        title="통산 결승 우승"
+        scope={`${first}-${last} · 상위 ${winList.length}곳`}
+        sub="결승 1위가 나온 대회 수다. 스프린트는 넣지 않는다."
+        legend={barLegend}
+        chart="rankBars"
+        data={winData}
+        opts={{ unit: '번', label: '통산 우승' }}
+        source={`${JOLPICA} 결승 결과`}
+        asof={ASOF}
+        twin={{ caption: '통산 결승 우승 상위 컨스트럭터', columns: winCols, rows: winData }}
+      />
+    </div>
+  </Section>
+
+  <Section id="list" title="컨스트럭터 찾기" read={`${constructors.length}곳 전부의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움이 많은 순이다. 이름을 누르면 그 컨스트럭터 쪽으로 가고, 거기서 시즌을 누르면 시즌 상세로 간다.`}>
+    <form class="filters ctr-filters" id="ctr-filters" role="search" aria-label="컨스트럭터 거르기" data-js-only>
+      <div class="field">
+        <label for="cf-q">이름 또는 국적</label>
+        <input type="search" id="cf-q" placeholder="예: Lotus, 영국" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="cf-dec">달린 연대</label>
+        <select id="cf-dec">
+          <option value="">전체 연대</option>
+          {decades.map((x) => <option value={String(x)}>{x}년대</option>)}
+        </select>
+      </div>
+      <div class="field">
+        <label for="cf-sort">정렬</label>
+        <select id="cf-sort">
+          <option value="default">타이틀, 우승 순</option>
+          <option value="w">우승 많은 순</option>
+          <option value="e">출전 많은 순</option>
+          <option value="l">최근 시즌 순</option>
+          <option value="n">이름 순</option>
+        </select>
+      </div>
+      <div class="wide-row">
+        <label class="chk"><input type="checkbox" id="cf-grid" /> {last} 그리드만</label>
+        <label class="chk"><input type="checkbox" id="cf-champ" /> 챔피언만</label>
+        <label class="chk"><input type="checkbox" id="cf-win" /> 우승 경험만</label>
+        <button class="btn" type="button" id="cf-reset">조건 지우기</button>
+      </div>
+    </form>
+    <div class="result-line" aria-live="polite" id="cf-result" data-js-only>
+      <span class="result-n" id="cf-n">{constructors.length}</span><span class="result-of">{constructors.length}곳 가운데</span>
+    </div>
+    <div class="tbl-wrap" role="region" tabindex="0" aria-label="컨스트럭터 목록">
+      <table class="dt ctr-list" id="ctr-table">
+        <caption class="sr-only">컨스트럭터 목록</caption>
+        <thead>
+          <tr>{listCols.map((c) => <th scope="col" class:list={[c.num && 'num', c.cls]}>{c.label}</th>)}</tr>
+        </thead>
+        <tbody set:html={listBody} />
+      </table>
+    </div>
+    <SourceLine source={`${JOLPICA} 결승 결과와 컨스트럭터 순위, 계보 연결은 이 사이트의 계보 테이블`} asof={ASOF} />
+    <p class="tbl-note">출전은 결승 결과 행이 있는 대회 수이고, 포디움은 완주로 분류된 3위 이내 결과 수(차 기준)다. 타이틀은 컨스트럭터 챔피언 횟수다.</p>
+  </Section>
+
+  <script>
+    // 컨스트럭터 찾기: 이름·국적 검색, 연대, 체크 조건, 정렬.
+    const tbody = document.querySelector<HTMLTableSectionElement>('#ctr-table tbody');
+    const rows = tbody ? [...tbody.querySelectorAll<HTMLTableRowElement>('tr')] : [];
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
+    const q = $<HTMLInputElement>('cf-q');
+    const dec = $<HTMLSelectElement>('cf-dec');
+    const sort = $<HTMLSelectElement>('cf-sort');
+    const checks = { g: $<HTMLInputElement>('cf-grid'), c: $<HTMLInputElement>('cf-champ'), w: $<HTMLInputElement>('cf-win') };
+    const nOut = $('cf-n');
+    const num = (r: HTMLElement, k: string) => Number(r.dataset[k] ?? 0);
+    const names = new Map(rows.map((r) => [r, r.querySelector('a')?.textContent ?? '']));
+    const cmp: Record<string, (a: HTMLElement, b: HTMLElement) => number> = {
+      default: (a, b) => num(a, 'i') - num(b, 'i'),
+      w: (a, b) => num(b, 'w') - num(a, 'w') || num(a, 'i') - num(b, 'i'),
+      e: (a, b) => num(b, 'e') - num(a, 'e') || num(a, 'i') - num(b, 'i'),
+      l: (a, b) => num(b, 'l') - num(a, 'l') || num(a, 'i') - num(b, 'i'),
+      n: (a, b) => (names.get(a) ?? '').localeCompare(names.get(b) ?? '', 'en'),
+    };
+    const apply = () => {
+      if (!tbody) return;
+      const term = (q?.value ?? '').trim().toLowerCase();
+      const d = dec?.value ? Number(dec.value) : null;
+      tbody.append(...[...rows].sort(cmp[sort?.value ?? 'default'] ?? cmp.default));
+      let match = 0;
+      for (const r of rows) {
+        const ok =
+          (!term || (r.dataset.q ?? '').includes(term)) &&
+          (d == null || (num(r, 'f') <= d + 9 && num(r, 'l') >= d)) &&
+          (!checks.g?.checked || r.dataset.g === '1') &&
+          (!checks.c?.checked || num(r, 't') > 0) &&
+          (!checks.w?.checked || num(r, 'w') > 0);
+        if (ok) match += 1;
+        r.hidden = !ok;
+      }
+      if (nOut) nOut.textContent = String(match);
+    };
+    q?.addEventListener('input', apply);
+    dec?.addEventListener('change', apply);
+    sort?.addEventListener('change', apply);
+    Object.values(checks).forEach((c) => c?.addEventListener('change', apply));
+    $('cf-reset')?.addEventListener('click', () => {
+      if (q) q.value = '';
+      if (dec) dec.value = '';
+      if (sort) sort.value = 'default';
+      Object.values(checks).forEach((c) => c && (c.checked = false));
+      apply();
+    });
+    $('ctr-filters')?.addEventListener('submit', (e) => e.preventDefault());
+    apply();
+  </script>
+</BaseLayout>
+
+<style>
+  .lin-note {
+    margin-top: var(--sp-4);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+  .ctr-filters {
+    margin-top: var(--sp-4);
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  @media (max-width: 900px) {
+    .ctr-filters {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .ctr-filters > .field:first-child {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (max-width: 360px) {
+    .ctr-filters {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .chk {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    font-size: var(--fs-small);
+    cursor: pointer;
+  }
+  .chk input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+  }
+  .ctr-list {
+    margin-top: var(--sp-3);
+  }
+  .ctr-list :global(tr[hidden]) {
+    display: none;
+  }
+  .tbl-note {
+    margin-top: var(--sp-2);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+</style>

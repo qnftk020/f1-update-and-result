@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { glueParticles, typeset } from './typeset.ts';
+import { glue, glueParticles, typeset } from './typeset.ts';
 
 test('glueParticles: 영어 조각 뒤의 조사를 함께 묶는다', () => {
   assert.equal(glueParticles('자료는 <span lang="en">OpenF1</span>이다.'), '자료는 <span class="nw"><span lang="en">OpenF1</span>이다</span>.');
@@ -28,3 +28,11 @@ test('typeset: 조사 묶기와 기존 연도 범위 묶기가 함께 적용된�
     '<span class="nw"><span lang="en">Toleman</span>은</span> <span class="nw">1981-1985</span>',
   );
 });
+
+test('glue: 수치와 짧은 괄호, 조사를 묶고 빈칸이 있는 긴 괄호는 묶지 않는다', () => {
+  assert.equal(glue('529건<span class="aside">(62%)</span>으로'), '<span class="nw">529건<span class="aside">(62%)</span>으로</span>');
+  assert.equal(glue('<b>Max Verstappen</b><span class="aside">(Red Bull)</span>의'), '<span class="nw"><b>Max Verstappen</b><span class="aside">(Red Bull)</span>의</span>');
+  const long = '20개<span class="aside">(사고·충돌 3개, 차량 문제 15개, 실격 1개)</span>다';
+  assert.equal(glue(long), long);
+});
+

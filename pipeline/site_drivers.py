@@ -47,6 +47,18 @@ from pipeline.config import LAST_SEASON
 # Jolpica 결승 결과 status_code 30은 출발하지 않은 행(Did not start, Withdrew 등)이다.
 DNS_STATUS_CODE = 30
 DSQ_STATUS_CODE = 20
+# 리타이어 원인 분류에 쓰는 Jolpica 덤프 분류: 10 사고(Accident, Collision, Spun off),
+# 11 그 밖의 리타이어(Engine, Gearbox 등 부품 이름과 원인을 적지 않은 Retired), 1 완주 미분류
+# (Not classified, +N Laps). 2023년부터 API로 반영한 행은 원인을 적지 않은 Retired가 대부분이다.
+ACCIDENT_STATUS_CODE = 10
+RETIRED_STATUS_CODE = 11
+NOT_CLASSIFIED_STATUS_CODE = 1
+DRIVER_REASONS = frozenset(
+    {"Physical", "Driver unwell", "Injury", "Injured", "Eye injury", "Illness", "Withdrew"}
+)
+# 한 대회 같은 컨스트럭터의 동료 결과는 동료가 이 수 이하일 때만 싣는다(1980년 이전 같은 섀시의
+# 여러 참가 팀, 인디애나폴리스 500은 동료로 보기 어렵다).
+MATES_PER_RACE_MAX = 3
 # 컨스트럭터 순위의 adjustment_type 1: 감점(2020 Racing Point).
 # 제외(101, 102)는 build_site_data에 있다.
 CONSTRUCTOR_DEDUCTED = 1
@@ -84,6 +96,7 @@ NATIONALITY_KO = {
     "Finnish": "핀란드",
     "French": "프랑스",
     "German": "독일",
+    "Hong Kong": "홍콩",
     "Hungarian": "헝가리",
     "Indian": "인도",
     "Indonesian": "인도네시아",
@@ -182,6 +195,27 @@ def outcome(row: Row) -> str:
     return "R"
 
 
+def retire_cause(row: Row) -> str | None:
+    """리타이어(outcome R) 행의 원인 분류. 그 밖의 결과 분류는 None이다.
+
+    acc 사고·충돌(status_code 10과 Fatal accident), mech 차량 문제(status_code 11의 부품·고장 이름),
+    unk 원인 미기재(Retired), nc 완주 미분류(status_code 1), oth 그 밖(드라이버 사정, 기권 등).
+    """
+    if outcome(row) != "R":
+        return None
+    if row.status_code == ACCIDENT_STATUS_CODE or row.status_detail == "Fatal accident":
+        return "acc"
+    if row.status_code == NOT_CLASSIFIED_STATUS_CODE:
+        return "nc"
+    if row.status_detail in (None, "Retired"):
+        return "unk"
+    if row.status_detail in DRIVER_REASONS:
+        return "oth"
+    if row.status_code == RETIRED_STATUS_CODE:
+        return "mech"
+    return "oth"
+
+
 def _better(a: Row, b: Row) -> int:
     """두 결과 행의 앞뒤. a가 앞이면 1, 뒤면 -1, 비교하지 않으면 0.
 
@@ -200,6 +234,30 @@ def _better(a: Row, b: Row) -> int:
 def _best_row(rows: list[Row]) -> Row:
     """한 대회에서 같은 팀으로 낸 결과 행이 여럿이면(차량 공유, 교대) 가장 앞선 행을 쓴다."""
     return min(rows, key=lambda r: (not r.is_classified, r.position))
+
+
+def quali_ranks(
+    keys: dict[tuple[int, int, str], tuple[int, int]],
+) -> dict[tuple[int, int, str], int]:
+    """(시즌, 라운드, 드라이버)별 최종 예선 순위. 예선 정렬 키 순서로 1부터 매긴다.
+
+    결승 출발 순위(grid)는 그리드 페널티로 예선 순위와 다를 수 있다. 키가 같은 행(같은 세션에
+    기록이 없는 드라이버)은 같은 순위다.
+    """
+    by_race: dict[tuple[int, int], list[tuple[tuple[int, int], str]]] = {}
+    for (season, rnd, driver_id), key in keys.items():
+        by_race.setdefault((season, rnd), []).append((key, driver_id))
+    out: dict[tuple[int, int, str], int] = {}
+    for (season, rnd), entries in by_race.items():
+        entries.sort()
+        rank = 0
+        prev = None
+        for i, (key, driver_id) in enumerate(entries, start=1):
+            if key != prev:
+                rank = i
+                prev = key
+            out[(season, rnd, driver_id)] = rank
+    return out
 
 
 def _quali_keys(qualifying: pd.DataFrame) -> dict[tuple[int, int, str], tuple[int, int]]:
@@ -271,12 +329,15 @@ class _Context:
         self.final_constructor = {(int(r.season), r.constructor_id): r for r in cfinal.itertuples()}
         self.champion = {int(r.season): r for r in final.itertuples() if _opt(r.position) == 1}
         self.quali = _quali_keys(t.qualifying)
+        self.quali_rank = quali_ranks(self.quali)
 
     def lineage(self, season: int, cid: str) -> str | None:
         return self.t.lineage_of(season, cid)
 
 
-def _result_row(ctx: _Context, r: Row, multi: bool) -> dict:
+def _result_row(ctx: _Context, r: Row, multi: bool, race: bool = True) -> dict:
+    """대회 결과 한 줄. q는 최종 예선 순위(1994년부터, 결승만), rc는 리타이어 원인 분류,
+    m은 같은 대회 같은 컨스트럭터 동료의 결과 [ID, 결과 분류, position]이다(결승만)."""
     row = {
         "s": r.season,
         "r": r.round,
@@ -288,6 +349,18 @@ def _result_row(ctx: _Context, r: Row, multi: bool) -> dict:
         "st": r.status_detail,
         "pts": _pts(r.points),
     }
+    if race and (q := ctx.quali_rank.get((r.season, r.round, r.driver_id))) is not None:
+        row["q"] = q
+    if (cause := retire_cause(r)) is not None:
+        row["rc"] = cause
+    if race and ctx.race_names[r.race] != INDY:
+        mates = [
+            _best_row(rows)
+            for mate_id, rows in ctx.car_rows[(r.season, r.round, r.constructor_id)].items()
+            if mate_id != r.driver_id
+        ]
+        if 0 < len(mates) <= MATES_PER_RACE_MAX:
+            row["m"] = [[m.driver_id, outcome(m), m.position] for m in mates]
     if multi:
         row["x"] = 1
     return row
@@ -443,7 +516,7 @@ def build_driver(ctx: _Context, driver_id: str) -> tuple[dict, dict]:
         **summary,
         "season_rows": season_rows,
         "races": [_result_row(ctx, r, per_race[r.race] > 1) for r in rows],
-        "sprints": [_result_row(ctx, r, False) for r in sprint],
+        "sprints": [_result_row(ctx, r, False, race=False) for r in sprint],
     }
     return summary, detail
 
@@ -630,9 +703,19 @@ def build_history(ctx: _Context, drivers: list[dict]) -> dict:
     }
 
 
-def build_all(t: object, seasons: dict[int, dict], write: Callable[[str, object], None]) -> dict:
+def make_context(t: object, seasons: dict[int, dict]) -> _Context:
+    """드라이버 쪽과 컨스트럭터 쪽(pipeline/site_constructors.py)이 함께 쓰는 결과 행 문맥."""
+    return _Context(t, seasons)
+
+
+def build_all(
+    t: object,
+    seasons: dict[int, dict],
+    write: Callable[[str, object], None],
+    ctx: _Context | None = None,
+) -> dict:
     """세 산출물을 쓰고 개수를 돌려준다."""
-    ctx = _Context(t, seasons)
+    ctx = ctx or _Context(t, seasons)
     summaries = []
     for driver_id in sorted(ctx.race_by_driver):
         summary, detail = build_driver(ctx, driver_id)
