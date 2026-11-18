@@ -410,7 +410,7 @@ FIA 기술 대표가 대회마다 내는 누적 문서("PU elements used per dri
 - 우승은 결승 `position`이 1인 행이 있는 대회 수, 포디움은 완주 분류 3위 이내 결과 행 수(`Tables.race_tally`와 같다), 원투(`one_two`)는 같은 대회에서 완주 분류 1위와 2위를 모두 낸 대회 수다.
 - 순위와 점수는 시즌 마지막 라운드의 Jolpica 컨스트럭터 순위 행(1958년부터)이다. `adjustment_type` 102는 `excluded`, 1은 `deducted`로 둔다.
 - 드라이버 타이틀(`driver_title_seasons`)은 그 시즌 드라이버 챔피언이 이 컨스트럭터로 결승에 한 번 이상 나선 시즌이다. 1954 Fangio처럼 한 시즌이 두 컨스트럭터에 잡힐 수 있다.
-- 엔진은 F1DB(https://github.com/f1db/f1db) 시즌 엔트런트의 엔진 제조사다. F1DB ID는 Jolpica ID의 밑줄을 하이픈으로 바꾼 값이고 다른 경우는 `data/curated/lineage/constructor_crosswalk.csv`를 따른다. 섀시와 엔진 조합 ID는 F1DB에 같은 ID가 없어 비운다.
+- 엔진은 F1DB(https://github.com/f1db/f1db) 시즌 엔트런트의 엔진 제조사다. F1DB ID는 Jolpica ID의 밑줄을 하이픈으로 바꾼 값이고 다른 경우는 `data/curated/lineage/constructor_crosswalk.csv`를 따른다. 섀시와 엔진 조합 ID(`cooper-climax` 등)처럼 이름으로 맞지 않는 경우는 아래 "섀시와 엔진"의 결승 결과 대조로 정한 엔진 제조사를 쓴다. 맞추지 못한 5개 시즌만 비운다.
 
 ### 리타이어 원인 분류
 

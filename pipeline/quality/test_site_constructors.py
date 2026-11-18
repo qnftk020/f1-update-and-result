@@ -200,3 +200,19 @@ def test_kit_scope_and_coverage(out, ctrs):
         rows = race[(race["season"] == season) & (race["constructor_id"] == cid)]
         assert set(rows["status_detail"]) == {"Withdrew"}
     assert t.entrant_chassis["chassis_full_name"].notna().all()
+
+
+def test_engine_fact_for_combo_ids(out, ctrs):
+    # 섀시와 엔진 조합 ID도 결승 결과 대조로 엔진 제조사를 채운다.
+    # 비는 것은 맞추지 못한 5개 시즌뿐이다.
+    row = next(r for r in out["constructor/cooper-climax.json"]["season_rows"] if r["s"] == 1960)
+    assert row["engine"] == "Climax"
+    empty = sorted(
+        (r["s"], cid)
+        for cid in ctrs
+        for r in out[f"constructor/{cid}.json"]["season_rows"]
+        if not r["engine"]
+    )
+    assert empty == [
+        (1961, "mbm"), (1962, "team_lotus"), (1963, "team_lotus"), (1963, "tomaso"), (1965, "re"),
+    ]  # fmt: skip

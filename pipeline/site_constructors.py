@@ -48,12 +48,12 @@ CAUSES = ("acc", "mech", "unk", "nc", "oth")
 KIT_EXCLUDED = range(2010, 2022)
 
 
-def _engines(t: object, race: list[Row]) -> dict[tuple[int, str], str]:
+def _engines(t: object, race: list[Row], kmap: dict | None = None) -> dict[tuple[int, str], str]:
     """(시즌, Jolpica 컨스트럭터 ID)별 F1DB 엔진 제조사 이름. 여럿이면 쉼표로 잇는다.
 
     F1DB ID는 Jolpica ID의 밑줄을 하이픈으로 바꾼 값이고, 다른 경우는 계보 표의 대응표
-    (lineage/constructor_crosswalk.csv)를 따른다. 섀시와 엔진 조합 ID(cooper-climax 등)는 F1DB에
-    같은 ID가 없어 비워 둔다.
+    (lineage/constructor_crosswalk.csv)를 따른다. 섀시와 엔진 조합 ID(cooper-climax 등)처럼 이름으로
+    맞지 않으면 kit_map의 결승 결과 대조로 정한 엔진 제조사를 쓴다.
     """
     override = _crosswalk()
     entrants = t.season_entrants
@@ -70,6 +70,11 @@ def _engines(t: object, race: list[Row]) -> dict[tuple[int, str], str]:
         f1db = override.get((season, cid), cid.replace("_", "-"))
         if (season, f1db) in by:
             out[(season, cid)] = ", ".join(by[(season, f1db)])
+        elif kmap and (season, cid) in kmap:
+            # 이름으로 맞지 않는 ID(섀시와 엔진 조합, team_lotus 등)는 결승 결과 대조(kit_map)로
+            # 정한 엔진 제조사를 쓴다. 섀시와 엔진 절의 표와 같은 근거다.
+            _, engines = kmap[(season, cid)]
+            out[(season, cid)] = ", ".join(sorted(t.engine_names.get(e, e) for e in engines))
     return out
 
 
@@ -356,8 +361,8 @@ def build_constructor(
 
 def build_all(ctx: _Context, write: Callable[[str, object], None]) -> dict:
     """constructors.json과 constructor/<id>.json을 쓰고 개수를 돌려준다."""
-    engines = _engines(ctx.t, ctx.race)
     kmap = kit_map(ctx.t)
+    engines = _engines(ctx.t, ctx.race, kmap)
     by_cid: dict[str, list[Row]] = {}
     for r in ctx.race:
         by_cid.setdefault(r.constructor_id, []).append(r)
