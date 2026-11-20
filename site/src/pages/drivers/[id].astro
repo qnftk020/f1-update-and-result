@@ -262,7 +262,18 @@ const description = `${d.name}의 F1 결승 기록(${span(from, to)}): 챔피언
     title={en(esc(d.name))}
     lead={M.lead}
     facts={M.facts}
-  />
+  >
+    <p class="chips-row cmp-links">
+      <a class="chip-link" href={routes.compare('d', [d.id])}>다른 드라이버와 비교</a>
+      {
+        mates[0] && (
+          <a class="chip-link" href={routes.compare('d', [d.id, mates[0].id])}>
+            가장 오래 함께한 동료와 비교&nbsp;<span lang="en">({mates[0].name})</span>
+          </a>
+        )
+      }
+    </p>
+  </PageHead>
   <Tiles items={M.tiles} />
   {(hasSteps || hasShare || hasPod) && <JsonData id="dr-rows" data={chartRows} />}
   {hasMates && multi && <JsonData id="dr-mates" data={mateData} />}

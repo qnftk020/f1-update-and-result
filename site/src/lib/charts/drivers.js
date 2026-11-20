@@ -12,7 +12,7 @@ const pt = (v) => formatPoints(v);
 /* ------------------------------------------------------------------ 공통 */
 
 /** 연도 눈금: 기간이 길수록 성기게. 짧은 기간은 첫해부터 센다. */
-function yearTicks(from, to, narrow) {
+export function yearTicks(from, to, narrow) {
   const span = to - from;
   if (span <= 0) return [from];
   if (span <= 14) {

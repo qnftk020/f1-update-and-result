@@ -287,7 +287,8 @@ const listBody = drivers
   <Section
     id="list"
     title="드라이버 찾기"
-    read={`${n0(drivers.length)}명 전원의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움, 출발이 많은 순이다. 이름을 누르면 그 드라이버 쪽으로 간다.`}
+    read={`${n0(drivers.length)}명 전원의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움, 출발이 많은 순이다. 이름을 누르면 그 드라이버 쪽으로 간다. 최대 3명을 골라 나란히 보려면 비교 화면을 쓴다.`}
+    meta={`<a href="${routes.compare('d')}">드라이버 비교</a>`}
   >
     <form class="filters drv-filters" id="drv-filters" role="search" aria-label="드라이버 거르기" data-js-only>
       <div class="field">

@@ -18,6 +18,10 @@ export const routes = {
   constructors: () => url('/constructors/'),
   constructorPage: (constructorId: string) => url(`/constructors/${constructorId}/`),
   constructorSeason: (constructorId: string, season: number) => url(`/constructors/${constructorId}/${season}/`),
+  /** 비교 화면. compare('d', ['senna', 'prost']) -> '/…/compare/#d=senna,prost'. ID 없이 compare('c')면 그 갈래의 처음 비교를 연다 */
+  compare: (kind?: 'd' | 'c', ids: string[] = []) => `${url('/compare/')}${kind ? `#${kind}=${ids.join(',')}` : ''}`,
+  /** 비교 자료 파일 /data/compare/<d|c>/<id>.json */
+  compareData: (kind: 'd' | 'c', id: string) => url(`/data/compare/${kind}/${id}.json`),
   upgrades: () => url('/upgrades/'),
   engines: () => url('/engines/'),
   regulations: () => url('/regulations/'),

@@ -129,7 +129,12 @@ const listBody = constructors
     </div>
   </Section>
 
-  <Section id="list" title="컨스트럭터 찾기" read={`${constructors.length}곳 전부의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움이 많은 순이다. 이름을 누르면 그 컨스트럭터 쪽으로 가고, 거기서 시즌을 누르면 시즌 상세로 간다.`}>
+  <Section
+    id="list"
+    title="컨스트럭터 찾기"
+    read={`${constructors.length}곳 전부의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움이 많은 순이다. 이름을 누르면 그 컨스트럭터 쪽으로 가고, 거기서 시즌을 누르면 시즌 상세로 간다. 최대 3곳을 골라 나란히 보려면 비교 화면을 쓴다.`}
+    meta={`<a href="${routes.compare('c')}">컨스트럭터 비교</a>`}
+  >
     <form class="filters ctr-filters" id="ctr-filters" role="search" aria-label="컨스트럭터 거르기" data-js-only>
       <div class="field">
         <label for="cf-q">이름 또는 국적</label>

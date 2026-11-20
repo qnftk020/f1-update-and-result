@@ -1,0 +1,358 @@
+---
+// 비교 화면 /compare/: 드라이버끼리 또는 컨스트럭터끼리 최대 3개를 골라 통산 기록, 시즌별 최종 순위와 누적 우승,
+// 같은 대회 결승 맞대결을 나란히 본다. 고르기는 이름·약어·국적 검색과 체크로 하고, 고른 것은 주소 조각(#d=senna,prost)에 남는다.
+// 검색 목록은 이 쪽에 싣고, 고른 대상의 자료는 /data/compare/<d|c>/<id>.json을 받아 온다(lib/compare-data.ts).
+// 그리기와 표는 components/compare/compare-client.ts, 계산은 lib/compare.ts, 차트는 lib/charts/compare.js에 있다.
+import Figure from '../../components/Figure.astro';
+import JsonData from '../../components/JsonData.astro';
+import PageHead from '../../components/PageHead.astro';
+import Section from '../../components/Section.astro';
+import Seg from '../../components/Seg.astro';
+import SourceLine from '../../components/SourceLine.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { MAX_PICK } from '../../lib/compare.ts';
+import { constructorIndex, driverIndex } from '../../lib/compare-data.ts';
+import { constructors } from '../../lib/constructors-data.ts';
+import { getSeason, meta } from '../../lib/data.ts';
+import { drivers } from '../../lib/drivers-data.ts';
+import { n0 } from '../../lib/format.ts';
+import { aboutRoutes, routes } from '../../lib/paths.ts';
+import { JOLPICA, asofJolpica } from '../../lib/sources.ts';
+
+const last = meta.last_season;
+const ASOF = asofJolpica();
+const s = getSeason(last);
+// 주소 조각이 없을 때 처음 보이는 비교: 그 시즌 최종 순위 1-3위
+const top3 = <T extends { id: string; position: number | null }>(list: T[]) =>
+  [...list].filter((x) => x.position).sort((a, z) => (a.position ?? 99) - (z.position ?? 99)).slice(0, MAX_PICK).map((x) => x.id);
+const payload = {
+  d: driverIndex(),
+  c: constructorIndex(),
+  def: { d: top3(s.drivers), c: top3(s.constructors) },
+  last,
+  max: MAX_PICK,
+};
+const lead =
+  `드라이버 ${n0(drivers.length)}명이나 컨스트럭터 ${constructors.length}곳 가운데 최대 ${MAX_PICK}개를 골라 통산 기록, 시즌별 최종 순위와 누적 우승, 같은 대회 결승 맞대결을 나란히 본다. ` +
+  `이름, 약어, 국적으로 찾아 체크하면 고른 목록에 들어가고, 고른 조합은 주소에 남아 그대로 공유할 수 있다.`;
+---
+
+<BaseLayout title="비교" description={`F1 드라이버와 컨스트럭터를 최대 ${MAX_PICK}개까지 골라 통산 기록, 시즌별 순위, 결승 맞대결을 비교`}>
+  <PageHead
+    kicker={[`<a href="${routes.drivers()}">드라이버</a>`, `<a href="${routes.constructors()}">컨스트럭터</a>`, '비교']}
+    title="비교"
+    lead={lead}
+  />
+  <noscript>
+    <p class="notice">
+      <span>스크립트가 꺼져 있어 비교 화면을 쓸 수 없다. 통산 기록은 <a href={routes.drivers()}>드라이버</a>와 <a href={routes.constructors()}>컨스트럭터</a> 목록에서 볼 수 있다.</span>
+    </p>
+  </noscript>
+  <JsonData id="cmp-data" data={payload} />
+
+  <Section id="pick" title="고르기" read={`드라이버끼리 또는 컨스트럭터끼리 비교한다. 검색어가 비어 있으면 타이틀과 우승이 많은 순으로 보인다.`}>
+    <div class="cmp-pick" data-js-only>
+      <Seg
+        label="비교 대상"
+        attr="kind"
+        id="cmp-kind"
+        items={[
+          { value: 'd', label: '드라이버', pressed: true },
+          { value: 'c', label: '컨스트럭터' },
+        ]}
+      />
+      <form class="cmp-form" id="cmp-form" role="search" aria-label="비교 대상 찾기">
+        <div class="field">
+          <label for="cmp-q" id="cmp-q-label">이름, 약어 또는 국적</label>
+          <input type="search" id="cmp-q" placeholder="예: Senna, HAM, 브라질" autocomplete="off" />
+        </div>
+        <fieldset class="cmp-hits">
+          <legend class="lab" id="cmp-hits-legend">타이틀과 우승이 많은 순</legend>
+          <ul class="cmp-hit-list" id="cmp-hit-list"></ul>
+          <p class="cmp-none" id="cmp-none" hidden>맞는 이름이 없다.</p>
+        </fieldset>
+      </form>
+      <div class="cmp-picked">
+        <p class="lab"><span id="cmp-picked-label">고른 드라이버</span> <span class="mono" id="cmp-count">0/{MAX_PICK}</span></p>
+        <ul class="cmp-chips" id="cmp-chips" aria-labelledby="cmp-picked-label"></ul>
+        <p class="cmp-status" id="cmp-status" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </Section>
+
+  <Section id="totals" title="통산 기록" read="고른 대상의 통산 기록을 한 표에 나란히 둔다. 둘 이상 고르면 항목마다 가장 좋은 값을 굵게 적는다.">
+    <div id="cmp-totals" data-js-only></div>
+    <SourceLine source={`${JOLPICA} 결승 결과와 순위`} asof={ASOF} />
+    <p class="tbl-note" id="cmp-totals-note"></p>
+  </Section>
+
+  <Section id="seasons" title="시즌별 흐름" read="시즌 마지막 라운드 순위표의 최종 순위와 그 시즌까지의 누적 결승 우승이다. 가로축을 데뷔 뒤 햇수로 바꾸면 활동 시기가 다른 대상을 데뷔한 해부터 맞춰 본다.">
+    <Seg
+      slot="meta"
+      label="가로축"
+      attr="mode"
+      id="cmp-mode"
+      items={[
+        { value: 'year', label: '연도', pressed: true },
+        { value: 'career', label: '데뷔 뒤 햇수' },
+      ]}
+    />
+    <Figure
+      wide
+      manual
+      id="f-cmp-pos"
+      title="시즌 최종 순위"
+      scope="위가 1위"
+      sub="큰 표식은 챔피언 시즌, 속이 빈 표식은 순위가 없는 시즌이다."
+      source={`${JOLPICA} 드라이버·컨스트럭터 순위`}
+      asof={ASOF}
+    />
+    <Figure
+      wide
+      manual
+      id="f-cmp-wins"
+      title="누적 결승 우승"
+      scope="그 시즌까지의 합"
+      sub="스프린트는 넣지 않는다. 쉰 해에는 앞 값이 이어진다."
+      source={`${JOLPICA} 결승 결과`}
+      asof={ASOF}
+    />
+  </Section>
+
+  <Section id="h2h" title="결승 맞대결" read="고른 대상을 둘씩 짝지어 같은 대회 결승에서 누가 앞섰는지 센다. 드라이버가 같은 팀 동료였던 시즌은 결승과 예선 비교를 따로 적는다.">
+    <div id="cmp-h2h" data-js-only></div>
+    <SourceLine source={`${JOLPICA} 결승 결과와 예선 기록, 맞대결은 이 사이트 계산`} asof={ASOF} />
+    <p class="tbl-note">
+      같은 대회 결승에 둘 다 결과가 있으면 함께 나선 것으로 센다. 완주로 분류된 쪽이 리타이어, 실격, 출발하지 않음보다 앞이고, 둘 다 분류되면 순위가 높은 쪽이 앞이다.
+      둘 다 분류되지 않았거나 차를 나눠 타 순위가 같으면 세지 않는다. 팀 동료였던 시즌의 예선 비교는 Jolpica 예선 기록이 있는 1994년부터다. 컨스트럭터는 그 대회에서 가장 앞선 차끼리 비교한다. 인디애나폴리스 500(1950-1960)은 넣지 않는다.
+      정의는 <a href={`${aboutRoutes.methodology()}#compare`}>방법론</a>에 있다.
+    </p>
+  </Section>
+
+  <script>
+    import { start } from '../../components/compare/compare-client.ts';
+
+    start();
+  </script>
+</BaseLayout>
+
+<style>
+  .cmp-pick {
+    display: grid;
+    gap: var(--sp-4);
+    margin-top: var(--sp-4);
+  }
+  .cmp-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: var(--sp-3) var(--sp-5);
+    padding: var(--sp-4) 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--hair);
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    .cmp-form {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .cmp-hits {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+  .cmp-hits legend {
+    padding: 0;
+    margin-bottom: 4px;
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .cmp-hit-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 2px var(--sp-4);
+  }
+  .cmp-hit-list :global(label) {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-height: 40px;
+    padding: 4px 0;
+    cursor: pointer;
+    font-size: var(--fs-small);
+  }
+  .cmp-hit-list :global(input) {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--accent);
+  }
+  .cmp-hit-list :global(input:disabled + span) {
+    color: var(--ink-3);
+  }
+  .cmp-hit-list :global(.hit-sub) {
+    display: block;
+    font-size: var(--fs-micro);
+    color: var(--ink-3);
+  }
+  .cmp-none {
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+  .cmp-picked .lab {
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .cmp-chips {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    min-height: 40px;
+  }
+  .cmp-chips :global(li) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 0 0 var(--sp-3);
+    border: 1px solid var(--control);
+    border-radius: var(--radius-2);
+    font-size: var(--fs-small);
+  }
+  .cmp-chips :global(li.empty-chip) {
+    border-style: dashed;
+    padding-right: var(--sp-3);
+    color: var(--ink-3);
+  }
+  .cmp-chips :global(button) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    min-height: 38px;
+    border: 0;
+    border-left: 1px solid var(--hair);
+    background: transparent;
+    font: inherit;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .cmp-chips :global(button:hover) {
+    color: var(--ink);
+    background: var(--s1-wash);
+  }
+  .cmp-status {
+    min-height: 1.4em;
+    margin-top: 4px;
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+  #cmp-totals,
+  #cmp-h2h {
+    margin-top: var(--sp-3);
+  }
+  #cmp-totals :global(.empty-line),
+  #cmp-h2h :global(.empty-line) {
+    padding: var(--sp-4);
+    border: 1px dashed var(--control);
+    border-radius: var(--radius-2);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+  #cmp-totals :global(th .key),
+  #cmp-h2h :global(.key),
+  .cmp-chips :global(.key) {
+    margin-right: 4px;
+    vertical-align: -1px;
+  }
+  .cmp-pick > :global(.seg) {
+    justify-self: start;
+  }
+  #cmp-totals :global(tbody th),
+  #cmp-h2h :global(tbody th) {
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--hair);
+    vertical-align: top;
+    white-space: normal;
+  }
+  #cmp-totals :global(tbody th) {
+    min-width: 5.5em;
+    word-break: keep-all;
+  }
+  #cmp-h2h :global(.h2h-grid) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: var(--sp-5);
+  }
+  #cmp-h2h :global(.h2h-pair) {
+    min-width: 0;
+    padding-top: var(--sp-3);
+    border-top: 2px solid var(--ink);
+  }
+  #cmp-h2h :global(.h2h-title) {
+    font-size: var(--fs-body);
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  #cmp-h2h :global(.h2h-part) {
+    margin-top: var(--sp-3);
+  }
+  #cmp-h2h :global(.h2h-part + .h2h-part) {
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--hair);
+  }
+  #cmp-h2h :global(.h2h-head) {
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  #cmp-h2h :global(.h2h-score) {
+    display: block;
+    margin-top: 4px;
+    font-size: var(--fs-body);
+    font-variant-numeric: tabular-nums;
+  }
+  #cmp-h2h :global(.h2h-bar) {
+    display: flex;
+    gap: 2px;
+    height: 8px;
+    margin-top: 6px;
+    forced-color-adjust: none;
+  }
+  #cmp-h2h :global(.h2h-bar span) {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+  }
+  #cmp-h2h :global(.h2h-sub),
+  #cmp-h2h :global(.h2h-none) {
+    margin-top: 4px;
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+  #cmp-totals :global(td.lead-v) {
+    font-weight: 700;
+  }
+  .tbl-note {
+    margin-top: var(--sp-2);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+  :global(#seasons .sec-meta) {
+    font-weight: 400;
+  }
+</style>
