@@ -3,6 +3,7 @@
 // 절: 타이틀과 우승 순위, 컨스트럭터 찾기(거르기 표). 표는 빌드 때 모든 컨스트럭터를 싣고, 스크립트가 있으면
 // 거르기와 정렬이 붙는다. 계보(/teams/)는 2025 그리드 10개 조직의 흐름이고, 이 목록은 Jolpica ID 단위다.
 import Figure from '../../components/Figure.astro';
+import ComparePanel from '../../components/compare/ComparePanel.astro';
 import PageHead from '../../components/PageHead.astro';
 import Section from '../../components/Section.astro';
 import SourceLine from '../../components/SourceLine.astro';
@@ -10,8 +11,9 @@ import type { Column } from '../../components/DataTable.astro';
 import { span } from '../../components/driver/model.ts';
 import { yearsText } from '../../components/driver/model.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { MAX_PICK, fold } from '../../lib/compare.ts';
 import { constructors, type ConstructorSummary } from '../../lib/constructors-data.ts';
-import { meta, teams } from '../../lib/data.ts';
+import { getSeason, meta, teams } from '../../lib/data.ts';
 import { n0, num } from '../../lib/format.ts';
 import { routes } from '../../lib/paths.ts';
 import { competitionRanks } from '../../lib/rank.ts';
@@ -27,6 +29,13 @@ const winners = constructors.filter((c) => c.wins > 0);
 const grid = constructors.filter((c) => c.in_2025);
 const topT = constructors[0];
 const topW = [...constructors].sort((a, z) => z.wins - a.wins)[0];
+// 비교 절의 처음 비교: 그 시즌 컨스트럭터 순위 1-3위
+const known = new Set(constructors.map((c) => c.id));
+const cmpDefault = [...getSeason(last).constructors]
+  .filter((x) => x.position && known.has(x.id))
+  .sort((a, z) => (a.position ?? 99) - (z.position ?? 99))
+  .slice(0, MAX_PICK)
+  .map((x) => x.id);
 const lead =
   `${first}년부터 ${last}년까지 결승에 한 번 이상 나선 컨스트럭터는 Jolpica ID 기준 ${b(`${constructors.length}곳`)}이다. ` +
   `1958년부터 열린 컨스트럭터 챔피언십을 ${champs.length}곳이 나눠 가졌고, 가장 많은 타이틀은 ${en(esc(topT.name))}의 ${b(`${topT.titles}번`)}이다. ` +
@@ -74,7 +83,8 @@ const cellCls = (c: Column<ConstructorSummary>) => [c.num ? 'num' : '', c.cls ??
 const listBody = constructors
   .map((c, i) => {
     const tds = listCols.map((col) => `<td${cellCls(col) ? ` class="${cellCls(col)}"` : ''}>${col.render ? col.render(c, i) : ''}</td>`).join('');
-    return `<tr data-i="${i}" data-f="${c.first_season}" data-l="${c.last_season}" data-g="${c.in_2025 ? 1 : 0}" data-t="${c.titles}" data-w="${c.wins}" data-p="${c.podiums}" data-e="${c.entries}" data-q="${esc([c.name, c.id, ...c.names, c.nationality_ko ?? '', c.nationality ?? ''].join(' ').toLowerCase())}">${tds}</tr>`;
+    const pick = `<td class="pick" data-js-only><label><input type="checkbox" class="cmp-box" value="${esc(c.id)}" aria-label="${esc(c.name)} 비교에 넣기" /></label></td>`;
+    return `<tr data-i="${i}" data-id="${esc(c.id)}" data-f="${c.first_season}" data-l="${c.last_season}" data-g="${c.in_2025 ? 1 : 0}" data-t="${c.titles}" data-w="${c.wins}" data-p="${c.podiums}" data-e="${c.entries}" data-q="${esc(fold([c.name, c.id.replace(/_/g, ' '), ...c.names, c.nationality_ko ?? '', c.nationality ?? ''].join(' ')))}">${pick}${tds}</tr>`;
   })
   .join('');
 ---
@@ -129,11 +139,13 @@ const listBody = constructors
     </div>
   </Section>
 
+  <ComparePanel kind="c" def={cmpDefault} last={last} />
+
   <Section
     id="list"
     title="컨스트럭터 찾기"
-    read={`${constructors.length}곳 전부의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움이 많은 순이다. 이름을 누르면 그 컨스트럭터 쪽으로 가고, 거기서 시즌을 누르면 시즌 상세로 간다. 최대 3곳을 골라 나란히 보려면 비교 화면을 쓴다.`}
-    meta={`<a href="${routes.compare('c')}">컨스트럭터 비교</a>`}
+    read={`${constructors.length}곳 전부의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움이 많은 순이다. 이름을 누르면 그 컨스트럭터 쪽으로 가고, 거기서 시즌을 누르면 시즌 상세로 간다. 첫 칸을 체크하면 위 컨스트럭터 비교에 최대 ${MAX_PICK}곳까지 들어간다.`}
+    meta={`<a href="#compare">컨스트럭터 비교</a>`}
   >
     <form class="filters ctr-filters" id="ctr-filters" role="search" aria-label="컨스트럭터 거르기" data-js-only>
       <div class="field">
@@ -167,11 +179,15 @@ const listBody = constructors
     <div class="result-line" aria-live="polite" id="cf-result" data-js-only>
       <span class="result-n" id="cf-n">{constructors.length}</span><span class="result-of">{constructors.length}곳 가운데</span>
     </div>
+    <p class="cmp-line" data-js-only><span id="cmp-line" role="status"></span> <a href="#compare">비교 보기</a></p>
     <div class="tbl-wrap" role="region" tabindex="0" aria-label="컨스트럭터 목록">
-      <table class="dt ctr-list" id="ctr-table">
+      <table class="dt ctr-list" id="ctr-table" data-cmp-table>
         <caption class="sr-only">컨스트럭터 목록</caption>
         <thead>
-          <tr>{listCols.map((c) => <th scope="col" class:list={[c.num && 'num', c.cls]}>{c.label}</th>)}</tr>
+          <tr>
+            <th scope="col" class="pick" data-js-only>비교</th>
+            {listCols.map((c) => <th scope="col" class:list={[c.num && 'num', c.cls]}>{c.label}</th>)}
+          </tr>
         </thead>
         <tbody set:html={listBody} />
       </table>
@@ -181,7 +197,10 @@ const listBody = constructors
   </Section>
 
   <script>
-    // 컨스트럭터 찾기: 이름·국적 검색, 연대, 체크 조건, 정렬.
+    // 컨스트럭터 찾기: 이름·국적 검색, 연대, 체크 조건, 정렬. 검색어는 행의 data-q와 같이 fold()로 접는다.
+    // 첫 칸 체크(비교)는 ComparePanel이 다룬다.
+    import { fold } from '../../lib/compare.ts';
+
     const tbody = document.querySelector<HTMLTableSectionElement>('#ctr-table tbody');
     const rows = tbody ? [...tbody.querySelectorAll<HTMLTableRowElement>('tr')] : [];
     const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
@@ -201,7 +220,7 @@ const listBody = constructors
     };
     const apply = () => {
       if (!tbody) return;
-      const term = (q?.value ?? '').trim().toLowerCase();
+      const term = fold(q?.value ?? '');
       const d = dec?.value ? Number(dec.value) : null;
       tbody.append(...[...rows].sort(cmp[sort?.value ?? 'default'] ?? cmp.default));
       let match = 0;

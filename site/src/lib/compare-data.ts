@@ -1,36 +1,9 @@
-// 비교 화면 자료를 빌드 때 만든다. 드라이버와 컨스트럭터 쪽이 읽는 JSON(driver/<id>.json, constructor/<id>.json)을
-// 줄인 것이라 수치는 그 쪽들과 같다. 검색 목록은 /compare/ 쪽에 싣고, 고른 대상의 자료 파일은
-// /data/compare/<d|c>/<id>.json(pages/data/compare/[kind]/[id].json.ts)을 브라우저가 받아 온다.
-import { span } from '../components/driver/model.ts';
-import { bestPerRace, fold, type CompareFile, type IndexRow } from './compare.ts';
+// 드라이버·컨스트럭터 목록의 비교 절이 받아 오는 자료를 빌드 때 만든다. 드라이버와 컨스트럭터 쪽이 읽는 JSON
+// (driver/<id>.json, constructor/<id>.json)을 줄인 것이라 수치는 그 쪽들과 같다. 고를 대상은 목록 표의 체크 칸이고,
+// 고른 대상의 자료 파일 /data/compare/<d|c>/<id>.json(pages/data/compare/[kind]/[id].json.ts)만 브라우저가 받아 온다.
+import { bestPerRace, type CompareFile } from './compare.ts';
 import { constructors, getConstructor } from './constructors-data.ts';
 import { drivers, getDriver } from './drivers-data.ts';
-
-export function driverIndex(): IndexRow[] {
-  return drivers.map((d) => [
-    d.id,
-    d.name,
-    fold([d.name, d.code ?? '', d.nationality_ko ?? '', d.nationality ?? ''].join(' ')),
-    d.titles,
-    d.wins,
-    d.starts,
-    d.last_season,
-    [d.nationality_ko, span(d.first_season, d.last_season)].filter(Boolean).join(' · '),
-  ]);
-}
-
-export function constructorIndex(): IndexRow[] {
-  return constructors.map((c) => [
-    c.id,
-    c.name,
-    fold([c.name, ...c.names, c.id.replace(/_/g, ' '), c.nationality_ko ?? '', c.nationality ?? ''].join(' ')),
-    c.titles,
-    c.wins,
-    c.entries,
-    c.last_season,
-    [c.nationality_ko, span(c.first_season, c.last_season)].filter(Boolean).join(' · '),
-  ]);
-}
 
 export async function driverCompare(id: string): Promise<CompareFile> {
   const d = await getDriver(id);

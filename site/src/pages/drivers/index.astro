@@ -3,12 +3,14 @@
 // 절: 2025 그리드, 타이틀과 우승 순위, 연대별 흐름(챔피언의 우승 비율, 연대 요약 표), 드라이버 찾기(거르기 표).
 // 표는 빌드 때 모든 드라이버를 싣는다. 스크립트가 없으면 전체 표가 그대로 보이고, 있으면 거르기와 정렬, 100명씩 보기가 붙는다.
 import DataTable, { type Column } from '../../components/DataTable.astro';
+import ComparePanel from '../../components/compare/ComparePanel.astro';
 import Figure from '../../components/Figure.astro';
 import PageHead from '../../components/PageHead.astro';
 import Section from '../../components/Section.astro';
 import SourceLine from '../../components/SourceLine.astro';
 import { span, yearsText } from '../../components/driver/model.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { MAX_PICK, fold } from '../../lib/compare.ts';
 import { getSeason, meta } from '../../lib/data.ts';
 import { driverById, drivers, history, type DriverSummary } from '../../lib/drivers-data.ts';
 import { competitionRanks } from '../../lib/rank.ts';
@@ -40,6 +42,12 @@ const s25 = getSeason(last);
 const gridCards = s25.drivers
   .filter((x) => driverById.get(x.id)?.in_2025)
   .map((x) => ({ s: x, d: driverById.get(x.id) as DriverSummary }));
+// 비교 절의 처음 비교: 그 시즌 드라이버 순위 1-3위
+const cmpDefault = [...s25.drivers]
+  .filter((x) => x.position && driverById.has(x.id))
+  .sort((a, z) => (a.position ?? 99) - (z.position ?? 99))
+  .slice(0, MAX_PICK)
+  .map((x) => x.id);
 
 // ------------------------------------------------------------------ 타이틀과 우승 순위
 // 경계의 동률은 자르지 않는다: 타이틀 2번 이상, 우승은 20위와 같은 수까지.
@@ -176,13 +184,14 @@ const listCols: Column<DriverSummary>[] = [
   { label: '팀', cls: 'hide-sm', render: (d) => teamsShort(d) },
 ];
 // 표 본문은 문자열 하나로 만든다(행마다 컴포넌트 속성이 붙지 않게). 거르기 값은 data-*로 둔다:
-// f 첫 시즌, l 마지막 시즌, g 2025 출전, t 타이틀, w 우승, p 포디움, s 출발, x 인디 500만, k 검색어(영문 국적).
-// 이름, 한국어 국적, 약어, 팀 이름은 스크립트가 행 글자에서 읽는다.
+// id 드라이버 ID(비교 고르기), f 첫 시즌, l 마지막 시즌, g 2025 출전, t 타이틀, w 우승, p 포디움, s 출발, x 인디 500만,
+// q 검색 글자(이름, 약어, 한국어와 영어 국적을 fold()로 접은 것). 첫 칸은 비교 고르기 체크다(스크립트가 있을 때만 보인다).
 const cellCls = (c: Column<DriverSummary>) => [c.num ? 'num' : '', c.cls ?? ''].filter(Boolean).join(' ');
 const listBody = drivers
   .map((d, i) => {
     const tds = listCols.map((c) => `<td${cellCls(c) ? ` class="${cellCls(c)}"` : ''}>${c.render ? c.render(d, i) : ''}</td>`).join('');
-    return `<tr data-i="${i}" data-f="${d.first_season}" data-l="${d.last_season}" data-g="${d.in_2025 ? 1 : 0}" data-t="${d.titles}" data-w="${d.wins}" data-p="${d.podiums}" data-s="${d.starts}" data-x="${d.indy_only ? 1 : 0}" data-q="${esc([d.name, d.code ?? '', d.nationality_ko ?? '', d.nationality ?? ''].join(' ').toLowerCase())}">${tds}</tr>`;
+    const pick = `<td class="pick" data-js-only><label><input type="checkbox" class="cmp-box" value="${esc(d.id)}" aria-label="${esc(d.name)} 비교에 넣기" /></label></td>`;
+    return `<tr data-i="${i}" data-id="${esc(d.id)}" data-f="${d.first_season}" data-l="${d.last_season}" data-g="${d.in_2025 ? 1 : 0}" data-t="${d.titles}" data-w="${d.wins}" data-p="${d.podiums}" data-s="${d.starts}" data-x="${d.indy_only ? 1 : 0}" data-q="${esc(fold([d.name, d.code ?? '', d.nationality_ko ?? '', d.nationality ?? ''].join(' ')))}">${pick}${tds}</tr>`;
   })
   .join('');
 ---
@@ -284,11 +293,13 @@ const listBody = drivers
     <SourceLine source={`${JOLPICA} 결승 결과와 드라이버 순위`} asof={ASOF} />
   </Section>
 
+  <ComparePanel kind="d" def={cmpDefault} last={last} />
+
   <Section
     id="list"
     title="드라이버 찾기"
-    read={`${n0(drivers.length)}명 전원의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움, 출발이 많은 순이다. 이름을 누르면 그 드라이버 쪽으로 간다. 최대 3명을 골라 나란히 보려면 비교 화면을 쓴다.`}
-    meta={`<a href="${routes.compare('d')}">드라이버 비교</a>`}
+    read={`${n0(drivers.length)}명 전원의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움, 출발이 많은 순이다. 이름을 누르면 그 드라이버 쪽으로 가고, 첫 칸을 체크하면 위 드라이버 비교에 최대 ${MAX_PICK}명까지 들어간다.`}
+    meta={`<a href="#compare">드라이버 비교</a>`}
   >
     <form class="filters drv-filters" id="drv-filters" role="search" aria-label="드라이버 거르기" data-js-only>
       <div class="field">
@@ -324,11 +335,15 @@ const listBody = drivers
     <div class="result-line" aria-live="polite" id="df-result" data-js-only>
       <span class="result-n" id="df-n">{n0(drivers.length)}</span><span class="result-of">{n0(drivers.length)}명 가운데</span>
     </div>
+    <p class="cmp-line" data-js-only><span id="cmp-line" role="status"></span> <a href="#compare">비교 보기</a></p>
     <div class="tbl-wrap" role="region" tabindex="0" aria-label="드라이버 목록">
-      <table class="dt drv-list" id="drv-table">
+      <table class="dt drv-list" id="drv-table" data-cmp-table>
         <caption class="sr-only">드라이버 목록</caption>
         <thead>
-          <tr>{listCols.map((c) => <th scope="col" class:list={[c.num && 'num', c.cls]}>{c.label}</th>)}</tr>
+          <tr>
+            <th scope="col" class="pick" data-js-only>비교</th>
+            {listCols.map((c) => <th scope="col" class:list={[c.num && 'num', c.cls]}>{c.label}</th>)}
+          </tr>
         </thead>
         <tbody set:html={listBody} />
       </table>
@@ -345,6 +360,9 @@ const listBody = drivers
 
   <script>
     // 드라이버 찾기: 이름·국적 검색, 연대, 체크 조건, 정렬. 맞는 행 가운데 앞 100명만 보이고 "더 보기"로 늘린다.
+    // 검색어는 행의 data-q와 같이 fold()로 접어 Raikkonen으로도 Räikkönen을 찾는다. 첫 칸 체크(비교)는 ComparePanel이 다룬다.
+    import { fold } from '../../lib/compare.ts';
+
     const table = document.getElementById('drv-table');
     const tbody = table?.querySelector('tbody');
     const rows = tbody ? [...tbody.querySelectorAll<HTMLTableRowElement>('tr')] : [];
@@ -372,7 +390,7 @@ const listBody = drivers
     let order = 'default';
     const apply = () => {
       if (!tbody) return;
-      const term = (q?.value ?? '').trim().toLowerCase();
+      const term = fold(q?.value ?? '');
       const d = dec?.value ? Number(dec.value) : null;
       const s = sort?.value ?? 'default';
       if (s !== order) {

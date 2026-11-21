@@ -1,20 +1,13 @@
-// 비교 화면(/compare/)의 브라우저 동작: 검색과 체크로 고르기, 고른 목록(칩), 통산 기록 표, 시즌별 두 그림과 표 보기,
-// 결승 맞대결 표. 고른 조합은 주소 조각(#d=senna,prost 또는 #c=ferrari,mclaren)에 남는다.
+// 드라이버·컨스트럭터 목록 쪽 비교 절(ComparePanel.astro)의 브라우저 동작: 목록 표의 체크 칸으로 고르기, 고른 목록(칩),
+// 통산 기록 표, 시즌별 두 그림과 표 보기, 결승 맞대결. 고른 조합은 주소(?cmp=senna,prost)에 남는다.
 // 계열 색과 표식은 고른 순서가 아니라 대상에 붙는다: 하나를 빼도 남은 대상의 색은 그대로다(빈 자리를 다음에 고른 대상이 쓴다).
 // 데이터에서 온 글자는 esc()를 거친 뒤에만 HTML 문자열에 넣는다.
-import { MAX_PICK, headToHead, parseHash, search, seasonPoints, shortNames, toHash, type CompareFile, type IndexRow, type Kind } from '../../lib/compare.ts';
+import { MAX_PICK, headToHead, parseIds, seasonPoints, shortNames, type CompareFile, type Kind } from '../../lib/compare.ts';
 import { n0, num } from '../../lib/format.ts';
 import { routes } from '../../lib/paths.ts';
 import { en, esc } from '../../lib/typeset.ts';
 import { span, yearsText } from '../driver/model.ts';
 
-interface Payload {
-  d: IndexRow[];
-  c: IndexRow[];
-  def: Record<Kind, string[]>;
-  last: number;
-  max: number;
-}
 interface ChartHandle {
   redraw: (data?: unknown, opts?: Record<string, unknown>) => void;
 }
@@ -26,36 +19,37 @@ const KEYS = [
   { key: 'sq', color: 'var(--s2)' },
   { key: 'tri-c', color: 'var(--s3)' },
 ];
+// 두 이름 모두 모음으로 끝나 조사는 '가', '를'이다
 const NOUN: Record<Kind, { pick: string; unit: string }> = { d: { pick: '드라이버', unit: '명' }, c: { pick: '컨스트럭터', unit: '곳' } };
-const HITS = 8;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
 const keyHtml = (slot: number) => `<span class="key key-${KEYS[slot].key}" style="--k: ${KEYS[slot].color}" aria-hidden="true"></span>`;
 const pctOf = (a: number, n: number) => (n ? (a / n) * 100 : null);
 
 export function start(): void {
-  const dataNode = $('cmp-data');
-  if (!dataNode) return;
-  const payload = JSON.parse(dataNode.textContent || 'null') as Payload;
-  const byId = { d: new Map(payload.d.map((r) => [r[0], r])), c: new Map(payload.c.map((r) => [r[0], r])) };
-  const known = { d: new Set(byId.d.keys()), c: new Set(byId.c.keys()) };
+  const root = $('cmp');
+  if (!root) return;
+  const kind = (root.dataset.kind === 'c' ? 'c' : 'd') as Kind;
+  const def = (root.dataset.def ?? '').split(',').filter(Boolean);
+  // 목록 표: 행마다 data-id와 체크 칸(input.cmp-box). 이름은 행의 첫 링크 글자다.
+  const tbody = document.querySelector<HTMLTableSectionElement>('[data-cmp-table] tbody');
+  const rows = tbody ? [...tbody.querySelectorAll<HTMLTableRowElement>('tr[data-id]')] : [];
+  const rowById = new Map(rows.map((r) => [r.dataset.id ?? '', r]));
+  const boxById = new Map(rows.map((r) => [r.dataset.id ?? '', r.querySelector<HTMLInputElement>('input.cmp-box')]));
+  const nameById = new Map(rows.map((r) => [r.dataset.id ?? '', r.querySelector('a')?.textContent?.trim() ?? r.dataset.id ?? '']));
+  const known = new Set(rowById.keys());
 
   const state = {
-    kind: 'd' as Kind,
-    picks: { d: [] as string[], c: [] as string[] },
-    slots: { d: new Map<string, number>(), c: new Map<string, number>() },
-    touched: { d: false, c: false },
+    picks: [] as string[],
+    slots: new Map<string, number>(),
+    touched: false,
     mode: 'year' as Mode,
   };
 
-  const q = $<HTMLInputElement>('cmp-q');
-  const hitList = $('cmp-hit-list');
-  const hitLegend = $('cmp-hits-legend');
-  const none = $('cmp-none');
   const chips = $('cmp-chips');
   const count = $('cmp-count');
-  const pickedLabel = $('cmp-picked-label');
-  const status = $('cmp-status');
+  const line = $('cmp-line');
+  const toList = $('cmp-to-list');
   const totals = $('cmp-totals');
   const totalsNote = $('cmp-totals-note');
   const h2h = $('cmp-h2h');
@@ -64,10 +58,10 @@ export function start(): void {
 
   /* ---------------------------------------------------------------- 상태 */
 
-  const assignSlots = (kind: Kind) => {
-    const slots = state.slots[kind];
-    for (const id of [...slots.keys()]) if (!state.picks[kind].includes(id)) slots.delete(id);
-    for (const id of state.picks[kind]) {
+  const assignSlots = () => {
+    const slots = state.slots;
+    for (const id of [...slots.keys()]) if (!state.picks.includes(id)) slots.delete(id);
+    for (const id of state.picks) {
       if (slots.has(id)) continue;
       const used = new Set(slots.values());
       let s = 0;
@@ -76,19 +70,12 @@ export function start(): void {
     }
   };
 
-  const fromHash = (): boolean => {
-    const parsed = parseHash(location.hash, known);
-    if (!parsed) return false;
-    state.kind = parsed.kind;
-    state.picks[parsed.kind] = parsed.ids;
-    // ID가 없는 조각(#c=)은 그 갈래만 고른 것이다: 처음 비교(그 시즌 1-3위)를 채운다
-    state.touched[parsed.kind] = parsed.ids.length > 0;
-    return true;
-  };
-
-  const writeHash = () => {
-    const h = toHash(state.kind, state.picks[state.kind]);
-    if (location.hash !== h) history.replaceState(null, '', h);
+  // 주소: ?cmp=a,b. 사람이 고르기 전(처음 비교)에는 주소를 바꾸지 않는다. 쪽 안 링크(#list 등)는 그대로 둔다.
+  const fromUrl = (): string[] | null => parseIds(new URLSearchParams(location.search).get('cmp'), known);
+  const writeUrl = () => {
+    if (!state.touched) return;
+    const next = `${location.pathname}?cmp=${state.picks.join(',')}${location.hash}`;
+    if (`${location.pathname}${location.search}${location.hash}` !== next) history.replaceState(null, '', next);
   };
 
   /* ---------------------------------------------------------------- 자료 */
@@ -110,58 +97,48 @@ export function start(): void {
 
   /* ---------------------------------------------------------------- 고르기 */
 
-  const renderHits = () => {
-    if (!hitList) return;
-    const kind = state.kind;
-    const term = q?.value ?? '';
-    const all = search(payload[kind], term, Infinity);
-    const list = all.slice(0, HITS);
-    const full = state.picks[kind].length >= MAX_PICK;
-    if (hitLegend) {
-      hitLegend.textContent = term.trim()
-        ? all.length > HITS
-          ? `찾은 ${n0(all.length)}개 가운데 타이틀과 우승이 많은 ${HITS}개`
-          : `찾은 결과 ${all.length}개`
-        : '타이틀과 우승이 많은 순';
+  const syncBoxes = () => {
+    const full = state.picks.length >= MAX_PICK;
+    for (const [id, box] of boxById) {
+      if (!box) continue;
+      const on = state.picks.includes(id);
+      box.checked = on;
+      box.disabled = !on && full;
+      rowById.get(id)?.classList.toggle('cmp-on', on);
     }
-    if (none) none.hidden = list.length > 0;
-    hitList.innerHTML = list
-      .map((r) => {
-        const on = state.picks[kind].includes(r[0]);
-        return `<li><label><input type="checkbox" value="${esc(r[0])}"${on ? ' checked' : ''}${!on && full ? ' disabled' : ''} /><span><span lang="en">${esc(r[1])}</span><span class="hit-sub">${esc(r[7])}</span></span></label></li>`;
-      })
-      .join('');
   };
 
   const renderChips = () => {
-    const kind = state.kind;
-    const ids = state.picks[kind];
-    if (pickedLabel) pickedLabel.textContent = `고른 ${NOUN[kind].pick}`;
+    const ids = state.picks;
+    const N = NOUN[kind];
     if (count) count.textContent = `${ids.length}/${MAX_PICK}`;
     if (chips) {
       chips.innerHTML = ids.length
         ? ids
             .map((id) => {
-              const row = byId[kind].get(id);
-              const name = row?.[1] ?? id;
+              const name = nameById.get(id) ?? id;
               const href = kind === 'd' ? routes.driver(id) : routes.constructorPage(id);
-              return `<li>${keyHtml(state.slots[kind].get(id) ?? 0)}<a href="${href}" lang="en">${esc(name)}</a><button type="button" data-remove="${esc(id)}" aria-label="${esc(name)} 빼기">×</button></li>`;
+              return `<li>${keyHtml(state.slots.get(id) ?? 0)}<a href="${href}" lang="en">${esc(name)}</a><button type="button" data-remove="${esc(id)}" aria-label="${esc(name)} 빼기">×</button></li>`;
             })
             .join('')
-        : `<li class="empty-chip">아직 고른 ${NOUN[kind].pick}가 없다</li>`;
+        : `<li class="empty-chip">아직 고른 ${N.pick}가 없다</li>`;
     }
-    if (status) {
-      status.textContent = ids.length >= MAX_PICK ? `최대 ${MAX_PICK}${NOUN[kind].unit}까지 고를 수 있다. 하나를 빼면 다른 ${NOUN[kind].pick}를 고를 수 있다.` : '';
+    if (line) {
+      const names = ids.map((id) => nameById.get(id) ?? id).join(', ');
+      line.textContent = !ids.length
+        ? `비교에 고른 ${N.pick}가 없다. 첫 칸을 체크하면 위 비교에 들어간다.`
+        : ids.length >= MAX_PICK
+          ? `비교에 고른 ${N.pick} ${ids.length}/${MAX_PICK}: ${names}. 최대 ${MAX_PICK}${N.unit}까지다. 하나를 빼면 다른 ${N.pick}를 고를 수 있다.`
+          : `비교에 고른 ${N.pick} ${ids.length}/${MAX_PICK}: ${names}.`;
     }
   };
 
   const toggle = (id: string, on: boolean) => {
-    const kind = state.kind;
-    const ids = state.picks[kind];
+    const ids = state.picks;
     if (on && !ids.includes(id) && ids.length < MAX_PICK) ids.push(id);
-    if (!on) state.picks[kind] = ids.filter((x) => x !== id);
-    state.touched[kind] = true;
-    update();
+    if (!on) state.picks = ids.filter((x) => x !== id);
+    state.touched = true;
+    void update();
   };
 
   /* ---------------------------------------------------------------- 통산 기록 */
@@ -214,7 +191,7 @@ export function start(): void {
       totals.innerHTML = emptyHtml(`비교할 ${NOUN[kind].pick}를 고르면 통산 기록이 나온다.`);
       return;
     }
-    const slot = (f: CompareFile) => state.slots[kind].get(f.id) ?? 0;
+    const slot = (f: CompareFile) => state.slots.get(f.id) ?? 0;
     const href = (f: CompareFile) => (kind === 'd' ? routes.driver(f.id) : routes.constructorPage(f.id));
     const head = files.map((f) => `<th scope="col">${keyHtml(slot(f))}<a href="${href(f)}" lang="en">${esc(f.name)}</a></th>`).join('');
     const info = [
@@ -254,7 +231,7 @@ export function start(): void {
   const chartInput = (files: CompareFile[], kind: Kind, short: string[]) => ({
     kind,
     mode: state.mode,
-    series: files.map((f, i) => ({ name: f.name, short: short[i], slot: state.slots[kind].get(f.id) ?? 0, pts: seasonPoints(f, state.mode) })),
+    series: files.map((f, i) => ({ name: f.name, short: short[i], slot: state.slots.get(f.id) ?? 0, pts: seasonPoints(f, state.mode) })),
   });
 
   const renderLegend = (fig: HTMLElement | null, files: CompareFile[], kind: Kind) => {
@@ -263,7 +240,7 @@ export function start(): void {
     if (!files.length) return;
     const ul = chartMod.mod.legend(
       files.map((f) => {
-        const k = KEYS[state.slots[kind].get(f.id) ?? 0];
+        const k = KEYS[state.slots.get(f.id) ?? 0];
         return { type: k.key, color: k.color, label: f.name };
       }),
     ) as HTMLElement;
@@ -341,7 +318,7 @@ export function start(): void {
       h2h.innerHTML = emptyHtml(`맞대결은 ${NOUN[kind].pick}를 둘 이상 고르면 나온다.`);
       return;
     }
-    const slotOf = (i: number) => state.slots[kind].get(files[i].id) ?? 0;
+    const slotOf = (i: number) => state.slots.get(files[i].id) ?? 0;
     const tag = (i: number) => `<span class="nw">${keyHtml(slotOf(i))}<span lang="en">${esc(short[i])}</span></span>`;
     // 점수 줄: "● Senna 62 : 68 ■ Prost"와 두 몫 막대(앞선 비율, 그림은 글을 되풀이할 뿐이라 낭독에서 뺀다)
     const score = (i: number, a: number, j: number, b: number) => {
@@ -385,18 +362,17 @@ export function start(): void {
 
   let ticket = 0;
   const update = async () => {
-    const kind = state.kind;
-    assignSlots(kind);
-    writeHash();
-    renderHits();
+    assignSlots();
+    writeUrl();
+    syncBoxes();
     renderChips();
     const my = ++ticket;
     let files: CompareFile[];
     try {
-      files = await Promise.all(state.picks[kind].map((id) => load(kind, id)));
+      files = await Promise.all(state.picks.map((id) => load(kind, id)));
     } catch (err) {
       if (window.console) console.warn(err);
-      if (status) status.textContent = '자료를 받지 못했다. 잠시 뒤 다시 고르거나 쪽을 새로 불러온다.';
+      if (line) line.textContent = '자료를 받지 못했다. 잠시 뒤 다시 고르거나 쪽을 새로 불러온다.';
       return;
     }
     if (my !== ticket) return;
@@ -405,48 +381,22 @@ export function start(): void {
     void renderCharts(files, kind);
   };
 
-  const setKind = (kind: Kind) => {
-    state.kind = kind;
-    if (!state.touched[kind] && !state.picks[kind].length) state.picks[kind] = [...payload.def[kind]];
-    document.querySelectorAll<HTMLButtonElement>('#cmp-kind [data-kind]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === kind)));
-    if (q) q.value = '';
-    void update();
-  };
-
   /* ---------------------------------------------------------------- 연결 */
 
-  hitList?.addEventListener('change', (e) => {
+  tbody?.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
-    if (t?.type === 'checkbox') toggle(t.value, t.checked);
+    if (t?.classList.contains('cmp-box')) toggle(t.value, t.checked);
   });
   chips?.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-remove]');
     if (!btn) return;
     const id = btn.dataset.remove ?? '';
-    const ids = state.picks[state.kind];
-    const at = ids.indexOf(id);
+    const at = state.picks.indexOf(id);
     toggle(id, false);
-    // 뺀 칩 자리에 있던 다음 칩의 빼기 단추로, 없으면 검색 칸으로 초점을 옮긴다
-    const next = chips.querySelectorAll<HTMLButtonElement>('[data-remove]')[Math.min(at, state.picks[state.kind].length - 1)];
-    (next ?? q)?.focus();
+    // 뺀 칩 자리에 있던 다음 칩의 빼기 단추로, 없으면 목록으로 가는 링크로 초점을 옮긴다
+    const next = chips.querySelectorAll<HTMLButtonElement>('[data-remove]')[Math.min(at, state.picks.length - 1)];
+    (next ?? toList)?.focus();
   });
-  q?.addEventListener('input', renderHits);
-  $('cmp-form')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    // 엔터: 검색 결과 첫 줄을 고른다(이미 골랐거나 자리가 없으면 그대로)
-    const first = hitList?.querySelector<HTMLInputElement>('input:not(:checked):not(:disabled)');
-    if (first && (q?.value ?? '').trim()) {
-      toggle(first.value, true);
-      if (q) q.value = '';
-      renderHits();
-    }
-  });
-  document.querySelectorAll<HTMLButtonElement>('#cmp-kind [data-kind]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const k = b.dataset.kind as Kind;
-      if (k !== state.kind) setKind(k);
-    }),
-  );
   document.querySelectorAll<HTMLButtonElement>('#cmp-mode [data-mode]').forEach((b) =>
     b.addEventListener('click', () => {
       const m = b.dataset.mode as Mode;
@@ -456,10 +406,9 @@ export function start(): void {
       void renderCharts(lastFiles, lastKind);
     }),
   );
-  window.addEventListener('hashchange', () => {
-    if (fromHash()) setKind(state.kind);
-  });
 
-  if (!fromHash()) state.picks.d = [...payload.def.d];
-  setKind(state.kind);
+  const fromAddress = fromUrl();
+  state.picks = fromAddress ?? def.filter((id) => known.has(id));
+  state.touched = fromAddress != null;
+  void update();
 }

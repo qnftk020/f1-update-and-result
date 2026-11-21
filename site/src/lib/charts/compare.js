@@ -1,4 +1,4 @@
-// 비교 화면(/compare/) 차트. charts.js와 같은 약속을 따른다: (data, {width, ...})를 받아 요소를 돌려주고,
+// 드라이버·컨스트럭터 목록 비교 절의 차트. charts.js와 같은 약속을 따른다: (data, {width, ...})를 받아 요소를 돌려주고,
 // width < 560이면 좁은 모양으로 그린다. 색은 CSS 변수다.
 // 계열은 고른 순서대로 s1(원), s2(네모), s3(세모)이고 색과 모양을 함께 바꾼다. 범례는 페이지가 그리고,
 // 넉넉하면 선 끝에 이름을 직접 단다(글자는 잉크 색). 세로축은 하나다.
@@ -35,6 +35,7 @@ export function compareSeasons(input, { width, metric = "pos", label = "시즌�
   const { series, mode, kind } = input;
   const ranked = (p) => !(kind === "c" && p.s < CC_FIRST);
   const every = series.flatMap((sr) => sr.pts);
+  if (!series.length) return el("p", "fig-fallback", `비교할 ${kind === "c" ? "컨스트럭터" : "드라이버"}를 고르면 그림이 나온다.`);
   if (!every.length) return el("p", "fig-fallback", "그릴 시즌이 없다.");
   const from = Math.min(...every.map((p) => p.x));
   const to = Math.max(...every.map((p) => p.x));

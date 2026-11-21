@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { MAX_PICK, ahead, bestPerRace, fold, headToHead, parseHash, search, seasonPoints, shortNames, toHash } from './compare.ts';
+import { MAX_PICK, ahead, bestPerRace, fold, headToHead, parseIds, seasonPoints, shortNames } from './compare.ts';
 
 test('ahead: 완주로 분류된 쪽이 앞이고, 둘 다 분류되면 순위가 높은 쪽이 앞이다', () => {
   assert.equal(ahead(['F', 5], ['R', 1]), 1);
@@ -44,30 +44,20 @@ test('headToHead: 같은 대회만 세고 앞뒤를 가린 대회를 따로 센�
   assert.deepEqual(headToHead(a, []), { both: 0, counted: 0, a: 0, b: 0, first: null, last: null });
 });
 
-test('fold와 search: 발음 구별 기호를 지우고, 이름과 약어가 맞는 쪽을 먼저 둔다', () => {
+test('fold: 발음 구별 기호를 지워 목록 검색이 악센트 없이도 맞게 한다', () => {
   assert.equal(fold('Kimi  Räikkönen'), 'kimi raikkonen');
   assert.equal(fold('Sergio Pérez'), 'sergio perez');
-  const index = [
-    ['bruno_senna', 'Bruno Senna', fold('Bruno Senna SEN 브라질 Brazilian'), 0, 0, 46, 2012, ''],
-    ['senna', 'Ayrton Senna', fold('Ayrton Senna 브라질 Brazilian'), 3, 41, 161, 1994, ''],
-    ['hamilton', 'Lewis Hamilton', fold('Lewis Hamilton HAM 영국 British'), 7, 105, 380, 2025, ''],
-    ['raikkonen', 'Kimi Räikkönen', fold('Kimi Räikkönen RAI 핀란드 Finnish'), 1, 21, 349, 2021, ''],
-  ];
-  assert.deepEqual(search(index, 'senna').map((r) => r[0]), ['senna', 'bruno_senna']);
-  assert.deepEqual(search(index, 'ham').map((r) => r[0]), ['hamilton']);
-  assert.deepEqual(search(index, 'raikk').map((r) => r[0]), ['raikkonen']);
-  assert.deepEqual(search(index, '브라질').map((r) => r[0]), ['senna', 'bruno_senna']);
-  assert.deepEqual(search(index, '', 2).map((r) => r[0]), ['hamilton', 'senna']);
-  assert.deepEqual(search(index, 'zzz'), []);
+  assert.equal(fold('Tom Belsø'), 'tom belso');
+  assert.ok(fold('Kimi Räikkönen RAI 핀란드').includes(fold('raikk')));
+  assert.ok(fold('Ayrton Senna 브라질').includes(fold('브라질')));
 });
 
-test('parseHash와 toHash: 모르는 ID와 중복을 버리고 최대 개수까지만 둔다', () => {
-  const known = { d: new Set(['senna', 'prost', 'hamilton', 'schumacher']), c: new Set(['ferrari']) };
-  assert.deepEqual(parseHash('#d=senna,nobody,prost,senna,hamilton,schumacher', known), { kind: 'd', ids: ['senna', 'prost', 'hamilton'] });
+test('parseIds: 모르는 ID와 중복을 버리고 최대 개수까지만 둔다', () => {
+  const known = new Set(['senna', 'prost', 'hamilton', 'schumacher']);
+  assert.deepEqual(parseIds('senna,nobody,prost,senna,hamilton,schumacher', known), ['senna', 'prost', 'hamilton']);
   assert.equal(MAX_PICK, 3);
-  assert.deepEqual(parseHash('#c=ferrari', known), { kind: 'c', ids: ['ferrari'] });
-  assert.equal(parseHash('#team=enstone', known), null);
-  assert.equal(toHash('d', ['senna', 'prost']), '#d=senna,prost');
+  assert.deepEqual(parseIds('', known), []);
+  assert.equal(parseIds(null, known), null);
 });
 
 test('seasonPoints: 경력 햇수와 누적 우승', () => {

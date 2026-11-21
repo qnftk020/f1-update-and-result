@@ -1,4 +1,4 @@
-// 비교 화면(/compare/)의 계산. 빌드(자료 파일 만들기)와 브라우저(맞대결, 검색, 누적 우승)가 함께 쓴다.
+// 드라이버·컨스트럭터 목록의 비교 절 계산. 빌드(자료 파일 만들기)와 브라우저(맞대결, 목록 검색, 누적 우승)가 함께 쓴다.
 // DOM을 쓰지 않는 순수 함수만 둔다. 회귀 테스트는 compare.test.mjs다.
 // 결과를 가르는 규칙은 팀 동료 비교(docs/methodology.md "팀 동료 비교")와 같다: 완주로 분류된 쪽이
 // 분류되지 않은 쪽보다 앞이고, 둘 다 분류되면 position이 작은 쪽이 앞이며, 같거나 둘 다 분류되지 않으면 세지 않는다.
@@ -102,48 +102,13 @@ export function fold(text: string): string {
     .trim();
 }
 
-/** 검색 목록 한 줄: [ID, 이름, 검색 글자(fold 결과), 타이틀, 우승, 출발 또는 출전, 마지막 시즌, 보조 글(국적 · 기간)] */
-export type IndexRow = [string, string, string, number, number, number, number, string];
-
 /**
- * 검색 순위: 이름 전체나 약어가 같으면 먼저, 이름 단어가 검색어로 시작하면 다음, 그 밖에 글자가 들어 있으면 그다음.
- * 같은 단계 안에서는 타이틀, 우승, 출발이 많은 순이고 마지막은 이름 순이다. 검색어가 비면 같은 순서로 앞쪽을 준다.
+ * 주소의 고른 목록(?cmp=senna,prost)을 읽는다. 알 수 없는 ID와 중복은 버리고 MAX_PICK개까지만 둔다.
+ * raw가 null이면(주소에 cmp가 없으면) null을 돌려 처음 비교를 쓰게 한다.
  */
-export function search(index: IndexRow[], query: string, limit = 8): IndexRow[] {
-  const q = fold(query);
-  const scored: [IndexRow, number][] = [];
-  for (const row of index) {
-    if (!q) {
-      scored.push([row, 3]);
-      continue;
-    }
-    const name = fold(row[1]);
-    const hay = row[2];
-    let score = -1;
-    if (name === q || hay.split(' ').includes(q)) score = 0;
-    if (score < 0 && name.split(/[\s-]+/).some((w) => w.startsWith(q))) score = 1;
-    if (score < 0 && name.startsWith(q)) score = 1;
-    if (score < 0 && hay.includes(q)) score = 2;
-    if (score >= 0) scored.push([row, score]);
-  }
-  scored.sort((x, y) => x[1] - y[1] || y[0][3] - x[0][3] || y[0][4] - x[0][4] || y[0][5] - x[0][5] || x[0][1].localeCompare(y[0][1], 'en'));
-  return scored.slice(0, limit).map((x) => x[0]);
-}
-
-/** 주소 조각(#d=senna,prost)을 읽는다. 알 수 없는 ID와 중복은 버리고 MAX_PICK개까지만 둔다. */
-export function parseHash(hash: string, known: { d: Set<string>; c: Set<string> }): { kind: Kind; ids: string[] } | null {
-  const params = new URLSearchParams(hash.replace(/^#/, ''));
-  for (const kind of ['d', 'c'] as const) {
-    const raw = params.get(kind);
-    if (raw == null) continue;
-    const ids = [...new Set(raw.split(',').map((x) => x.trim()).filter((x) => known[kind].has(x)))].slice(0, MAX_PICK);
-    return { kind, ids };
-  }
-  return null;
-}
-
-export function toHash(kind: Kind, ids: string[]): string {
-  return `#${kind}=${ids.join(',')}`;
+export function parseIds(raw: string | null, known: Set<string>): string[] | null {
+  if (raw == null) return null;
+  return [...new Set(raw.split(',').map((x) => x.trim()).filter((x) => known.has(x)))].slice(0, MAX_PICK);
 }
 
 /** 시즌 줄에서 차트 점을 만든다. x는 연도 또는 데뷔 해를 1로 센 경력 햇수다. 누적 우승은 그 시즌까지의 합이다. */

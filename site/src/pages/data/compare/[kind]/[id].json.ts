@@ -1,4 +1,4 @@
-// 비교 화면이 받아 오는 자료 파일: /data/compare/d/<드라이버 ID>.json, /data/compare/c/<컨스트럭터 ID>.json.
+// 목록 쪽 비교 절이 받아 오는 자료 파일: /data/compare/d/<드라이버 ID>.json, /data/compare/c/<컨스트럭터 ID>.json.
 // 모양은 lib/compare.ts의 CompareFile, 만드는 법은 lib/compare-data.ts에 있다.
 import type { APIRoute, GetStaticPaths } from 'astro';
 import { compareIds, constructorCompare, driverCompare } from '../../../../lib/compare-data.ts';

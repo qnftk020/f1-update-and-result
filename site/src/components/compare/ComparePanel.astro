@@ -1,0 +1,306 @@
+---
+// 드라이버·컨스트럭터 목록 쪽의 비교 절(#compare). 목록 표 첫 칸의 체크로 최대 3개를 고르면 통산 기록,
+// 시즌별 최종 순위와 누적 우승, 같은 대회 결승 맞대결이 여기 나란히 나온다. 고른 조합은 주소(?cmp=senna,prost)에 남는다.
+// 목록 표에는 data-cmp-table을, 행에는 data-id와 체크 칸(input.cmp-box)을 둔다. 목록 절의 알림 줄은 #cmp-line이다.
+// 브라우저 동작은 compare-client.ts, 계산은 lib/compare.ts, 차트는 lib/charts/compare.js, 자료는 lib/compare-data.ts에 있다.
+import Figure from '../Figure.astro';
+import Section from '../Section.astro';
+import Seg from '../Seg.astro';
+import SourceLine from '../SourceLine.astro';
+import { MAX_PICK, type Kind } from '../../lib/compare.ts';
+import { aboutRoutes } from '../../lib/paths.ts';
+import { JOLPICA, asofJolpica } from '../../lib/sources.ts';
+
+interface Props {
+  kind: Kind;
+  /** 주소에 고른 목록이 없을 때 처음 보이는 비교(그 시즌 1-3위) */
+  def: string[];
+  last: number;
+}
+const { kind, def, last } = Astro.props;
+const ASOF = asofJolpica();
+const noun = kind === 'd' ? '드라이버' : '컨스트럭터';
+const unit = kind === 'd' ? '명' : '곳';
+const read =
+  `아래 ${noun} 찾기 표의 첫 칸을 체크해 최대 ${MAX_PICK}${unit}까지 고르면 통산 기록, 시즌별 최종 순위와 누적 우승, 같은 대회 결승 맞대결이 여기 나란히 나온다. ` +
+  `처음에는 ${last} 시즌 1-3위가 들어 있고, 고른 조합은 주소에 남아 그대로 공유할 수 있다.`;
+---
+
+<Section id="compare" title={`${noun} 비교`} read={read}>
+  <noscript>
+    <p class="notice"><span>스크립트가 꺼져 있어 비교를 쓸 수 없다. 통산 기록은 아래 {noun} 찾기 표에 있다.</span></p>
+  </noscript>
+  <div class="cmp" id="cmp" data-kind={kind} data-def={def.join(',')} data-js-only>
+    <div class="cmp-picked">
+      <p class="lab">
+        <span id="cmp-picked-label">고른 {noun}</span> <span class="mono" id="cmp-count">0/{MAX_PICK}</span>
+        <a href="#list" id="cmp-to-list">{noun} 찾기에서 고르기</a>
+      </p>
+      <ul class="cmp-chips" id="cmp-chips" aria-labelledby="cmp-picked-label"></ul>
+    </div>
+
+    <h3 class="sub-title"><span>통산 기록</span></h3>
+    <div id="cmp-totals"></div>
+    <SourceLine source={`${JOLPICA} 결승 결과와 순위`} asof={ASOF} />
+    <p class="tbl-note" id="cmp-totals-note"></p>
+
+    <h3 class="sub-title"><span>시즌별 흐름</span></h3>
+    <p class="cmp-read">
+      시즌 마지막 라운드 순위표의 최종 순위와 그 시즌까지의 누적 결승 우승이다. 가로축을 데뷔 뒤 햇수로 바꾸면 활동 시기가 다른 대상을 데뷔한 해부터 맞춰 본다.
+    </p>
+    <Seg
+      label="가로축"
+      attr="mode"
+      id="cmp-mode"
+      items={[
+        { value: 'year', label: '연도', pressed: true },
+        { value: 'career', label: '데뷔 뒤 햇수' },
+      ]}
+    />
+    <Figure
+      wide
+      manual
+      id="f-cmp-pos"
+      title="시즌 최종 순위"
+      scope="위가 1위"
+      sub="큰 표식은 챔피언 시즌, 속이 빈 표식은 순위가 없는 시즌이다."
+      source={`${JOLPICA} ${kind === 'd' ? '드라이버' : '컨스트럭터'} 순위`}
+      asof={ASOF}
+    />
+    <Figure
+      wide
+      manual
+      id="f-cmp-wins"
+      title="누적 결승 우승"
+      scope="그 시즌까지의 합"
+      sub="스프린트는 넣지 않는다. 쉰 해에는 앞 값이 이어진다."
+      source={`${JOLPICA} 결승 결과`}
+      asof={ASOF}
+    />
+
+    <h3 class="sub-title"><span>결승 맞대결</span></h3>
+    <p class="cmp-read">
+      고른 대상을 둘씩 짝지어 같은 대회 결승에서 누가 앞섰는지 센다.{kind === 'd' && ' 같은 팀 동료였던 시즌은 결승과 예선 비교를 따로 적는다.'}
+    </p>
+    <div id="cmp-h2h"></div>
+    <SourceLine source={`${JOLPICA} 결승 결과${kind === 'd' ? '와 예선 기록' : ''}, 맞대결은 이 사이트 계산`} asof={ASOF} />
+    <p class="tbl-note">
+      같은 대회 결승에 둘 다 결과가 있으면 함께 나선 것으로 센다. 완주로 분류된 쪽이 리타이어, 실격, 출발하지 않음보다 앞이고, 둘 다 분류되면 순위가 높은 쪽이 앞이다.
+      둘 다 분류되지 않았거나 차를 나눠 타 순위가 같으면 세지 않는다.{
+        kind === 'd' ? ' 팀 동료였던 시즌의 예선 비교는 Jolpica 예선 기록이 있는 1994년부터다.' : ' 컨스트럭터는 그 대회에서 가장 앞선 차끼리 비교한다.'
+      } 인디애나폴리스 500(1950-1960)은 넣지 않는다. 정의는 <a href={`${aboutRoutes.methodology()}#compare`}>방법론</a>에 있다.
+    </p>
+  </div>
+</Section>
+
+<script>
+  import { start } from './compare-client.ts';
+
+  start();
+</script>
+
+<style>
+  .cmp-picked {
+    margin-top: var(--sp-4);
+    padding: var(--sp-3) 0 var(--sp-4);
+    border-top: 1px solid var(--rule);
+  }
+  .cmp-picked .lab {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px var(--sp-3);
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .cmp-picked .lab a {
+    font-weight: 400;
+  }
+  .cmp-chips {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    min-height: 40px;
+  }
+  .cmp-chips :global(li) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 0 0 var(--sp-3);
+    border: 1px solid var(--control);
+    border-radius: var(--radius-2);
+    font-size: var(--fs-small);
+  }
+  .cmp-chips :global(li.empty-chip) {
+    border-style: dashed;
+    padding-right: var(--sp-3);
+    color: var(--ink-3);
+  }
+  .cmp-chips :global(button) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    min-height: 38px;
+    border: 0;
+    border-left: 1px solid var(--hair);
+    background: transparent;
+    font: inherit;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .cmp-chips :global(button:hover) {
+    color: var(--ink);
+    background: var(--s1-wash);
+  }
+  .cmp h3.sub-title {
+    margin-top: var(--sp-5);
+  }
+  .cmp-picked + h3.sub-title {
+    margin-top: var(--sp-2);
+  }
+  .cmp-read {
+    margin-top: var(--sp-2);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+  .cmp > :global(.seg) {
+    margin-top: var(--sp-3);
+    justify-self: start;
+    width: fit-content;
+  }
+  #cmp-totals,
+  #cmp-h2h {
+    margin-top: var(--sp-3);
+  }
+  #cmp-totals :global(.empty-line),
+  #cmp-h2h :global(.empty-line) {
+    padding: var(--sp-4);
+    border: 1px dashed var(--control);
+    border-radius: var(--radius-2);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+  #cmp-totals :global(th .key),
+  #cmp-h2h :global(.key),
+  .cmp-chips :global(.key) {
+    margin-right: 4px;
+    vertical-align: -1px;
+  }
+  #cmp-totals :global(tbody th) {
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--hair);
+    vertical-align: top;
+    white-space: normal;
+    min-width: 5.5em;
+    word-break: keep-all;
+  }
+  #cmp-totals :global(td.lead-v) {
+    font-weight: 700;
+  }
+  #cmp-h2h :global(.h2h-grid) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: var(--sp-5);
+  }
+  #cmp-h2h :global(.h2h-pair) {
+    min-width: 0;
+    padding-top: var(--sp-3);
+    border-top: 2px solid var(--ink);
+  }
+  #cmp-h2h :global(.h2h-title) {
+    font-size: var(--fs-body);
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  #cmp-h2h :global(.h2h-part) {
+    margin-top: var(--sp-3);
+  }
+  #cmp-h2h :global(.h2h-part + .h2h-part) {
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--hair);
+  }
+  #cmp-h2h :global(.h2h-head) {
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  #cmp-h2h :global(.h2h-score) {
+    display: block;
+    margin-top: 4px;
+    font-size: var(--fs-body);
+    font-variant-numeric: tabular-nums;
+  }
+  #cmp-h2h :global(.h2h-bar) {
+    display: flex;
+    gap: 2px;
+    height: 8px;
+    margin-top: 6px;
+    forced-color-adjust: none;
+  }
+  #cmp-h2h :global(.h2h-bar span) {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+  }
+  #cmp-h2h :global(.h2h-sub),
+  #cmp-h2h :global(.h2h-none) {
+    margin-top: 4px;
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+  .tbl-note {
+    margin-top: var(--sp-2);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+
+  /* 목록 표의 고르기 칸과 목록 절의 알림 줄(목록 쪽 템플릿에 있어 :global로 단다) */
+  :global(.dt th.pick),
+  :global(.dt td.pick) {
+    width: 44px;
+    padding-left: 0;
+    padding-right: var(--sp-2);
+    text-align: center;
+  }
+  :global(.dt td.pick label) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    cursor: pointer;
+  }
+  :global(.dt .cmp-box) {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  :global(.dt .cmp-box:disabled) {
+    cursor: not-allowed;
+  }
+  :global(.dt tr.cmp-on > td) {
+    background: var(--s1-wash);
+  }
+  :global(.cmp-line) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px var(--sp-3);
+    margin-top: var(--sp-2);
+    font-size: var(--fs-small);
+    color: var(--ink-2);
+  }
+</style>
