@@ -37,7 +37,7 @@ const cmpDefault = [...getSeason(last).constructors]
   .slice(0, MAX_PICK)
   .map((x) => x.id);
 const lead =
-  `${first}년부터 ${last}년까지 결승에 한 번 이상 나선 컨스트럭터는 Jolpica ID 기준 ${b(`${constructors.length}곳`)}이다. ` +
+  `${first}년부터 ${last}년까지 결승에 한 번 이상 나선 컨스트럭터는 Jolpica 구분으로 ${b(`${constructors.length}곳`)}이다. ` +
   `1958년부터 열린 컨스트럭터 챔피언십을 ${champs.length}곳이 나눠 가졌고, 가장 많은 타이틀은 ${en(esc(topT.name))}의 ${b(`${topT.titles}번`)}이다. ` +
   `통산 최다 우승은 ${en(esc(topW.name))}${aside(`${topW.wins}번`)}이고, 우승을 한 번 이상 한 컨스트럭터는 ${winners.length}곳이다.`;
 
@@ -91,7 +91,7 @@ const listBody = constructors
 
 <BaseLayout title="컨스트럭터" description={`${first}-${last} F1 결승에 나선 컨스트럭터 ${constructors.length}곳의 통산 기록과 시즌별 상세`} current="teams">
   <PageHead
-    kicker={[`<a href="${routes.teams()}">팀</a>`, '컨스트럭터', nw(`${first}-${last}`)]}
+    kicker={[`<a href="${routes.teams()}">팀</a>`]}
     title="컨스트럭터"
     lead={lead}
     facts={[
@@ -102,7 +102,7 @@ const listBody = constructors
     ]}
   >
     <p class="lin-note">
-      이 목록은 Jolpica 컨스트럭터 ID 단위다. 이름이 바뀌어도 이어진 2025 그리드 10개 조직의 흐름은 <a href={routes.teams()}>팀(계보)</a>에서 본다. 1950-1960년대에는 섀시와 엔진 조합이 따로 ID를 가진다(<span lang="en">Cooper-Climax</span> 등).
+      이 목록은 Jolpica의 컨스트럭터 구분을 따른다. 이름이 바뀌어도 이어진 2025 그리드 10개 조직의 흐름은 <a href={routes.teams()}>팀(계보)</a>에서 본다. 1950-1960년대에는 섀시와 엔진 조합이 따로 한 컨스트럭터로 잡힌다(<span lang="en">Cooper-Climax</span> 등).
     </p>
   </PageHead>
 
@@ -144,7 +144,7 @@ const listBody = constructors
   <Section
     id="list"
     title="컨스트럭터 찾기"
-    read={`${constructors.length}곳 전부의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움이 많은 순이다. 이름을 누르면 그 컨스트럭터 쪽으로 가고, 거기서 시즌을 누르면 시즌 상세로 간다. 첫 칸을 체크하면 위 컨스트럭터 비교에 최대 ${MAX_PICK}곳까지 들어간다.`}
+    read={`${constructors.length}곳 전부의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움이 많은 순이다.`}
     meta={`<a href="#compare">컨스트럭터 비교</a>`}
   >
     <form class="filters ctr-filters" id="ctr-filters" role="search" aria-label="컨스트럭터 거르기" data-js-only>
@@ -192,7 +192,7 @@ const listBody = constructors
         <tbody set:html={listBody} />
       </table>
     </div>
-    <SourceLine source={`${JOLPICA} 결승 결과와 컨스트럭터 순위, 계보 연결은 이 사이트의 계보 테이블`} asof={ASOF} />
+    <SourceLine source={`${JOLPICA} 결승 결과와 컨스트럭터 순위, 계보 연결은 이 사이트의 계보 자료`} asof={ASOF} />
     <p class="tbl-note">출전은 결승 결과 행이 있는 대회 수이고, 포디움은 완주로 분류된 3위 이내 결과 수(차 기준)다. 타이틀은 컨스트럭터 챔피언 횟수다.</p>
   </Section>
 

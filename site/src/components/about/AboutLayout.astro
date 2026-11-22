@@ -1,6 +1,6 @@
 ---
 // "데이터와 방법론" 네 쪽(소개, 방법론, 출처, 라이선스)의 공통 틀. DESIGN.md "데이터와 방법론 /about/ 묶음":
-// 갈래 줄 "데이터와 방법론 | {쪽 제목}", h1, 리드, 하위 메뉴(칩 줄, 현재 쪽 aria-current="page"),
+// h1, 리드, 하위 메뉴(칩 줄, 현재 쪽 aria-current="page"),
 // 넓은 화면은 왼쪽 220px 따라오는 목차 + 본문(최대 40rem), 좁은 화면은 details.pick "이 쪽의 절" + 한 단.
 // 목차는 선택 상자를 쓰지 않는다. 주 메뉴는 네 쪽 모두에서 "데이터와 방법론"이 현재 표시를 갖는다.
 import PageHead from '../PageHead.astro';
@@ -29,7 +29,7 @@ const SUB: { key: AboutKey; label: string; href: string }[] = [
 ---
 
 <BaseLayout title={title} description={description} current="about">
-  <PageHead kicker={['데이터와 방법론', title]} title={title} lead={lead}>
+  <PageHead title={title} lead={lead}>
     <nav class="chips-row about-sub" aria-label="데이터와 방법론">
       {
         SUB.map((s) => (

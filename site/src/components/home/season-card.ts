@@ -22,7 +22,7 @@ export interface CardRow {
 }
 
 const pts = (v: number) => `${formatPoints(v)}점`;
-const pc = (v: number | null) => (v == null ? '결측' : `${formatPoints(v)}%`);
+const pc = (v: number | null) => (v == null ? '미상' : `${formatPoints(v)}%`);
 const en = (s: string) => `<span lang="en">${esc(s)}</span>`;
 const nwe = (s: string) => `<span class="nw" lang="en">${esc(s)}</span>`;
 
@@ -64,8 +64,8 @@ export function seasonCardHtml(c: CardRow, constructorFirst: number): string {
         : `점수가 깎인 팀: ${nwe(a.n)} (${pts(a.p)}${a.pos ? `, ${a.pos}위` : ''}).`,
     );
   }
-  if (c.d1.f != null) notes.push(`F1DB는 드라이버 1위 점수를 ${pts(c.d1.f)}으로 적는다. 이 쪽은 Jolpica 값을 적었다.`);
-  if (c.c1?.f != null) notes.push(`F1DB는 컨스트럭터 1위 점수를 ${pts(c.c1.f)}으로 적는다. 이 쪽은 Jolpica 값을 적었다.`);
+  if (c.d1.f != null) notes.push(`F1DB는 드라이버 1위 점수를 ${pts(c.d1.f)}으로 적는다. 이 쪽의 값은 Jolpica 기준이다.`);
+  if (c.c1?.f != null) notes.push(`F1DB는 컨스트럭터 1위 점수를 ${pts(c.c1.f)}으로 적는다. 이 쪽의 값은 Jolpica 기준이다.`);
 
   return (
     head +

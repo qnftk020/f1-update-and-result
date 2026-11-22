@@ -77,7 +77,7 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
     id="f-drivers"
     title="드라이버 누적 점수"
     scope={`${year} · 라운드별 누적 · 강조 ${hlDrivers.length}명`}
-    sub={`라운드가 끝난 뒤의 누적 점수다${sprintNote}. 강조한 드라이버는 색 선, 나머지는 회색 가는 선이다.`}
+    sub={`라운드가 끝난 뒤의 누적 점수다${sprintNote}.`}
     legend={driverLegend}
     chart="pointsRace"
     data={drivers}
@@ -91,7 +91,7 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
       rowClass: (r) => (r.position === 3 && s.drivers.length > 3 ? 'break' : ''),
     }}
     notes={[
-      { head: '읽는 법', body: '색은 강조한 순서대로 1, 2, 3번 색을 쓴다. 팀 색이 아니다. 끝 라벨이 겹치면 짧은 연결선으로 띄운다.' },
+      { head: '색', body: '색은 강조한 순서이고 팀 색이 아니다.' },
       { head: '전체 값', body: `${s.drivers.length}명 모두의 라운드별 점수는 표 보기에 있다.${emptyNote}${unrankedNote}` },
     ]}
   />
@@ -103,7 +103,6 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
           id="f-constructors"
           title="컨스트럭터 누적 점수"
           scope={`${year} · 라운드별 누적 · 강조 ${hlCons.length}팀`}
-          sub={`강조한 팀은 색 선, 나머지 ${Math.max(0, cons.length - hlCons.length)}팀은 회색 가는 선이다.`}
           legend={consLegend}
           chart="pointsRace"
           data={cons}
@@ -122,8 +121,8 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
           }}
           notes={[
             {
-              head: '읽는 법',
-              body: `${cons.length}개 팀에 색을 하나씩 주지 않는다. 최종 상위 ${hlCons.length}팀만 ${hlCons.map((_, k) => k + 1).join(', ')}번 색으로 강조한다.`,
+              head: '색',
+              body: `색은 최종 상위 ${hlCons.length}팀에만 쓰고 팀 색이 아니다.`,
             },
           ]}
         />

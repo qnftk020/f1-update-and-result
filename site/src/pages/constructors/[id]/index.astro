@@ -109,7 +109,7 @@ const recRows = [...rows].reverse();
 const recCols: Column<ConstructorSeasonRow>[] = [
   { label: '시즌', render: (r) => `<a href="${routes.constructorSeason(id, r.s)}">${r.s}</a>` },
   { label: '이름', cls: 'who', render: (r) => en(esc(r.name)) },
-  { label: '엔진', cls: 'hide-sm', render: (r) => (r.engine ? en(esc(r.engine)) : '<span class="muted">결측</span>') },
+  { label: '엔진', cls: 'hide-sm', render: (r) => (r.engine ? en(esc(r.engine)) : '<span class="muted">미상</span>') },
   {
     label: '드라이버',
     cls: 'hide-xs',
@@ -142,7 +142,7 @@ const jumps = [
 
 <BaseLayout title={c.name} description={description} current="teams">
   <PageHead
-    kicker={[`<a href="${routes.constructors()}">컨스트럭터</a>`, c.nationality_ko ? esc(c.nationality_ko) : '국적 결측', nw(span(from, to))]}
+    kicker={[`<a href="${routes.constructors()}">컨스트럭터</a>`]}
     title={en(esc(c.name))}
     lead={M.lead}
     facts={M.facts}
@@ -221,7 +221,7 @@ const jumps = [
           id="f-roster"
           title="드라이버별 출전 시즌"
           scope={`${span(rosterFrom, rosterTo)} · ${M.roster.length > ROSTER_MAX ? `출전이 많은 ${ROSTER_MAX}명` : `${roster.length}명`}`}
-          sub="한 줄이 한 드라이버이고 한 칸이 한 시즌이다. 출전이 많은 순이다. 핑크 칸은 그 드라이버가 이 컨스트럭터로 드라이버 챔피언이 된 시즌이다."
+          sub={`한 줄이 한 드라이버, 한 칸이 한 시즌이고 출전이 많은 순이다.${c.driver_titles ? ' 챔피언 시즌은 이 컨스트럭터로 드라이버 챔피언이 된 시즌이다.' : ''}`}
           legend={[
             { type: 'rect', color: 's1', label: '출전 시즌' },
             ...(c.driver_titles ? [{ type: 'rect' as const, color: 's2', label: '드라이버 챔피언 시즌' }] : []),
@@ -258,7 +258,7 @@ const jumps = [
             id="f-out"
             title="시즌별 결과 구성"
             scope={`${span(from, to)} · 결승 결과(차 기준)의 비율`}
-            sub="한 막대가 한 시즌의 결과 전체(100%)다. 아래부터 완주로 분류된 결과, 차량 문제 리타이어, 사고·충돌 리타이어, 그 밖이다. 막대 위에 올리면 수가 보인다."
+            sub="한 막대가 한 시즌의 결과 전체(100%)다."
             legend={[
               { type: 'rect', color: 's1', label: '완주 분류' },
               { type: 'rect', color: 's3', label: '차량 문제' },
@@ -320,7 +320,6 @@ const jumps = [
     id="seasons"
     title="시즌별 기록"
     meta="최근 시즌부터"
-    read={`${rows.length}개 시즌의 이름, 엔진, 드라이버, 출전, 우승, 포디움, 순위표 점수와 순위다. 시즌을 누르면 대회별 두 차의 결과와 시즌 중 순위를 보는 시즌 상세 쪽으로 간다.`}
   >
     <DataTable
       caption={`${c.name} 시즌별 기록`}
@@ -333,7 +332,7 @@ const jumps = [
     <p class="tbl-note">
       출전은 그 시즌 대회 수 가운데 결승 결과 행이 있는 대회 수다. 점수와 순위는 시즌 마지막 라운드의 컨스트럭터 순위표다.
       {c.titles > 0 && ' 바탕색 행이 컨스트럭터 챔피언 시즌이다.'}
-      {hasEngine && rows.some((r) => !r.engine) && ' 엔진 결측은 Jolpica ID가 섀시와 엔진 조합(cooper-climax 등)이라 F1DB 엔트런트와 바로 맞지 않는 경우다.'}
+      {hasEngine && rows.some((r) => !r.engine) && ' 엔진이 비어 있는 행은 Jolpica가 섀시와 엔진 조합(Cooper-Climax 등)을 한 컨스트럭터로 잡아 F1DB 엔트런트와 바로 맞지 않는 경우다.'}
     </p>
   </Section>
 </BaseLayout>

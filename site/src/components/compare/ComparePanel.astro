@@ -20,13 +20,9 @@ interface Props {
 const { kind, def, last } = Astro.props;
 const ASOF = asofJolpica();
 const noun = kind === 'd' ? '드라이버' : '컨스트럭터';
-const unit = kind === 'd' ? '명' : '곳';
-const read =
-  `아래 ${noun} 찾기 표의 첫 칸을 체크해 최대 ${MAX_PICK}${unit}까지 고르면 통산 기록, 시즌별 최종 순위와 누적 우승, 같은 대회 결승 맞대결이 여기 나란히 나온다. ` +
-  `처음에는 ${last} 시즌 1-3위가 들어 있고, 고른 조합은 주소에 남아 그대로 공유할 수 있다.`;
 ---
 
-<Section id="compare" title={`${noun} 비교`} read={read}>
+<Section id="compare" title={`${noun} 비교`}>
   <noscript>
     <p class="notice"><span>스크립트가 꺼져 있어 비교를 쓸 수 없다. 통산 기록은 아래 {noun} 찾기 표에 있다.</span></p>
   </noscript>
@@ -46,7 +42,7 @@ const read =
 
     <h3 class="sub-title"><span>시즌별 흐름</span></h3>
     <p class="cmp-read">
-      시즌 마지막 라운드 순위표의 최종 순위와 그 시즌까지의 누적 결승 우승이다. 가로축을 데뷔 뒤 햇수로 바꾸면 활동 시기가 다른 대상을 데뷔한 해부터 맞춰 본다.
+      시즌 마지막 라운드 순위표의 최종 순위와 그 시즌까지의 누적 결승 우승이다. 데뷔 뒤 햇수는 데뷔한 해를 1년차로 맞춘다.
     </p>
     <Seg
       label="가로축"

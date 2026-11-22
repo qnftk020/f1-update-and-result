@@ -15,7 +15,7 @@ import { b, esc, nw } from '../../lib/typeset.ts';
 const cFrom = history.constructor_first_season;
 const last = history.last_season;
 const asof = asofJolpica();
-const SRC = `${JOLPICA} 컨스트럭터 최종 순위와 결승 결과, 계보 묶음은 이 사이트의 계보 테이블`;
+const SRC = `${JOLPICA} 컨스트럭터 최종 순위와 결승 결과, 계보 묶음은 이 사이트의 계보 자료`;
 
 // 행 순서는 위 계보 목록과 같다(2025 컨스트럭터 순위 순)
 const order = [...teams].sort((a, c) => (a.last?.position ?? 99) - (c.last?.position ?? 99)).map((t) => t.lineage_id);
@@ -132,7 +132,7 @@ const twCols: Column<HistLineage>[] = [
     wide
     title="계보별 시즌 최종 컨스트럭터 순위"
     scope={`${cFrom}-${last} · 계보 ${rows.length}개 · 행 순서는 ${last} 순위`}
-    sub="칸 하나가 한 계보의 한 시즌이다. 블루가 바탕에서 도드라질수록(밝은 화면은 진할수록, 어두운 화면은 밝을수록) 높은 순위이고 1위는 핑크다. 빈 자리는 그 계보가 출전하지 않은 시즌이다."
+    sub="칸 하나가 한 계보의 한 시즌이고, 빈 자리는 그 계보가 출전하지 않은 시즌이다."
     legend={legend}
     chart="lineageHeat"
     data={heatData}
@@ -141,7 +141,7 @@ const twCols: Column<HistLineage>[] = [
     twin={{ caption: '시즌별 계보 최종 컨스트럭터 순위', columns: heatCols, rows: years }}
     notes={[
       {
-        head: '읽는 법',
+        head: '한 칸의 값',
         body: '한 시즌에 컨스트럭터 이름이 둘 이상인 계보(1966-1970 워킹, 2006 실버스톤)는 가장 높은 순위를 칸에 썼다. 순위 없음은 출전했지만 Jolpica 순위표에 순위가 없는 시즌이다(2007 McLaren 제외 처분 포함).',
       },
       {

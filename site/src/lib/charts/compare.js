@@ -35,7 +35,7 @@ export function compareSeasons(input, { width, metric = "pos", label = "시즌�
   const { series, mode, kind } = input;
   const ranked = (p) => !(kind === "c" && p.s < CC_FIRST);
   const every = series.flatMap((sr) => sr.pts);
-  if (!series.length) return el("p", "fig-fallback", `비교할 ${kind === "c" ? "컨스트럭터" : "드라이버"}를 고르면 그림이 나온다.`);
+  if (!series.length) return el("p", "fig-fallback", `고른 ${kind === "c" ? "컨스트럭터" : "드라이버"}가 없다.`);
   if (!every.length) return el("p", "fig-fallback", "그릴 시즌이 없다.");
   const from = Math.min(...every.map((p) => p.x));
   const to = Math.max(...every.map((p) => p.x));

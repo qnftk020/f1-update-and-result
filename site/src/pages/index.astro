@@ -67,14 +67,6 @@ const last = meta.last_season;
 const dlink = (id: string, name: string) => `<a href="${routes.driver(id)}">${esc(name)}</a>`;
 
 // ---------------------------------------------------------------- 머리
-const kicker = ['데이터 요약', nw(`${first}-${last} 시즌`), `최신 대회 ${R} ${esc(race.short_ko)}`];
-const regSpan = regSummary ? `${regSummary.first}-${regSummary.last}` : null;
-const lead =
-  `${first}-${last} 시즌 ${n0(counts.races)}개 대회의 결과와 순위, ` +
-  `${upgradeSeasons[0]}-${upgradeSeasons.at(-1)} 업그레이드 항목 ${n0(counts.upgradeItems)}건` +
-  (engineSummary ? `, PU 구성요소 사용 현황` : '') +
-  (regSpan ? `, ${regSpan}년 규정 문서` : '') +
-  `를 부문별로 요약했다. 부문 끝의 링크가 전체 쪽으로 이어진다.`;
 const facts: [string, string][] = [
   ['시즌', `${n0(counts.seasons)}개`],
   ['대회', `${n0(counts.races)}개`],
@@ -92,7 +84,7 @@ const parts = [
 ].filter(([id]) => (id === 'engines' ? engineSummary : id === 'regulations' ? regSummary : true));
 
 // ---------------------------------------------------------------- 최신 대회
-const tiles = [{ label: '우승 기록', value: win?.time ?? '결측', who: win?.name, team: win?.constructor }];
+const tiles = [{ label: '우승 기록', value: win?.time ?? '미상', who: win?.name, team: win?.constructor }];
 if (second?.time) tiles.push({ label: '우승과 2위 차이', value: timeText(second), who: second.name, team: second.constructor });
 if (h.pole?.time) {
   tiles.push({ label: `폴 포지션${h.pole.session ? ` (${h.pole.session})` : ''}`, value: h.pole.time, who: h.pole.name, team: h.pole.constructor });
@@ -214,7 +206,7 @@ const teamCols: Column<TR>[] = [
   {
     label: '예선 평균 지수',
     num: true,
-    render: (r) => (r.q == null ? '결측' : `${pct(r.q)}<span class="sub-line">${r.qRank}위</span>`),
+    render: (r) => (r.q == null ? '미상' : `${pct(r.q)}<span class="sub-line">${r.qRank}위</span>`),
   },
 ];
 const qBest = [...teamRows].filter((r) => r.q != null).sort((a, z) => (a.q as number) - (z.q as number))[0];
@@ -239,7 +231,7 @@ const shareText = (n: number) => {
 const topCat = [...catOrder].sort((a, z) => catCounts[z] - catCounts[a])[0];
 const topLabel = labels.reason_categories[topCat];
 const upRead =
-  `${upgradeSeasons[0]}-${upgradeSeasons.at(-1)} FIA 문서 ${n0(counts.upgradeDocs)}건에서 항목 ${n0(counts.upgradeItems)}건을 읽었다. ` +
+  `${upgradeSeasons[0]}-${upgradeSeasons.at(-1)} FIA 문서 ${n0(counts.upgradeDocs)}건의 업그레이드 항목은 ${n0(counts.upgradeItems)}건이다. ` +
   `변경 사유는 ${topLabel}${aside(shareText(catCounts[topCat]))}${josa(topLabel, '이', '가').slice(topLabel.length)} 가장 많다.`;
 
 // ---------------------------------------------------------------- 엔진
@@ -254,17 +246,16 @@ const engineAsof = `${asofF1db()}, 문서 ${engineAsOf ? `${nw(engineAsOf)} 수�
 // ---------------------------------------------------------------- 규정
 const RS = regSummary;
 const regRead = RS
-  ? `${RS.first}-${RS.last}년 ${RS.years}개 연도의 기술 규정과 스포팅 규정 문서를 모았다. ` +
-    `아래 바뀐 조항 수는 ${RS.year - 1}년과 ${RS.year}년의 마지막으로 파싱한 판을 조항 단위로 비교한 값이다.`
+  ? `바뀐 조항 수는 ${RS.year - 1}년과 ${RS.year}년의 마지막으로 읽은 판을 조항 단위로 비교한 값이다.`
   : '';
 
 const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀 순위, 업그레이드 항목, PU 사용 현황, 규정 변경을 부문별로 요약하고 ${season} 시즌 ${isFinal(h) ? '최종전' : `${race.round}라운드`} 결과를 보인다`;
 ---
 
 <BaseLayout description={description} current="home">
-  <PageHead kicker={kicker} title="부문별 데이터 요약" lead={lead} facts={facts}>
-    <nav class="chips-row hm-parts" aria-label="이 쪽의 부문">
-      {parts.map(([id, label]) => <a class="chip-link" href={`#${id}`}>{label}</a>)}
+  <PageHead title="부문별 데이터 요약" facts={facts}>
+    <nav class="hm-parts" aria-label="이 쪽의 부문">
+      {parts.map(([id, label]) => <a href={`#${id}`}>{label}</a>)}
     </nav>
   </PageHead>
 
@@ -292,7 +283,7 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
         id="f-grid"
         title="출발 순위와 결승 순위"
         scope={`${R} · ${grid.length}대`}
-        sub="블루 빈 원이 출발, 핑크 채운 원이 결승 순위다. 왼쪽일수록 앞 순위이고, 5칸 이상 바뀐 차에만 변화량을 적었다."
+        sub="변화량은 5칸 이상 바뀐 차에만 적는다."
         legend={[
           { type: 'ring', color: 's1', label: '출발 (그리드)' },
           { type: 'dot', color: 's2', label: '결승' },
@@ -468,7 +459,7 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
           }
         </ol>
         <SourceLine
-          source={`${JOLPICA} 컨스트럭터 최종 순위, 이 사이트의 계보 테이블. 브래클리 계보에는 Tyrrell 1971과 Brawn 2009가 들어 있다`}
+          source={`${JOLPICA} 컨스트럭터 최종 순위, 이 사이트의 계보 자료. 브래클리 계보에는 Tyrrell 1971과 Brawn 2009가 들어 있다`}
           asof={asofJolpica()}
         />
       </div>
@@ -477,7 +468,7 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
         id="f-cons"
         title="컨스트럭터 누적 점수"
         scope={`${last} · 라운드별 누적 · 강조 ${hlTeams.length}팀`}
-        sub={`최종 상위 ${hlTeams.length}팀은 색 선, 나머지 ${teamPoints.length - hlTeams.length}팀은 회색 가는 선이다. 색은 순위 순서이고 팀 색이 아니다.`}
+        sub="색은 최종 순위 순서이고 팀 색이 아니다."
         legend={[
           ...hlTeams.map((c, k) => ({ type: 'line' as const, color: ['s1', 's2', 's3'][k], label: esc(c.label) })),
           { type: 'line' as const, color: 'ctx', label: '나머지 팀' },
@@ -545,7 +536,7 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
         )
       }
       <p class="hm-small" set:html={`최신 대회: ${upgradesRead(h)}`} />
-      <SourceLine source={`${FIA_CP} 문서 ${n0(counts.upgradeDocs)}건, 이 사이트 파싱`} asof={asofFia()} />
+      <SourceLine source={`${FIA_CP} 문서 ${n0(counts.upgradeDocs)}건, 이 사이트 추출`} asof={asofFia()} />
       <p class="hm-more"><a href={routes.upgrades()}>업그레이드 탐색기에서 {n0(counts.upgradeItems)}건 보기</a></p>
     </Section>
 
@@ -565,7 +556,7 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
               <dd>
                 {E.iceOver}
                 <small>명</small>
-                <span class="hm-figs-sub">{E.drivers}명 가운데, 허용 {E.iceAllowed ?? '결측'}개</span>
+                <span class="hm-figs-sub">{E.drivers}명 가운데, 허용 {E.iceAllowed ?? '미상'}개</span>
               </dd>
             </div>
           </dl>
@@ -585,7 +576,7 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
           <p class="hm-small">
             새 ICE 투입 <b>{n0(E.iceEvents)}건</b>(시즌 첫 ICE 제외). FIA 누적 문서를 읽은 라운드는 {E.rounds}개 가운데 {E.parsed}개다.
           </p>
-          <SourceLine source={`${F1DB} 엔진 제조사, FIA PU 구성요소 문서 ${n0(E.docs)}건(이 사이트 파싱)`} asof={engineAsof} />
+          <SourceLine source={`${F1DB} 엔진 제조사, FIA PU 구성요소 문서 ${n0(E.docs)}건(이 사이트 추출)`} asof={engineAsof} />
           <p class="hm-more">
             <a href={routes.engines()}>{E.season} PU 구성요소 사용 현황 보기</a>
           </p>
@@ -601,7 +592,7 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
               <div>
                 <dt>{SECTION_KO[l.section]} 바뀐 조항</dt>
                 <dd>
-                  {l.cmp ? n0(changed(l.cmp)) : '결측'}
+                  {l.cmp ? n0(changed(l.cmp)) : '미상'}
                   <small>개</small>
                   {l.cmp && (
                     <span class="hm-figs-sub">
@@ -641,7 +632,7 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
                 .join(' ')}
             </p>
           )}
-          <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 파싱(조항 번호, 제목, 변경 유형)" asof={RS.asOf ? `${nw(RS.asOf)} 확인` : '확인일 기록 부재'} />
+          <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 추출(조항 번호, 제목, 변경 유형)" asof={RS.asOf ? `${nw(RS.asOf)} 확인` : '확인일 기록 부재'} />
           <p class="hm-more hm-split">
             <a href={routes.regulations()}>규정 아카이브</a>
             <a href={yearHref(RS.year)}>{RS.year}년 규정과 조항 비교</a>

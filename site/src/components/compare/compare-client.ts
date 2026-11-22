@@ -126,9 +126,9 @@ export function start(): void {
     if (line) {
       const names = ids.map((id) => nameById.get(id) ?? id).join(', ');
       line.textContent = !ids.length
-        ? `비교에 고른 ${N.pick}가 없다. 첫 칸을 체크하면 위 비교에 들어간다.`
+        ? `비교에 고른 ${N.pick}가 없다.`
         : ids.length >= MAX_PICK
-          ? `비교에 고른 ${N.pick} ${ids.length}/${MAX_PICK}: ${names}. 최대 ${MAX_PICK}${N.unit}까지다. 하나를 빼면 다른 ${N.pick}를 고를 수 있다.`
+          ? `비교에 고른 ${N.pick} ${ids.length}/${MAX_PICK}: ${names}. 최대 ${MAX_PICK}${N.unit}까지다.`
           : `비교에 고른 ${N.pick} ${ids.length}/${MAX_PICK}: ${names}.`;
     }
   };
@@ -145,8 +145,8 @@ export function start(): void {
 
   type Better = 'max' | 'min' | null;
   type Metric = [string, (f: CompareFile) => number | null, (v: number | null, f: CompareFile) => string, Better];
-  const plain = (unit: string) => (v: number | null) => (v == null ? '결측' : `${n0(v)}${unit}`);
-  const pctText = (v: number | null) => (v == null ? '결측' : `${num(v, 1)}%`);
+  const plain = (unit: string) => (v: number | null) => (v == null ? '미상' : `${n0(v)}${unit}`);
+  const pctText = (v: number | null) => (v == null ? '미상' : `${num(v, 1)}%`);
   const bestText = (v: number | null, f: CompareFile) => (v == null ? '순위 없음' : `${v}위 <span class="sub-line">${f.t.best_n}번</span>`);
   const T = (k: string) => (f: CompareFile) => (f.t[k] as number | null) ?? null;
 
@@ -179,7 +179,7 @@ export function start(): void {
   };
   const NOTE: Record<Kind, string> = {
     d: '출전은 결승 결과가 있는 대회 수, 출발은 그 가운데 출발하지 않은 대회를 뺀 수다. 우승, 포디움, 타이틀에는 1950-1960년 챔피언십에 들어 있던 인디애나폴리스 500이 포함된다. 최고 순위 아래 숫자는 그 순위를 한 시즌 수다. 통산 점수는 점수 체계가 시대마다 달라 싣지 않는다.',
-    c: '목록은 Jolpica 컨스트럭터 ID 단위다(이름이 바뀌어 이어진 조직의 흐름은 팀 계보 쪽에 있다). 출전 대회는 결승 결과가 있는 대회 수, 출전 차량은 결과 행 수, 포디움은 3위 이내로 분류된 차의 수다. 컨스트럭터 챔피언십은 1958년부터다. 1950-1960년대에는 섀시와 엔진 조합이 따로 ID를 가진다(Cooper-Climax 등). 통산 점수는 점수 체계가 시대마다 달라 싣지 않는다.',
+    c: '목록은 Jolpica의 컨스트럭터 구분을 따른다(이름이 바뀌어 이어진 조직의 흐름은 팀 계보 쪽에 있다). 출전 대회는 결승 결과가 있는 대회 수, 출전 차량은 결과 행 수, 포디움은 3위 이내로 분류된 차의 수다. 컨스트럭터 챔피언십은 1958년부터다. 1950-1960년대에는 섀시와 엔진 조합이 따로 한 컨스트럭터로 잡힌다(Cooper-Climax 등). 통산 점수는 점수 체계가 시대마다 달라 싣지 않는다.',
   };
 
   const emptyHtml = (text: string) => `<p class="empty-line">${text}</p>`;
@@ -188,14 +188,14 @@ export function start(): void {
     if (!totals) return;
     if (totalsNote) totalsNote.textContent = NOTE[kind];
     if (!files.length) {
-      totals.innerHTML = emptyHtml(`비교할 ${NOUN[kind].pick}를 고르면 통산 기록이 나온다.`);
+      totals.innerHTML = emptyHtml(`고른 ${NOUN[kind].pick}가 없다.`);
       return;
     }
     const slot = (f: CompareFile) => state.slots.get(f.id) ?? 0;
     const href = (f: CompareFile) => (kind === 'd' ? routes.driver(f.id) : routes.constructorPage(f.id));
     const head = files.map((f) => `<th scope="col">${keyHtml(slot(f))}<a href="${href(f)}" lang="en">${esc(f.name)}</a></th>`).join('');
     const info = [
-      `<tr><th scope="row" class="stick">국적</th>${files.map((f) => `<td>${esc(f.nat ?? '결측')}</td>`).join('')}</tr>`,
+      `<tr><th scope="row" class="stick">국적</th>${files.map((f) => `<td>${esc(f.nat ?? '미상')}</td>`).join('')}</tr>`,
       `<tr><th scope="row" class="stick">활동 기간</th>${files.map((f) => `<td>${span(f.first, f.last)}</td>`).join('')}</tr>`,
     ];
     const body = METRICS[kind].map(([label, get, fmt, better]) => {
@@ -315,7 +315,7 @@ export function start(): void {
   const renderH2h = (files: CompareFile[], kind: Kind, short: string[]) => {
     if (!h2h) return;
     if (files.length < 2) {
-      h2h.innerHTML = emptyHtml(`맞대결은 ${NOUN[kind].pick}를 둘 이상 고르면 나온다.`);
+      h2h.innerHTML = emptyHtml(`맞대결은 고른 ${NOUN[kind].pick}가 둘 이상일 때 센다.`);
       return;
     }
     const slotOf = (i: number) => state.slots.get(files[i].id) ?? 0;

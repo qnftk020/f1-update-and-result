@@ -69,7 +69,7 @@ export const MINUS = '−';
  * 퀄리파잉 지수는 num(v, 3), 레이스 지수와 구간은 num(v, 2, { sign: true }), 초 차이는 num(s, 3).
  */
 export function num(x: number | null | undefined, d = 3, { sign = false }: { sign?: boolean } = {}): string {
-  if (x === null || x === undefined || Number.isNaN(x)) return '결측';
+  if (x === null || x === undefined || Number.isNaN(x)) return '미상';
   const a = Math.abs(x);
   // 1e-6보다 작은 값은 문자열이 이미 지수 표기("1e-7")라 0으로 둔다.
   const r = a < 1e-6 ? 0 : Number(`${Math.round(Number(`${a}e${d}`))}e-${d}`);
@@ -80,12 +80,12 @@ export function num(x: number | null | undefined, d = 3, { sign = false }: { sig
 
 /** num() 뒤에 '%'. 퀄리파잉 지수는 부호 없이 pct(v), 레이스 지수는 pct(v, 2, { sign: true }). */
 export function pct(x: number | null | undefined, d = 3, o?: { sign?: boolean }): string {
-  return x === null || x === undefined ? '결측' : `${num(x, d, o)}%`;
+  return x === null || x === undefined ? '미상' : `${num(x, d, o)}%`;
 }
 
 /** 정수와 천 단위 쉼표: 1,149. 값이 없으면 '결측'. */
 export function n0(x: number | null | undefined): string {
-  return x === null || x === undefined ? '결측' : Math.round(x).toLocaleString('ko-KR');
+  return x === null || x === undefined ? '미상' : Math.round(x).toLocaleString('ko-KR');
 }
 
 /** 레이스 지수와 95% 구간: '−1.46 (−1.57 ~ −1.22)' */

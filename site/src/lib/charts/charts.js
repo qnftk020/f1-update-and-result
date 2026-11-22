@@ -36,7 +36,7 @@ export function qualifyingRank(input, { width, label = "퀄리파잉 페이스 �
         x: "v", y: "team", dx: 7, textAnchor: "start", fill: C.ink2, fontVariant: "tabular-nums",
         text: (d) => (d.v === 0 ? (narrow ? "0" : "0 (기준)") : narrow || d.gap == null ? num(d.v, 3) : `${num(d.v, 3)}  +${d.gap.toFixed(3)}초`),
       }),
-      Plot.text(missing, { x: 0, y: "team", dx: 7, textAnchor: "start", fill: C.ink3, text: () => "결측" }),
+      Plot.text(missing, { x: 0, y: "team", dx: 7, textAnchor: "start", fill: C.ink3, text: () => "미상" }),
       Plot.axisY({ tickSize: 0, tickPadding: 8, fill: C.ink, fontSize: 13, label: null }),
       Plot.axisX({ tickSize: 0, tickPadding: 6, ticks: narrow ? 3 : 5, label: "세션 최고 랩 대비 (%)", labelAnchor: "right", labelOffset: 32, tickFormat: (d) => num(d, 1) }),
     ],
@@ -44,7 +44,7 @@ export function qualifyingRank(input, { width, label = "퀄리파잉 페이스 �
   const ys = svg.scale("y");
   const xs = svg.scale("x");
   const stops = data.map((d) => (d.v == null
-    ? { py: ys.apply(d.team) + rowH / 2, px: xs.apply(0), head: d.team, rows: [{ value: "결측", label: "퀄리파잉 지수" }], note: "두 드라이버 모두 기록이 없다." }
+    ? { py: ys.apply(d.team) + rowH / 2, px: xs.apply(0), head: d.team, rows: [{ value: "미상", label: "퀄리파잉 지수" }], note: "두 드라이버 모두 기록이 없다." }
     : {
         py: ys.apply(d.team) + rowH / 2, px: xs.apply(d.v),
         head: d.team,
@@ -90,7 +90,7 @@ export function raceIntervals(input, { width, label = "레이스 페이스 지�
         y: "team", frameAnchor: "right", dx: mr - 2, textAnchor: "end", fill: C.ink2, fontVariant: "tabular-nums",
         text: (d) => (narrow ? num(d.v, 2, { sign: true }) : `${num(d.v, 2, { sign: true })}  (${num(d.lo, 2, { sign: true })} ~ ${num(d.hi, 2, { sign: true })})`),
       }),
-      Plot.text(missing, { y: "team", frameAnchor: "right", dx: mr - 2, textAnchor: "end", fill: C.ink3, text: () => "결측" }),
+      Plot.text(missing, { y: "team", frameAnchor: "right", dx: mr - 2, textAnchor: "end", fill: C.ink3, text: () => "미상" }),
       Plot.axisY({ tickSize: 0, tickPadding: 8, fill: C.ink, fontSize: 13, label: null }),
       Plot.axisX({ tickSize: 0, tickPadding: 6, ticks: narrow ? 3 : 6, label: "필드 중앙값 대비 (%)", labelAnchor: "right", labelOffset: 32, tickFormat: (d) => num(d, 1, { sign: true }) }),
     ],
@@ -99,7 +99,7 @@ export function raceIntervals(input, { width, label = "레이스 페이스 지�
   const xs = svg.scale("x");
   const stops = data.map((d) => {
     if (d.v == null) {
-      return { py: ys.apply(d.team) + rowH / 2, px: xs.apply(0), head: d.team, rows: [{ value: "결측", label: "레이스 지수" }], note: "클린 랩이 8개 미만이라 지수를 내지 않았다." };
+      return { py: ys.apply(d.team) + rowH / 2, px: xs.apply(0), head: d.team, rows: [{ value: "미상", label: "레이스 지수" }], note: "클린 랩이 8개 미만이라 지수를 내지 않았다." };
     }
     const crosses = d.lo <= 0 && d.hi >= 0;
     return {
@@ -360,7 +360,7 @@ export function paceTrend(rounds, { width, cid, team, rail = [], label }) {
     const t = d.teams[cid];
     const sorted = Object.values(d.teams).filter((x) => x != null).sort((a, b) => a - b);
     const rows = [
-      { value: t == null ? "결측" : `${num(t, 3)}%`, label: team, key: { type: "line", color: C.s1 } },
+      { value: t == null ? "미상" : `${num(t, 3)}%`, label: team, key: { type: "line", color: C.s1 } },
     ];
     if (d.field) {
       rows.push({ value: `${num(d.field.med, 3)}%`, label: "필드 중앙값", key: { type: "line", color: C.ctx } });
@@ -435,7 +435,7 @@ export function raceTrend(rounds, { width, cid, team, rail = [], label }) {
       Plot.ruleX(have.filter((d) => d.wet), { x: "round", y1: "lo", y2: "hi", stroke: C.ctx, strokeWidth: 1.5, clip: true }),
       Plot.dot(have.filter((d) => !d.wet), { x: "round", y: "v", r: 4, fill: C.s1, stroke: C.paper, strokeWidth: 1.5 }),
       Plot.dot(have.filter((d) => d.wet && d.v >= lo - pad && d.v <= hi + pad), { x: "round", y: "v", r: 4, fill: C.paper, stroke: C.s1, strokeWidth: 1.5 }),
-      Plot.text(pts.filter((d) => d.v == null), { x: "round", y: 0, dy: -10, text: () => "결측", fill: C.ink3, fontSize: 11 }),
+      Plot.text(pts.filter((d) => d.v == null), { x: "round", y: 0, dy: -10, text: () => "미상", fill: C.ink3, fontSize: 11 }),
       bestMark,
       worstMark,
       ...railM.marks,
@@ -448,7 +448,7 @@ export function raceTrend(rounds, { width, cid, team, rail = [], label }) {
   const railBy = new Map(rail.map((r) => [r.round, r.n]));
   const stops = pts.map((d) => {
     const rows = d.v == null
-      ? [{ value: "결측", label: "레이스 지수" }]
+      ? [{ value: "미상", label: "레이스 지수" }]
       : [
           { value: `${num(d.v, 2, { sign: true })}%`, label: "레이스 지수", key: { type: "dot", color: C.s1 } },
           { value: `${num(d.lo, 2, { sign: true })} ~ ${num(d.hi, 2, { sign: true })}`, label: "95% 구간", key: { type: "line", color: d.wet ? C.ctx : C.s1 } },
@@ -799,19 +799,19 @@ export function paceMultiples(rounds, { width, teams, kind = "quali", label }) {
     const stops = series.map((d) => {
       const rows = [];
       if (kind === "quali") {
-        rows.push({ value: d.x == null ? "결측" : `${num(d.x, 3)}%`, label: t.team, key: { type: d.ref ? "ring" : "line", color: C.s1 } });
+        rows.push({ value: d.x == null ? "미상" : `${num(d.x, 3)}%`, label: t.team, key: { type: d.ref ? "ring" : "line", color: C.s1 } });
         if (d.med != null) rows.push({ value: `${num(d.med, 3)}%`, label: "필드 중앙값", key: { type: "line", color: C.ctx } });
       } else if (d.x) {
         rows.push({ value: `${num(d.x[0], 2, { sign: true })}%`, label: t.team, key: { type: "dot", color: C.s1 } });
         rows.push({ value: `${num(d.x[1], 2, { sign: true })} ~ ${num(d.x[2], 2, { sign: true })}`, label: "95% 구간" });
-      } else rows.push({ value: "결측", label: t.team });
+      } else rows.push({ value: "미상", label: t.team });
       const note = d.wet ? (kind === "quali" ? "우천 예선, 평균에서 뺐다." : "우천 결승, 기본 분석에서 뺐다.")
         : [d.ref ? "참고용 예선 형식이라 선에 잇지 않는다." : null, d.unc ? "우천 여부 미분류 예선이다." : null].filter(Boolean).join(" ") || null;
       return { px: xs.apply(d.round), py: 20, top: mt, bottom: H + mt - 8 - 22, head: `${d.round}라운드 ${d.short}`, rows, note };
     });
     const cell = el("div", "mini");
     const h = el("p", "mini-head");
-    const meanText = mean == null ? "평균 결측" : kind === "quali" ? `평균 ${num(mean, 3)}%` : `평균 ${num(mean, 2, { sign: true })}%`;
+    const meanText = mean == null ? "평균 미상" : kind === "quali" ? `평균 ${num(mean, 3)}%` : `평균 ${num(mean, 2, { sign: true })}%`;
     h.append(el("b", null, t.team), el("span", null, meanText));
     const w = frameOf(svg);
     readout(w, svg, stops, { axis: "x", label: `${t.team} ${label || ""}` });
@@ -1028,7 +1028,7 @@ export function newIce(rows, { width, rounds, sample = false, label } = {}) {
       Plot.gridY(rows.map((d) => d.label), { stroke: C.grid, strokeOpacity: 1 }),
       Plot.dot(cells.filter((c) => c.raced && !c.fresh), { x: "round", y: "label", r: 1.6, fill: C.axis }),
       Plot.dot(cells.filter((c) => c.fresh), { x: "round", y: "label", r: 4.5, fill: C.s1, stroke: C.paper, strokeWidth: 2 }),
-      Plot.text(rows, { y: "label", frameAnchor: "right", dx: mr - 4, textAnchor: "end", fill: C.ink2, fontVariant: "tabular-nums", text: (d) => { const last = d.ice.filter((x) => x != null).at(-1); return last == null ? "결측" : `${last}개`; } }),
+      Plot.text(rows, { y: "label", frameAnchor: "right", dx: mr - 4, textAnchor: "end", fill: C.ink2, fontVariant: "tabular-nums", text: (d) => { const last = d.ice.filter((x) => x != null).at(-1); return last == null ? "미상" : `${last}개`; } }),
       Plot.axisY({ tickSize: 0, tickPadding: 8, fill: C.ink, fontSize: 13, label: null }),
       Plot.axisX({ tickSize: 0, tickPadding: 6, label: null, ticks: Array.from({ length: n }, (_, i) => i + 1), tickFormat: roundTick(narrow, n) }),
     ],

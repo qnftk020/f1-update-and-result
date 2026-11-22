@@ -248,17 +248,13 @@ const stepCols2: Column[] = [
   { label: '누적 점수', num: true, render: (r) => (r.pts != null ? pts(r.pts) : '') },
   { label: '1위와 차이', num: true, render: (r) => (r.pts != null ? (r.lp - r.pts > 0.001 ? `−${pts(Math.round((r.lp - r.pts) * 100) / 100)}` : '선두') : '') },
 ];
-const detailRead =
-  raceSeasons.length > 1
-    ? `시즌을 고르면 그 시즌의 대회별 출발과 결과, 라운드 뒤 드라이버 순위, 대회별 결과 표가 함께 바뀐다. 처음에는 ${latest}년이 보인다. 팀 이름을 누르면 그 컨스트럭터의 시즌 상세로 간다.`
-    : `${latest}년 대회별 출발과 결과, 라운드 뒤 드라이버 순위다. 팀 이름을 누르면 그 컨스트럭터의 시즌 상세로 간다.`;
 
 const description = `${d.name}의 F1 결승 기록(${span(from, to)}): 챔피언십 순위, 우승과 포디움, 팀 동료 비교, 팀 이력, 대회별 결과`;
 ---
 
 <BaseLayout title={d.name} description={description} current="drivers">
   <PageHead
-    kicker={[`<a href="${routes.drivers()}">드라이버</a>`, esc(d.nationality_ko), nw(span(from, to))]}
+    kicker={[`<a href="${routes.drivers()}">드라이버</a>`]}
     title={en(esc(d.name))}
     lead={M.lead}
     facts={M.facts}
@@ -490,10 +486,10 @@ const description = `${d.name}의 F1 결승 기록(${span(from, to)}): 챔피언
     }
     <h3 class="sub-title"><span>팀 구간</span><span class="sec-meta">{stints.length}개 구간</span></h3>
     <DataTable caption="팀 구간" columns={stintCols} rows={stints} />
-    <SourceLine source={`${SRC_RES}. 팀 이름을 누르면 그 컨스트럭터 쪽으로 간다`} asof={ASOF} />
+    <SourceLine source={SRC_RES} asof={ASOF} />
   </Section>
 
-  <Section id="seasons" title="시즌별 기록" read={`${rows.length}개 시즌의 출전, 우승, 포디움, 폴, 순위표 점수와 최종 순위다. 시즌을 누르면 그 시즌 쪽으로 간다.`}>
+  <Section id="seasons" title="시즌별 기록">
     <DataTable
       caption="시즌별 기록 표"
       columns={seasonCols}
@@ -508,7 +504,7 @@ const description = `${d.name}의 F1 결승 기록(${span(from, to)}): 챔피언
     </p>
   </Section>
 
-  <Section id="races" title="시즌 상세" read={detailRead}>
+  <Section id="races" title="시즌 상세">
     {
       raceSeasons.length > 1 && (
         <div class="field race-pick" data-js-only>
@@ -544,7 +540,7 @@ const description = `${d.name}의 F1 결승 기록(${span(from, to)}): 챔피언
       id="f-strip"
       title="대회별 출발과 결과"
       scope={`<span data-detail-scope="strip">${latest} · ${first0.rounds}개 대회 · 위가 1위다</span>`}
-      sub="한 라운드에 출발(빈 원)과 결과(채운 원)를 세로로 잇는다. 선이 길수록 순위를 많이 바꾼 대회다. 완주로 분류되지 않은 결과는 맨 아래 줄에 찍고, 오른쪽의 작은 회색 점은 같은 팀 동료의 결과다."
+      sub="한 라운드의 출발과 결과를 세로선으로 잇는다. 선이 길수록 순위를 많이 바꾼 대회다."
       legend={[
         { type: 'ring', color: 's1', label: '출발' },
         { type: 'dot', color: 's2', label: '결과 (완주)' },
@@ -585,7 +581,7 @@ const description = `${d.name}의 F1 결승 기록(${span(from, to)}): 챔피언
           id="f-round"
           title="라운드 뒤 드라이버 순위"
           scope={`<span data-detail-scope="round">${latest} · 라운드가 끝날 때마다 · 위가 1위다</span>`}
-          sub="라운드가 끝날 때마다의 Jolpica 드라이버 순위다. 핑크 점은 1위로 마친 라운드다. 위의 대회별 결과와 가로축(라운드)이 같다."
+          sub="라운드가 끝날 때마다의 Jolpica 드라이버 순위다."
           legend={[
             { type: 'line', color: 's1', label: '라운드 뒤 순위' },
             { type: 'dot', color: 's2', label: '1위였던 라운드' },

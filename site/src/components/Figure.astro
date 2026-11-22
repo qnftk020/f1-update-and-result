@@ -21,7 +21,7 @@ interface Props {
   title: string;
   /** 범위 줄: "2025 R24 · 결승 클린 랩 · 95% 구간" (HTML 가능) */
   scope?: string;
-  /** 부제: 무엇을 그렸는지, 단위, 읽는 방향("왼쪽이 빠르다", "위가 빠르다", "위가 1위다") */
+  /** 부제: 범례와 범위 줄에 없는 정의와 단위만 쓴다. 표식과 색 설명(범례에 있다), 읽는 방향(범위 줄에 둔다), 표준 조작의 사용법은 쓰지 않는다 */
   sub?: string;
   legend?: LegendItem[];
   chart?: ChartName;

@@ -1,5 +1,5 @@
 // 챔피언십 역사 자료(history.json)의 타입과 로더(홈, 드라이버 쪽도 여기서 읽는다). 이 자료를 읽고 시즌 목록(/seasons/)과 팀 목록(/teams/)의 분석 절에 쓸 모양으로 만든다.
-// 모든 수치는 history.json에서 온다(Jolpica 결과와 순위, 계보 묶음은 이 사이트의 계보 테이블).
+// 모든 수치는 history.json에서 온다(Jolpica 결과와 순위, 계보 묶음은 이 사이트의 계보 자료).
 // 계산은 빌드 때만 돈다. 차트 함수(lib/charts/history.js)에 넘기는 자료는 JSON으로 넘길 수 있는 값만 담는다.
 import historyJson from '../data/generated/history.json';
 import { surname } from './names.ts';
@@ -304,7 +304,7 @@ export const constructorTitleRows: TitleRow[] = history.constructor_titles.map((
   short: c.name,
   n: c.titles,
   seasons: c.seasons,
-  sub: `컨스트럭터 ID ${c.id}`,
+  sub: '',
 }));
 export const lineageTitleRows: TitleRow[] = [...history.lineages]
   .filter((l) => l.titles > 0)

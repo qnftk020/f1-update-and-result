@@ -42,7 +42,7 @@ const asof = asofJolpica();
 const SRC_ST = `${JOLPICA} 드라이버와 컨스트럭터 최종 순위, 결승 결과`;
 
 const pctT = (x: number) => `${x.toFixed(x < 10 ? 2 : 1)}%`;
-const ptsT = (x: number | null | undefined) => (x == null ? '결측' : `${r2(x)}`);
+const ptsT = (x: number | null | undefined) => (x == null ? '미상' : `${r2(x)}`);
 const name = (s: string) => en(esc(s));
 const driverLink = (id: string, n: string) => `<a href="${routes.driver(id)}" lang="en">${esc(n)}</a>`;
 
@@ -155,7 +155,7 @@ const inLineage = lineageTitleRows.reduce((a, r) => a + r.n, 0);
 const titlesRead =
   `드라이버 타이틀 ${totalD}개를 ${b(`${driverTitleRows.length}명`)}이 나눠 가졌다. 가장 많은 ${topN}회는 ${tops.map((t) => name(t.name)).join(', ')} ${tops.length}명이고, 한 번만 차지한 드라이버는 ${ones}명이다. ` +
   `가장 긴 연속 타이틀은 ${name(dRun.r.name)}의 ${nw(`${dRun.from}-${dRun.to}`)}년 ${dRun.n}연속이다. ` +
-  `컨스트럭터 타이틀 ${totalC}개는 컨스트럭터 ID로 ${constructorTitleRows.length}곳에 돌아갔고, 그 가운데 ${b(`${inLineage}개`)}가 2025 그리드 ${history.lineages.length}개 계보의 몫이다. 계보로 묶으면 가장 긴 연속은 ${esc(lineageShortKo(lRun.r.name))}의 ${nw(`${lRun.from}-${lRun.to}`)}년 ${lRun.n}연속이다.`;
+  `컨스트럭터 타이틀 ${totalC}개는 Jolpica 구분으로 컨스트럭터 ${constructorTitleRows.length}곳에 돌아갔고, 그 가운데 ${b(`${inLineage}개`)}가 2025 그리드 ${history.lineages.length}개 계보의 몫이다. 계보로 묶으면 가장 긴 연속은 ${esc(lineageShortKo(lRun.r.name))}의 ${nw(`${lRun.from}-${lRun.to}`)}년 ${lRun.n}연속이다.`;
 
 const titleCols = (who: string, link: boolean, rows: TitleRow[]): Column<TitleRow>[] => {
   const ranks = competitionRanks(rows, (r) => r.n);
@@ -199,8 +199,8 @@ const segKind = [
     twin={{ caption: '시즌별 1위와 2위의 점수 차', columns: marginCols, rows: desc }}
     notes={[
       {
-        head: '읽는 법',
-        body: `컨스트럭터로 바꾸면 ${cFrom}년부터 그린다. 컨스트럭터 점수 차는 ${cLo.season}년 ${pctT(cLo.c_margin_pct as number)}가 가장 작고 ${cHi.season}년 ${pctT(cHi.c_margin_pct as number)}가 가장 크다.`,
+        head: '컨스트럭터',
+        body: `컨스트럭터 순위는 ${cFrom}년부터다. 컨스트럭터 점수 차는 ${cLo.season}년 ${pctT(cLo.c_margin_pct as number)}가 가장 작고 ${cHi.season}년 ${pctT(cHi.c_margin_pct as number)}가 가장 크다.`,
       },
       {
         head: '주의',
@@ -253,16 +253,16 @@ const segKind = [
     wide
     title="해마다의 드라이버 1위와 컨스트럭터 1위"
     scope={`${first}-${last} · 행은 연대, 열은 끝자리`}
-    sub="칸 하나가 한 시즌이다. 위 칸은 드라이버 1위가 탄 팀, 아래 칸은 컨스트럭터 1위의 계보 색이다. 넓은 화면에서는 이름을 함께 적는다. 1958년 이전은 컨스트럭터 순위가 없어 아래 칸이 비어 있다."
+    sub="칸 하나가 한 시즌이다. 위 칸은 드라이버 1위가 탄 팀, 아래 칸은 컨스트럭터 1위의 계보 색이다. 1958년 이전은 컨스트럭터 순위가 없어 아래 칸이 비어 있다."
     legend={champLegend}
     chart="titleGrid"
     data={{ cats: linCats, rows: champCells }}
-    source={`${SRC_ST}, 계보 묶음은 이 사이트의 계보 테이블`}
+    source={`${SRC_ST}, 계보 묶음은 이 사이트의 계보 자료`}
     asof={asof}
     twin={{ caption: '시즌별 드라이버 1위와 컨스트럭터 1위', columns: champCols, rows: [...champCells].reverse(), rowClass: (c: ChampCell) => (c.split ? 'hl' : '') }}
     notes={[
       {
-        head: '읽는 법',
+        head: '팀 구분',
         body: '드라이버 1위가 한 시즌에 두 팀을 탔으면(1954년) 계보가 있는 팀을 먼저 찾고, 없으면 계보 밖으로 둔다. 팀 이름은 Jolpica 컨스트럭터 이름이다.',
       },
       {
@@ -285,7 +285,7 @@ const segKind = [
     asof={asof}
     twin={driverTwin}
     notes={[
-      { head: '읽는 법', body: '같은 횟수 안에서는 첫 타이틀이 이른 순서다. 좁은 화면에서는 성만 적는다. 전체 이름은 점을 누르거나 표에서 본다.' },
+      { head: '순서', body: '같은 횟수 안에서는 첫 타이틀이 이른 순서다.' },
       { head: '주의', caution: true, body: '1997년 드라이버 순위에서 제외된 기록은 타이틀에 들어가지 않는다.' },
     ]}
   />
@@ -294,8 +294,8 @@ const segKind = [
       pair
       id="f-ctitles"
       title="컨스트럭터 타이틀 (컨스트럭터별)"
-      scope={`${cFrom}-${last} · Jolpica 컨스트럭터 ID ${constructorTitleRows.length}곳`}
-      sub="컨스트럭터 ID마다 따로 센다. 같은 공장이라도 이름이 다르면 다른 행이다(예: Benetton과 Renault)."
+      scope={`${cFrom}-${last} · 컨스트럭터 ${constructorTitleRows.length}곳`}
+      sub="Jolpica의 컨스트럭터 구분대로 센다. 같은 공장이라도 이름이 다르면 다른 행이다(예: Benetton과 Renault)."
       chart="titleDots"
       data={cTitleData}
       source={`${JOLPICA} 컨스트럭터 최종 순위`}
@@ -310,13 +310,13 @@ const segKind = [
       sub={`이 사이트의 계보로 묶어 센다. 타이틀이 없는 계보 ${lineagesWithoutTitle.length}개(${lineagesWithoutTitle.map((l) => lineageShortKo(l.name_ko)).join(', ')})는 행이 없다.`}
       chart="titleDots"
       data={lTitleData}
-      source={`${JOLPICA} 컨스트럭터 최종 순위, 계보 묶음은 이 사이트의 계보 테이블`}
+      source={`${JOLPICA} 컨스트럭터 최종 순위, 계보 묶음은 이 사이트의 계보 자료`}
       asof={asof}
       twin={{ caption: '계보별 컨스트럭터 타이틀', columns: titleCols('계보', false, lineageTitleRows), rows: lineageTitleRows }}
     />
   </div>
   <aside class="notes hist-notes" aria-label="컨스트럭터 타이틀 주석">
-    <Note head="읽는 법" body={`계보별 행은 같은 공장과 조직이 이어진 흐름으로 묶은 값이다. 계보의 타이틀 시즌 이름은 표 보기와 팀 쪽에서 본다.`} />
+    <Note head="계보" body="계보별 행은 같은 공장과 조직이 이어진 흐름으로 묶은 값이다." />
     <Note head="주의" caution body="브래클리 계보의 타이틀에는 Tyrrell 1971과 Brawn 2009가 들어간다. 계보 밖의 팀(Lotus, Cooper, Brabham 등)의 타이틀은 계보별 그림에 없다." />
   </aside>
 </Section>

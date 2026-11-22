@@ -32,7 +32,7 @@ export function shortName(d: { code: string | null; name: string }): string {
 
 /** 점수 차이 등 소수가 생길 수 있는 점수 표기(1950년대 공유 점수). 소수 둘째 자리까지 */
 export function pts(x: number | null | undefined): string {
-  return x == null ? '결측' : formatPoints(Math.round(x * 100) / 100);
+  return x == null ? '미상' : formatPoints(Math.round(x * 100) / 100);
 }
 
 /** 시즌 자료에서 고른 연도별 규칙 */
@@ -262,9 +262,9 @@ export function qualiFlagCell(r: { ref?: boolean; wet: string }): string {
 /** 작은 다중 부제 */
 export function qualiSub(s: Season): string {
   const x = seasonFlags(s);
-  const bits = ['칸마다 그 팀의 지수(파란 선)와 그 대회 필드 중앙값(회색 선)이다.'];
-  if (x.wetJudged) bits.push('우천 예선은 회색 띠와 빈 고리로 남기고 선을 끊는다.');
-  if (x.refs.length) bits.push('참고용 형식 예선은 선으로 잇지 않고 빈 고리로만 찍는다.');
+  const bits = ['칸 하나가 한 팀이다.'];
+  if (x.wetJudged) bits.push('우천 예선에서는 선을 끊는다.');
+  if (x.refs.length) bits.push('참고용 형식 예선은 선으로 잇지 않는다.');
   if (!x.refs.length && x.wetJudged) bits.push(`${x.year} 시즌에는 참고용 형식과 미분류 대회가 0개다.`);
   return bits.join(' ');
 }

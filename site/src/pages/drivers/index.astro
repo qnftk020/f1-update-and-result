@@ -198,7 +198,6 @@ const listBody = drivers
 
 <BaseLayout title="드라이버" description={`${first}-${last} F1 결승에 나선 드라이버 ${drivers.length}명의 통산 기록, 타이틀과 우승 순위, 연대별 흐름`} current="drivers">
   <PageHead
-    kicker={['드라이버', nw(`${first}-${last}`), `${n0(drivers.length)}명`]}
     title="드라이버"
     lead={lead}
     facts={[
@@ -213,7 +212,7 @@ const listBody = drivers
   <Section
     id="grid"
     title={`${last} 그리드`}
-    read={`${last} 시즌 결승에 나선 ${gridCards.length}명을 그 시즌 드라이버 순위 순서로 싣는다. 아래 줄은 통산 기록이다.`}
+    read={`${last} 시즌 결승에 나선 드라이버는 ${gridCards.length}명이다. 순서는 그 시즌 드라이버 순위이고, 아래 줄은 통산 기록이다.`}
     meta={`<a href="${routes.season(last)}">${last} 시즌 쪽</a>`}
   >
     <ol class="grid-cards">
@@ -234,7 +233,7 @@ const listBody = drivers
   <Section
     id="records"
     title="타이틀과 우승 순위"
-    read={`드라이버 챔피언 ${champs.length}명 가운데 타이틀이 2번 이상인 드라이버는 ${titleList.length}명이다. 통산 우승은 20위와 같은 수까지 ${winList.length}명을 싣는다.`}
+    read={`드라이버 챔피언 ${champs.length}명 가운데 타이틀이 2번 이상인 드라이버는 ${titleList.length}명이다. 통산 우승 목록은 20위와 같은 우승 수까지 ${winList.length}명이다.`}
   >
     <div class="pair">
       <Figure
@@ -284,7 +283,7 @@ const listBody = drivers
       asof={ASOF}
       twin={{ caption: '시즌별 챔피언의 우승 비율', columns: cwCols, rows: cw }}
       notes={[
-        { head: '읽는 법', body: '우승 수가 적어도 꾸준히 득점해 챔피언이 된 시즌은 막대가 낮다. 점수 체계와 대회 수가 해마다 달라 비율은 그 시즌 안에서만 뜻이 있다.' },
+        { head: '비율', body: '우승 수가 적어도 꾸준히 득점해 챔피언이 된 시즌은 막대가 낮다. 점수 체계와 대회 수가 해마다 달라 비율은 그 시즌 안에서만 뜻이 있다.' },
         { head: '주의', body: '1950-1960년 대회 수에는 챔피언십에 포함된 인디애나폴리스 500이 들어 있어 비율이 실제보다 낮게 나온다.', caution: true },
       ]}
     />
@@ -298,7 +297,7 @@ const listBody = drivers
   <Section
     id="list"
     title="드라이버 찾기"
-    read={`${n0(drivers.length)}명 전원의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움, 출발이 많은 순이다. 이름을 누르면 그 드라이버 쪽으로 가고, 첫 칸을 체크하면 위 드라이버 비교에 최대 ${MAX_PICK}명까지 들어간다.`}
+    read={`${n0(drivers.length)}명 전원의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움, 출발이 많은 순이다.`}
     meta={`<a href="#compare">드라이버 비교</a>`}
   >
     <form class="filters drv-filters" id="drv-filters" role="search" aria-label="드라이버 거르기" data-js-only>
@@ -451,7 +450,7 @@ const listBody = drivers
     margin-top: var(--sp-4);
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
-    border-top: 2px solid var(--brand-blue);
+    border-top: 1px solid var(--rule);
   }
   .gcard {
     padding: var(--sp-3) var(--sp-3) var(--sp-3) 0;

@@ -38,7 +38,7 @@ const roundNames = s.round_labels.map((r) => r.short_ko);
 const roundName = (r: number) => s.round_labels.find((x) => x.round === r)?.short_ko ?? '';
 const asof = E.as_of ? `${nw(E.as_of)} 수집` : '수집일 기록 부재';
 const docsOk = docCount(s.documents, 'pu_used', 'ok') + docCount(s.documents, 'pu_new', 'ok');
-const PU_SOURCE = `FIA ${en('PU elements used per driver up to now')}, ${en('New PU elements')} 문서 ${n0(docsOk)}건, 이 사이트 파싱`;
+const PU_SOURCE = `FIA ${en('PU elements used per driver up to now')}, ${en('New PU elements')} 문서 ${n0(docsOk)}건, 이 사이트 추출`;
 
 // 리드
 const maxTeams = Math.max(0, ...s.suppliers.map((p) => p.teams.length));
@@ -82,7 +82,7 @@ const supplierCols: Column[] = [
 // 구성요소 표
 const valueHtml = (d: (typeof rows)[number], el: string) => {
   const v = d.final[el];
-  if (v == null) return '결측';
+  if (v == null) return '미상';
   // 넘친 값이 많아 글자 배지 대신 아이콘 + 숨은 글자로 적고, 표 위에 표시 뜻을 적는다.
   return d.exceed.includes(el)
     ? `<span class="xv"><b>${v}</b>${iconSvg('exceed', 'ic xmark')}<span class="sr-only"> 허용 초과</span></span>`
@@ -174,7 +174,7 @@ const eventCols: Column[] = [
   { label: 'ICE 번호', render: iceNumberHtml },
   {
     label: '허용',
-    render: (e) => (isUnsure(e) ? '미확정' : isOver(e) ? badgeHtml('exceed', '허용 초과') : iceAllowed != null || e.within_allocation ? '허용 범위 안' : '결측'),
+    render: (e) => (isUnsure(e) ? '미확정' : isOver(e) ? badgeHtml('exceed', '허용 초과') : iceAllowed != null || e.within_allocation ? '허용 범위 안' : '미상'),
   },
   { label: '원문', render: (e) => (e.url ? extHtml(e.url) : '') },
 ];
@@ -266,20 +266,20 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
 ---
 
 <BaseLayout title={title} description={`${season} 시즌 PU 공급사와 드라이버별 PU 구성요소 누적 사용 개수, 새 ICE 투입. FIA 문서에서 읽었다.`} current="engines">
-  <PageHead kicker={['엔진', 'PU', `${season} 시즌`]} title="PU 공급사와 구성요소 사용 현황" lead={lead} facts={facts}>
+  <PageHead title="PU 공급사와 구성요소 사용 현황" lead={lead} facts={facts}>
     <div class="eng-pick">
       <LinkPick summary="다른 시즌 고르기" navLabel="엔진 시즌" groups={pickGroups} />
     </div>
   </PageHead>
 
-  <Section id="suppliers" title="PU 공급사와 팀" read={`${season} 시즌 ${teamCount}개 팀이 쓴 PU를 공급사별로 묶었다. 많은 팀이 쓴 공급사부터 적었다.`}>
+  <Section id="suppliers" title="PU 공급사와 팀" read={`${season} 시즌 PU 공급사는 ${s.suppliers.length}곳이고 ${teamCount}개 팀이 썼다.`}>
     <div class="fig-row">
       <div class="fig">
         <DataTable caption={`${season} PU 공급사와 팀`} columns={supplierCols} rows={s.suppliers} />
-        <SourceLine source={`${F1DB} 시즌 엔트런트와 엔진 제조사, 이 사이트의 계보 테이블`} asof={asofF1db()} />
+        <SourceLine source={`${F1DB} 시즌 엔트런트와 엔진 제조사, 이 사이트의 계보 자료`} asof={asofF1db()} />
       </div>
       <aside class="notes" aria-label="PU 공급사와 팀 주석">
-        <Note head="읽는 법" body="PU 공급사는 팀과 따로 적는 차원이다. 팀 이름에 공급사 이름이 들어 있지 않아도 이 표의 공급사를 따른다. 공급사 이름은 F1DB의 엔진 제조사 이름이다." />
+        <Note head="PU 공급사" body="PU 공급사는 팀과 따로 적는 차원이다. 팀 이름에 공급사 이름이 들어 있지 않아도 이 표의 공급사를 따른다. 공급사 이름은 F1DB의 엔진 제조사 이름이다." />
       </aside>
     </div>
   </Section>
@@ -314,7 +314,7 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
               <SourceLine source={PU_SOURCE} asof={asof} />
             </div>
             <aside class="notes" aria-label="구성요소 사용 현황 주석">
-              <Note head="읽는 법" body="누적 개수는 드라이버가 아니라 팀의 차량 좌석에 붙는다. 대체 드라이버는 원래 드라이버의 개수를 이어받는다. 라운드 열은 누적 문서에 그 드라이버가 나온 라운드 수다." />
+              <Note head="누적 개수" body="누적 개수는 드라이버가 아니라 팀의 차량 좌석에 붙는다. 대체 드라이버는 원래 드라이버의 개수를 이어받는다. 라운드 열은 누적 문서에 그 드라이버가 나온 라운드 수다." />
               <Note head="허용 개수" body={allocNote} />
               <Note
                 head="주의"
@@ -364,8 +364,8 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
           </Figure>
         </Fragment>
       ) : (
-        <EmptyState title={`${season} 시즌 PU 구성요소 문서는 아직 읽지 않았다.`}>
-          FIA 문서 목록에는 이 시즌 문서가 있다. 문서를 받아 읽으면 이 자리에 표와 차트가 들어간다.
+        <EmptyState title={`${season} 시즌 PU 구성요소 문서를 읽지 않았다.`}>
+          FIA 문서 목록에는 이 시즌 문서가 있다.
         </EmptyState>
       )
     }
@@ -389,7 +389,7 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
           source={PU_SOURCE}
           asof={asof}
           notes={[
-            { head: '읽는 법', body: '행은 드라이버(팀 순서, 팀 경계에 가는 선), 열은 라운드다. 표 보기의 굵은 값이 새 ICE를 투입한 라운드의 누적 개수다.' },
+            { head: '행과 열', body: '행은 드라이버(팀 순서, 팀 경계에 가는 선), 열은 라운드다. 표 보기의 굵은 값이 새 ICE를 투입한 라운드의 누적 개수다.' },
             {
               head: '주의',
               caution: true,
@@ -414,14 +414,14 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
     )
   }
 
-  <Section id="coverage" title="문서 범위" read={`${E.first_season}-${E.last_season} 시즌마다 FIA PU 문서를 몇 건 읽었는지 적었다. 읽지 못한 문서의 값은 추측으로 채우지 않는다.`}>
+  <Section id="coverage" title="문서 범위" read="읽지 못한 문서의 값은 추측으로 채우지 않는다.">
     <div class="fig-row">
       <div class="fig">
         <DataTable caption="시즌별 PU 문서 범위" columns={coverageCols} rows={E.coverage} rowClass={(c) => (c.season === season ? 'hl' : '')} />
-        <SourceLine source={`FIA 결정 문서 목록(PU elements), 이 사이트 파싱`} asof={asof} />
+        <SourceLine source={`FIA 결정 문서 목록(PU elements), 이 사이트 추출`} asof={asof} />
       </div>
       <aside class="notes" aria-label="문서 범위 주석">
-        <Note head="읽는 법" body="누적 문서는 대회마다 나오는 PU elements used per driver up to now, 선언 문서는 그 대회에 새로 쓴 구성요소를 적은 문서다. 어긋난 칸은 앞 누적 값에 그 사이 선언된 개수를 더한 값이 다음 누적 값과 다른 칸이다." />
+        <Note head="문서 종류" body="누적 문서는 대회마다 나오는 PU elements used per driver up to now, 선언 문서는 그 대회에 새로 쓴 구성요소를 적은 문서다. 어긋난 칸은 앞 누적 값에 그 사이 선언된 개수를 더한 값이 다음 누적 값과 다른 칸이다." />
       </aside>
     </div>
   </Section>

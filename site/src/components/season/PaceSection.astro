@@ -69,7 +69,7 @@ const rColumns: Column[] = [
       num: true,
       render: (r) => {
         const v = r.teams[t.cid];
-        if (!v) return '결측';
+        if (!v) return '미상';
         return `${num(v[0], 2, { sign: true })}<span class="sub-line nw">${num(v[1], 2, { sign: true })} ~ ${num(v[2], 2, { sign: true })}</span>`;
       },
     }),
@@ -115,7 +115,7 @@ const kindItems = [
           twin={{ caption: `${year} 팀별 라운드별 퀄리파잉 지수 (%)`, columns: qColumns, rows: qRows }}
           notes={[
             {
-              head: '읽는 법',
+              head: '세로축',
               body:
                 '작은 차트는 모두 같은 세로축이라 칸끼리 높이를 그대로 비교할 수 있다. ' +
                 (x.wetJudged
@@ -124,7 +124,7 @@ const kindItems = [
             },
             {
               head: '표시 규칙',
-              body: `2003-2005 시즌은 참고용(빈 고리로만 찍고 선으로 잇지 않는다), ${WET_FROM - 1}년 이전 시즌은 우천 여부 미분류다. 대회마다 표 보기의 표시 칸과 캘린더에 같은 배지가 있다. ${QUALI_FROM - 1}년 이전 시즌은 이 절 대신 빈 상태 안내를 둔다.`,
+              body: `2003-2005 시즌은 참고용(빈 고리로만 찍고 선으로 잇지 않는다), ${WET_FROM - 1}년 이전 시즌은 우천 여부 미분류다. 대회마다 표 보기의 표시 칸과 캘린더에 같은 배지가 있다.`,
             },
           ]}
         />

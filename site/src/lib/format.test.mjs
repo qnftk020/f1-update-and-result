@@ -52,7 +52,7 @@ test('num: 지수 표기 반올림, 빼기 기호, 부호', async () => {
   assert.equal(num(-1.4569, 2, { sign: true }), '−1.46');
   assert.equal(num(0.0004, 3, { sign: true }), '0.000');
   assert.equal(num(1e-7, 3), '0.000');
-  assert.equal(num(null), '결측');
+  assert.equal(num(null), '미상');
   assert.equal(pct(1.336836475), '1.337%');
   assert.equal(ivl(-0.184, -0.39, 0.06), '−0.18 (−0.39 ~ +0.06)');
   assert.equal(josa('플로어', '이', '가'), '플로어가');

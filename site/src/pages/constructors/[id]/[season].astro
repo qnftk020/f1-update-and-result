@@ -122,7 +122,7 @@ const lines = (list: string[]) => list.map((x) => `<span class="kit-item" lang="
 const kitCols: Column<ConstructorKit>[] = [
   { label: '참가 팀', render: (k) => `<span lang="en">${esc(k.e)}</span>` },
   { label: '섀시', render: (k) => lines(k.c) },
-  { label: '엔진', render: (k) => (k.g.length ? lines(k.g) : '<span class="muted">결측</span>') },
+  { label: '엔진', render: (k) => (k.g.length ? lines(k.g) : '<span class="muted">미상</span>') },
 ];
 let kitRead = '';
 if (kit && kit.length === 1) {
@@ -161,7 +161,7 @@ const qSrc = `${JOLPICA} 예선 기록${f1dbRounds.length ? `, R${f1dbRounds.joi
 const qCols: Column[] = [
   { label: 'R', num: true, render: (r) => String(r.round) },
   { label: '대회', render: (r) => esc(r.short) },
-  { label: '지수 (%)', num: true, render: (r) => (r.teams[id] != null ? num(r.teams[id]) : '결측') },
+  { label: '지수 (%)', num: true, render: (r) => (r.teams[id] != null ? num(r.teams[id]) : '미상') },
   { label: '필드 중앙값', num: true, render: (r) => (r.field ? num(r.field.med) : '') },
   { label: '노면', render: (r) => (r.wet === 'wet' ? '우천' : r.wet === 'dry' ? '마른 노면' : '미분류') },
 ];
@@ -186,7 +186,7 @@ const pickGroups = [...decades.entries()].reverse().map(([d, ys]) => ({
 }));
 const facts: [string, string][] = [
   ['이름', `<span lang="en">${esc(row.name)}</span>`],
-  ['엔진', row.engine ? `<span lang="en">${esc(row.engine)}</span>` : '결측'],
+  ['엔진', row.engine ? `<span lang="en">${esc(row.engine)}</span>` : '미상'],
   ['드라이버', drivers.map((d) => driverLink(d.id, `<span lang="en" class="nw">${esc(d.name)}</span>`)).join(', ')],
 ];
 if (kitChassis.length) {
@@ -200,7 +200,7 @@ const description = `${c.name}의 ${season} 시즌 결승 기록: 대회별 결�
 
 <BaseLayout title={title} description={description} current="teams">
   <PageHead
-    kicker={[`<a href="${routes.constructors()}">컨스트럭터</a>`, `<a href="${routes.constructorPage(id)}" lang="en">${esc(c.name)}</a>`, `<a href="${routes.season(season)}">${season} 시즌</a>`]}
+    kicker={[`<a href="${routes.constructors()}">컨스트럭터</a>`, `<a href="${routes.constructorPage(id)}" lang="en">${esc(c.name)}</a>`]}
     title={`${en(esc(c.name))} <span class="yr">${season}</span>`}
     lead={M.lead}
     facts={facts}
@@ -262,7 +262,7 @@ const description = `${c.name}의 ${season} 시즌 결승 기록: 대회별 결�
           id="f-round"
           title="라운드 뒤 컨스트럭터 순위"
           scope={`${season} · ${roundCount}개 라운드 · 위가 1위다`}
-          sub="라운드가 끝날 때마다의 Jolpica 컨스트럭터 순위다. 핑크 점은 1위로 마친 라운드다."
+          sub="라운드가 끝날 때마다의 Jolpica 컨스트럭터 순위다."
           legend={[
             { type: 'line', color: 's1', label: '라운드 뒤 순위' },
             ...(leadRounds ? [{ type: 'dot' as const, color: 's2', label: '1위였던 라운드' }] : []),
@@ -290,7 +290,7 @@ const description = `${c.name}의 ${season} 시즌 결승 기록: 대회별 결�
           id="f-q"
           title={`<span lang="en">${esc(row.name)}</span> 퀄리파잉 지수와 필드`}
           scope={`${season} · 라운드별 · 위가 빠르다`}
-          sub="세션 최고 랩 대비 팀 최고 랩의 차이(%)다. 0이 그 예선의 가장 빠른 팀이고, 위로 갈수록 빠르다. 회색 선과 띠는 그 대회 필드의 중앙값과 가운데 절반이다."
+          sub="세션 최고 랩 대비 팀 최고 랩의 차이(%)다. 0이 그 예선의 가장 빠른 팀이다."
           legend={[
             { type: 'line', color: 's1', label: `<span lang="en">${esc(row.name)}</span>` },
             { type: 'line', color: 'ctx', label: '필드 중앙값' },

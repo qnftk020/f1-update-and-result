@@ -18,7 +18,7 @@ export function ranked(h: Home): ClassificationRow[] {
 
 /** 결과 표의 기록 칸: 차이에는 '초'를 붙인다(랩 차이와 우승 기록은 그대로). 기록이 없으면 '미완주' */
 export function timeText(c: ClassificationRow): string {
-  if (!c.time) return c.classified ? '결측' : '미완주';
+  if (!c.time) return c.classified ? '미상' : '미완주';
   return c.time.startsWith('+') && !c.time.includes('랩') ? `${c.time}초` : c.time;
 }
 

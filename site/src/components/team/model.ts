@@ -142,27 +142,26 @@ export function buildTeam(team: Team) {
   const latin = `${baseCity} · ${C}`;
   const facts: [string, string][] = [
     [`${last} 컨스트럭터`, Ce],
-    ['참가 명칭', team.entrant ? en(esc(team.entrant)) : '결측'],
+    ['참가 명칭', team.entrant ? en(esc(team.entrant)) : '미상'],
     ['거점', en(esc(team.base))],
-    [`PU 공급사 (${last})`, team.pu ? en(esc(team.pu.name)) : '결측'],
+    [`PU 공급사 (${last})`, team.pu ? en(esc(team.pu.name)) : '미상'],
     [
       `${last} 드라이버`,
-      team.drivers_last.map((d) => `<span lang="en" class="nw">${driverLink(d.id, esc(d.name))}</span>`).join(', ') || '결측',
+      team.drivers_last.map((d) => `<span lang="en" class="nw">${driverLink(d.id, esc(d.name))}</span>`).join(', ') || '미상',
     ],
   ];
 
   // ---------------------------------------------------------------- 범위 막대
-  const nameCount = eras.length > 1 ? `이름 ${eras.length}개 구간` : `Jolpica ID ${team.segments.length}개 구간`;
-  const idNote = eras.length > 1 ? '' : ` (Jolpica ID <span class="mono">${esc(team.constructor.id)}</span> 구간)`;
+  const nameCount = eras.length > 1 ? `이름 ${eras.length}개 구간` : `컨스트럭터 이름 ${team.segments.length}개 구간`;
   const scopeOn = hasSwitch
-    ? `보는 범위: <b>${esc(short)} 계보 전체 ${first}-${lastTo}</b>, ${nameCount}. 계보 띠, 긴 흐름 차트, 시즌별 기록에 적용된다.`
+    ? `보는 범위: <b>${esc(short)} 계보 전체 ${first}-${lastTo}</b>, ${nameCount}.`
     : `보는 범위: <b>${Ce} ${first}-${lastTo}</b>. 계보 전체가 한 컨스트럭터라 계보 보기 전환을 두지 않는다.`;
   const paceYears = Object.keys(team.upgrades.timeline).map(Number).sort((a, c) => a - c);
   const py0 = paceYears[0];
   const pyN = paceYears[paceYears.length - 1];
   const paceNames = [...new Set(team.seasons.filter((r) => r.season >= py0).map((r) => r.team_name))];
   const scopeOff =
-    `보는 범위: <b>현재 컨스트럭터 ${Ce} ${rangeText(curFrom, lastTo)}</b>${idNote}. ` +
+    `보는 범위: <b>현재 컨스트럭터 ${Ce} ${rangeText(curFrom, lastTo)}</b>. ` +
     (curFrom <= py0
       ? `업그레이드와 시즌 안의 페이스는 원래 ${Ce} 시기다.`
       : `업그레이드와 시즌 안의 페이스(${py0}-${pyN})는 이 전환과 관계없이 앞 이름(${listNames(paceNames.filter((n) => n !== C))}) 시기를 함께 싣는다.`);
@@ -187,10 +186,8 @@ export function buildTeam(team: Team) {
   const segNotes = [...new Set(team.segments.map((s) => s.note).filter((n): n is string => Boolean(n)))];
   const linNotes: { head: string; body: string; caution?: boolean }[] = [
     {
-      head: '읽는 법',
-      body:
-        `칸 너비는 시즌 수에 비례한다. 파란 윗줄이 ${last} 컨스트럭터다.` +
-        (hasSwitch ? ` 계보 보기를 끄면 ${Ce} 시기(${rangeText(curFrom, lastTo)})만 남는다.` : ''),
+      head: '계보 띠',
+      body: `칸 너비는 시즌 수에 비례한다. 파란 윗줄이 ${last} 컨스트럭터다.`,
     },
   ];
   if (segNotes.length) {
@@ -332,7 +329,7 @@ export function buildTeam(team: Team) {
   const puSpans: { from: number; to: number; pu: string; teams: string[] }[] = [];
   for (const s of seasonsAsc) {
     const rows = bySeason.get(s)!;
-    const pu = [...new Set(rows.map((r) => r.pu?.name ?? '결측'))].join(' · ');
+    const pu = [...new Set(rows.map((r) => r.pu?.name ?? '미상'))].join(' · ');
     const names = [...new Set(rows.map((r) => r.team_name))];
     const prev = puSpans[puSpans.length - 1];
     if (prev && prev.pu === pu && prev.to === s - 1) {

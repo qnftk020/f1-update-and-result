@@ -135,7 +135,7 @@ const finalCols: Column[] = [
       // 문서 값이 없는 행은 첫 구성요소 칸에만 글자를 보이고, 나머지 칸은 화면 읽기 프로그램에만 읽힌다(표 폭을 줄인다).
       if (!d.pu) return i === 0 ? '<span class="nw pu-none">문서 없음</span>' : '<span class="sr-only">문서 없음</span>';
       const v = d.pu.final[e];
-      if (v == null) return '결측';
+      if (v == null) return '미상';
       return d.pu.exceed?.includes(e) ? `<span class="pu-ex"><b>${v}</b>${exceedMark}</span>` : String(v);
     },
   })),
@@ -164,7 +164,7 @@ const legend = drivers
   .slice(0, 3)
   .map((d, k) => ({ type: 'line' as const, color: ['s1', 's2', 's3'][k], label: `${en(esc(d.name))}${d.code ? ` <span lang="en">(${esc(d.code)})</span>` : ''}` }));
 if (drivers.length > 3) legend.push({ type: 'line' as const, color: 'ctx', label: '넷째 드라이버부터' });
-const src = `FIA PU elements used 문서, 이 사이트 파싱`;
+const src = `FIA PU elements used 문서, 이 사이트 추출`;
 const asof = engines ? `${nw(esc(engines.as_of))} 수집` : '';
 const iceVals = drivers.map((d) => d.final.ICE).filter((v): v is number => v != null);
 const iceAllow = season?.allocation?.ICE?.allowed ?? null;
@@ -281,8 +281,7 @@ const allocSource = (() => {
     </Fragment>
   ) : (
     <Notice>
-      <b>준비 중이다.</b> FIA의 PU elements 문서에서 읽은 드라이버별 누적 사용 개수를 사이트용 자료로 아직 내보내지 않았다. 자료가 들어오면 이 절과{' '}
-      <a href={routes.engines()}>엔진 페이지</a>에 함께 싣는다. 그 전까지 표본 값이나 추정 값은 싣지 않는다.
+      <b>PU 구성요소 자료가 없다.</b> 표본 값이나 추정 값은 싣지 않는다.
     </Notice>
   )
 }

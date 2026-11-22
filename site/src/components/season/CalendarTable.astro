@@ -15,7 +15,7 @@ const { season } = Astro.props;
 const { source, asof } = calendarSource(season);
 
 function winnersHtml(r: Round): string {
-  if (!r.winners.length) return '결측';
+  if (!r.winners.length) return '미상';
   const names = r.winners.map((w) => driverLink(w.id, esc(w.name))).join(', ');
   const teams = [...new Set(r.winners.map((w) => w.constructor))].map(esc).join(', ');
   return `<span class="who">${names}</span><span class="sub-line">${teams}</span>`;
@@ -23,7 +23,7 @@ function winnersHtml(r: Round): string {
 
 function poleHtml(r: Round): string {
   const p = r.pole[0];
-  if (!p) return '결측';
+  if (!p) return '미상';
   return driverLink(p.id, `<span class="mono" title="${esc(p.name)}">${esc(shortName(p))}</span>`);
 }
 

@@ -134,7 +134,7 @@ export function newIceMatrix(rows, { width, rounds, missing = [], allowed = null
       Plot.dot(cells.filter((c) => c.raced && !c.fresh), { x: "round", y: "key", r: 1.6, fill: C.axis }),
       Plot.dot(cells.filter((c) => c.fresh && c.over), { x: "round", y: "key", r: 7.5, fill: "none", stroke: C.ink, strokeWidth: 1.5 }),
       Plot.dot(cells.filter((c) => c.fresh), { x: "round", y: "key", r: 4.5, fill: C.s1, stroke: C.paper, strokeWidth: 2 }),
-      Plot.text(rows, { y: "id", frameAnchor: "right", dx: mr - 4, textAnchor: "end", fill: C.ink2, fontVariant: "tabular-nums", text: (d) => { const last = d.ice.filter((x) => x != null).at(-1); return last == null ? "결측" : `${last}개`; } }),
+      Plot.text(rows, { y: "id", frameAnchor: "right", dx: mr - 4, textAnchor: "end", fill: C.ink2, fontVariant: "tabular-nums", text: (d) => { const last = d.ice.filter((x) => x != null).at(-1); return last == null ? "미상" : `${last}개`; } }),
       Plot.axisY({ tickSize: 0, tickPadding: 8, fill: C.ink, fontSize: 13, label: null, tickFormat: (k) => lab(rows.find((d) => d.id === k)) }),
       Plot.axisX({ tickSize: 0, tickPadding: 6, label: null, ticks: Array.from({ length: n }, (_, i) => i + 1), tickFormat: roundTick(narrow, n) }),
     ],

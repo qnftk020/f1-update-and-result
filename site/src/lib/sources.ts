@@ -1,6 +1,7 @@
 // 출처 줄과 기준일 문구. DESIGN.md "출처 줄 형식":
-//   출처 {데이터원} {자료 종류} ({라이선스}){, 이 사이트 계산(방법)} · 기준일 {날짜} {덤프|수집|확인}{, 지수 {날짜} 계산}
+//   출처 {데이터원} {자료 종류} ({라이선스}){, 이 사이트 계산(방법)} · 기준일 {날짜} {수집|확인}{, 지수 {날짜} 계산}
 // 날짜는 모두 meta.json에서 온다. Jolpica 기준일은 언제나 덤프 날짜다(빌드일, 추출일을 쓰지 않는다).
+// 화면에는 "덤프", "API" 같은 수집 방식 낱말을 쓰지 않는다. 덤프와 API 반영의 구분은 /about/sources/에서 설명한다.
 // 돌려주는 값은 HTML 조각이다(날짜를 .nw로 묶는다). Figure, SourceLine의 source/asof 속성에 그대로 넘긴다.
 import { meta } from './data.ts';
 import { n0 } from './format.ts';
@@ -16,14 +17,14 @@ export const OPENF1_LICENSE = S.openf1.license;
 export const OPENF1 = S.openf1.name;
 export const FIA_CP = 'FIA Car Presentation Submissions';
 
-/** Jolpica 기준일: '2026-10-27 덤프' (API로 대회를 더 반영했으면 ', API 2025 R24 2026-12-08 수집'이 붙는다) */
+/** Jolpica 기준일: '2026-10-27' (덤프 뒤에 API로 대회를 더 반영했으면 ', 2025 R24는 2026-11-11 반영'이 붙는다) */
 export function asofJolpica(): string {
   const j = S.jolpica;
-  const base = `${nw(j.dump ?? j.version.slice(0, 10))} 덤프`;
-  return j.api ? `${base}, API ${j.api} ${nw(j.as_of)} 수집` : base;
+  const base = nw(j.dump ?? j.version.slice(0, 10));
+  return j.api ? `${base}, ${nw(j.api)}는 ${nw(j.as_of)} 반영` : base;
 }
 
-/** 퀄리파잉 지수: '2026-10-27 덤프, 지수 2026-11-11 계산' */
+/** 퀄리파잉 지수: '2026-10-27, 2025 R24는 2026-11-11 반영, 지수 2026-11-11 계산' */
 export function asofQualiIndex(): string {
   return `${asofJolpica()}, 지수 ${nw(S.pace.as_of)} 계산`;
 }

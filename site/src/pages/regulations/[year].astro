@@ -49,9 +49,9 @@ const g = Y.grade;
 const gradeText = {
   A:
     year >= 2018
-      ? '등급 A 시기다. fia.com 규정 아카이브의 텍스트 PDF이고, 연도와 규정마다 한 판을 조항 단위로 파싱했다.'
-      : '등급 A 시기다. argent.fia.com 구 서버와 fia.com의 텍스트 PDF 링크를 모았다. 조항 파싱은 2018년 이후 문서만 한다.',
-  B: '등급 B 시기다. 제3자 미러와 웹 아카이브 사본이라 FIA 원본과 동일성을 검증하지 않았다. 조항 파싱은 하지 않고 링크와 요약만 싣는다.',
+      ? '등급 A 시기다. fia.com 규정 아카이브의 텍스트 PDF이고, 연도와 규정마다 한 판을 조항 단위로 나눴다.'
+      : '등급 A 시기다. argent.fia.com 구 서버와 fia.com의 텍스트 PDF 링크다. 조항 단위 비교는 2018년 이후 문서만 한다.',
+  B: '등급 B 시기다. 제3자 미러와 웹 아카이브 사본이라 FIA 원본과 동일성을 검증하지 않았다. 조항은 나누지 않고 링크와 요약만 싣는다.',
   C: '등급 C 시기다. historicdb.fia.com 스캔본과 웹 아카이브 사본의 링크와 주요 변경 요약만 싣는다. OCR 결과는 사실 근거로 쓰지 않는다.',
 }[g];
 const bothFound = Y.technical.found && Y.sporting.found;
@@ -68,14 +68,14 @@ const facts: [string, string][] = [
   ['주요 변경 요약', `${summaries.length}건`],
 ];
 
-const STATUS_KO: Record<string, string> = { parsed: '조항 파싱', listed: '목록만 확인', linked: '링크', needs_review: '검수 대기' };
+const STATUS_KO: Record<string, string> = { parsed: '조항 추출', listed: '목록만 확인', linked: '링크', needs_review: '검수 대기' };
 // 검수 대기 판은 배지 아래에 까닭을 적는다(review_reasons, pipeline/site_data_extra.py review_reasons).
 const reasonsHtml = (reasons: string[]) => (reasons.length ? `<span class="rnote">${reasons.map((r) => esc(r)).join(' ')}</span>` : '');
 const statusHtml = (d: RegDocument) =>
   d.status === 'needs_review'
     ? `${badgeHtml('review', '검수 대기')}${reasonsHtml(d.review_reasons ?? [])}`
     : d.status === 'parsed'
-      ? `조항 파싱${d.clauses ? `<span class="sub-line">${n0(d.clauses)}개 조항</span>` : ''}`
+      ? `조항 추출${d.clauses ? `<span class="sub-line">${n0(d.clauses)}개 조항</span>` : ''}`
       : STATUS_KO[d.status] ?? esc(d.status);
 const langAttr = (l: string | null) => (l === 'fr' ? 'fr' : l === 'en' ? 'en' : null);
 // 두 언어를 함께 쓴 문서(language 'en/fr', 'fr+en' 등)는 제목을 " / "로 나눠 조각마다 언어를 단다.
@@ -152,7 +152,7 @@ const cmpLine = (c: RegComparison) =>
   '. ' +
   `앞 판 ${c.from_season} ${ver(c.from_issue, c.from_version, c.from_url)}, 뒤 판 ${c.to_season} ${ver(c.to_issue, c.to_version, c.to_url)}. 그대로인 조항은 ${n0(c.unchanged)}개다.`;
 const noCmpText = (sec: Sec) => {
-  if (year === 2018) return '2017년 이전 문서는 조항을 파싱하지 않아 2018년 문서는 비교할 앞 해 판이 없다.';
+  if (year === 2018) return '2017년 이전 문서는 조항 단위로 나누지 않아 2018년 문서는 비교할 앞 해 판이 없다.';
   const review = docs.find((d) => d.section === sec && d.status === 'needs_review');
   if (review)
     return `${year} ${SECTION_KO[sec]} ${issueName(review.issue, review.version)}은 검수 대기라 비교에 넣지 않았다. ${(review.review_reasons ?? []).join(' ')}`;
@@ -172,7 +172,7 @@ const yearFacts: RegFact[] = (R.facts?.[String(year)] ?? [])
   .slice()
   .sort((a, b) => b.section.localeCompare(a.section) || b.kind.localeCompare(a.kind));
 const stateKo = (status: string | null | undefined) =>
-  status === 'needs_review' ? '검수 대기' : status === 'listed' ? '받지 않음' : status === 'parsed' ? '조항 파싱' : esc(status ?? '상태 기록 없음');
+  status === 'needs_review' ? '검수 대기' : status === 'listed' ? '받지 않음' : status === 'parsed' ? '조항 추출' : esc(status ?? '상태 기록 없음');
 const factIssueHtml = (f: RegFact) => {
   const name = f.issue ? `Issue ${esc(f.issue)}` : nw(esc(f.version_key ?? ''));
   const head = f.url ? `<a href="${esc(f.url)}" rel="noopener">${name}</a>` : name;
@@ -209,7 +209,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
 
 <BaseLayout title={`규정 아카이브 ${year}`} description={`${year}년 F1 기술 규정과 스포팅 규정 문서 목록, 등급, 원문 링크${year >= 2018 ? ', 앞 해와의 조항 비교' : ''}.`} current="regulations">
   <RegStyle />
-  <PageHead kicker={[`<a href="${routes.regulations()}">규정 아카이브</a>`, `등급 ${g}`, String(year)]} title={`${year} 규정 문서`} lead={lead} facts={facts}>
+  <PageHead kicker={[`<a href="${routes.regulations()}">규정 아카이브</a>`]} title={`${year} 규정 문서`} lead={lead} facts={facts}>
     <div class="reg-block">
       <LinkPick summary="다른 연도 고르기" navLabel="규정 아카이브 연도" groups={pick} />
     </div>
@@ -221,7 +221,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
         <Notice badges={g === 'B' ? [['unverified', '원본 미검증']] : [['scan', '스캔본']]}>
           {g === 'B' ? (
             <Fragment>
-              <b>등급 B.</b> FIA 원본과 동일성을 검증하지 않았다. 조항 파싱은 하지 않는다.
+              <b>등급 B.</b> FIA 원본과 동일성을 검증하지 않았다. 조항은 나누지 않는다.
             </Fragment>
           ) : (
             <Fragment>
@@ -239,7 +239,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
         <Fragment>
           <DataTable caption={`${year} 규정 문서 목록`} columns={docCols} rows={docRows} rowClass={docBreak} />
           <SourceLine
-            source={year >= 2018 ? 'fia.com 규정 아카이브 목록, 이 사이트 파싱' : year >= 2008 ? 'argent.fia.com, fia.com (Wayback Machine 목록에서 찾은 주소), 이 사이트 정리' : 'historicdb.fia.com, Wayback Machine, 제3자 미러, 이 사이트 정리'}
+            source={year >= 2018 ? 'fia.com 규정 아카이브 목록, 이 사이트 추출' : year >= 2008 ? 'argent.fia.com, fia.com (Wayback Machine 목록에서 찾은 주소), 이 사이트 정리' : 'historicdb.fia.com, Wayback Machine, 제3자 미러, 이 사이트 정리'}
             asof={asof}
           />
         </Fragment>
@@ -291,7 +291,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
         id="facts"
         title="규정에서 읽은 수치"
         meta={`${yearFacts.length}개`}
-        read="PU 구성요소 할당 수와 연료 조항의 수치를 시즌의 마지막으로 파싱한 판에서 읽었다. 값, 조항 번호, 쪽, 읽은 판만 싣고 조항 본문은 싣지 않는다."
+        read="PU 구성요소 할당 수와 연료 조항의 수치를 시즌의 마지막으로 읽은 판에서 읽었다. 값, 조항 번호, 쪽, 읽은 판만 싣고 조항 본문은 싣지 않는다."
       >
         {nonFinal.length > 0 && (
           <div class="reg-block">
@@ -300,7 +300,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
         )}
         <div class="reg-block">
           <DataTable caption={`${year} 규정에서 읽은 수치`} columns={factCols} rows={yearFacts} />
-          <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 파싱(값과 조항 번호)" asof={asof} />
+          <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 추출(값과 조항 번호)" asof={asof} />
         </div>
       </Section>
     )
@@ -308,7 +308,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
 
   {
     year >= 2018 && (
-      <Section id="compare" title="조항 비교" meta={`${year - 1} → ${year}`} read="앞 해의 마지막으로 파싱한 판과 이 해의 마지막으로 파싱한 판을 조항 단위로 비교했다. 조항은 먼저 같은 번호로 맞추고, 번호가 바뀐 조항은 같은 글이나 낱말 유사도 0.8 이상인 글로 찾아 짝짓는다. 수정은 짝지은 조항의 번호, 소제목, 글, 그림 가운데 하나라도 달라진 것이고, 추가와 삭제는 짝이 없는 조항이다. 조항 번호와 제목, 변경 유형, 쪽만 싣고 본문은 싣지 않는다.">
+      <Section id="compare" title="조항 비교" meta={`${year - 1} → ${year}`} read="앞 해의 마지막으로 읽은 판과 이 해의 마지막으로 읽은 판을 조항 단위로 비교했다. 조항은 먼저 같은 번호로 맞추고, 번호가 바뀐 조항은 같은 글이나 낱말 유사도 0.8 이상인 글로 찾아 짝짓는다. 수정은 짝지은 조항의 번호, 소제목, 글, 그림 가운데 하나라도 달라진 것이고, 추가와 삭제는 짝이 없는 조항이다. 조항 번호와 제목, 변경 유형, 쪽만 싣고 본문은 싣지 않는다.">
         {SECTIONS.map((sec) => {
           const c = cmpOf(sec);
           const nx = nextOf(sec);
@@ -340,7 +340,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
                   ) : (
                     <EmptyState title="두 판 사이에 바뀐 조항이 0개다." />
                   )}
-                  <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 파싱(조항 번호, 제목, 변경 유형)" asof={asof} />
+                  <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 추출(조항 번호, 제목, 변경 유형)" asof={asof} />
                 </Fragment>
               ) : (
                 <div class="reg-block">
@@ -363,7 +363,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
                       .map((x) => (
                         <p class="axis-note" set:html={`${esc(issueName(x.from_issue, x.from_version))} → ${esc(issueName(x.to_issue, x.to_version))}: ${skippedHtml(x, esc)}`} />
                       ))}
-                    <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 파싱(같은 해 파싱한 판끼리 차례로 비교)" asof={asof} />
+                    <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 추출(같은 해 읽은 판끼리 차례로 비교)" asof={asof} />
                   </Expand>
                 </div>
               )}

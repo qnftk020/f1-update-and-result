@@ -8,7 +8,7 @@ import { CAUSE_KO } from '../../lib/constructors-data.ts';
 import { formatPoints, n0, num } from '../../lib/format.ts';
 import { aside, b, en, esc, nw } from '../../lib/typeset.ts';
 
-export const pts = (x: number | null | undefined) => (x == null ? '결측' : formatPoints(Math.round(x * 100) / 100));
+export const pts = (x: number | null | undefined) => (x == null ? '미상' : formatPoints(Math.round(x * 100) / 100));
 const pc = (a: number, n: number, d = 1) => (n ? `${num((a / n) * 100, d)}%` : '');
 /** 연도 목록 글: 구간마다 줄바꿈하지 않게 묶고, 구간 사이에서는 줄을 바꿀 수 있게 둔다 */
 const yearsHtml = (years: number[]) => yearsText(years).split(', ').map(nw).join(', ');
@@ -77,7 +77,7 @@ export function buildConstructor(c: ConstructorFile) {
 
   const engines = [...new Set(rows.map((r) => r.engine).filter(Boolean))] as string[];
   const facts: [string, string][] = [
-    ['국적', c.nationality_ko ? esc(c.nationality_ko) : '결측'],
+    ['국적', c.nationality_ko ? esc(c.nationality_ko) : '미상'],
     ['결승', `${nw(span(c.first_season, c.last_season))}, ${c.seasons}개 시즌`],
     ['드라이버', `${c.drivers_n}명`],
   ];

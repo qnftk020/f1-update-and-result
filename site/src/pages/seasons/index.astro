@@ -25,7 +25,7 @@ const qFrom = Math.min(...qualiYears);
 const rFrom = Math.min(...raceYears);
 
 const lead =
-  `${first}년부터 ${last}년까지 ${b(`${seasons.length}개 시즌`)}, ${b(`${n0(races)}개 대회`)}를 실었다. ` +
+  `${first}년부터 ${last}년까지 ${b(`${seasons.length}개 시즌`)}에 ${b(`${n0(races)}개 대회`)}가 열렸다. ` +
   `퀄리파잉 지수는 ${qFrom}년부터 ${qualiYears.length}개 시즌, 레이스 지수는 ${rFrom}년부터 ${raceYears.length}개 시즌에 있다. ` +
   `컨스트럭터 순위는 1958년부터 있다.`;
 
@@ -45,7 +45,7 @@ const columns: Column<SeasonSummary>[] = [
     render: (r) =>
       r.champion_driver
         ? `<span class="who">${esc(r.champion_driver.name)}</span><span class="sub-line">${esc(r.champion_driver.constructors.join(', '))} · ${pts(r.champion_driver.final_points)}점</span>`
-        : '결측',
+        : '미상',
   },
   {
     label: '컨스트럭터 1위',
@@ -63,7 +63,6 @@ const segItems = decades.map((d, i) => ({ value: String(d.dec), label: `${d.dec}
 
 <BaseLayout title="시즌" description={`${first}-${last} F1 시즌 목록과 드라이버, 컨스트럭터 순위 1위`} current="seasons">
   <PageHead
-    kicker={['시즌', `<span class="nw">${first}-${last}</span>`, `${seasons.length}개 시즌`]}
     title="시즌"
     lead={lead}
     facts={[
@@ -76,7 +75,7 @@ const segItems = decades.map((d, i) => ({ value: String(d.dec), label: `${d.dec}
 
   <ChampionshipSections />
 
-  <Section id="list" title="시즌 목록" read="연대별 표다. 시즌을 누르면 그 시즌의 캘린더와 우승자, 순위 추이, 팀 페이스 쪽으로 간다.">
+  <Section id="list" title="시즌 목록">
     <div class="dec-row" data-js-only><Seg label="연대 고르기" attr="decade" items={segItems} id="dec-pick" /></div>
     {
       decades.map((d) => (

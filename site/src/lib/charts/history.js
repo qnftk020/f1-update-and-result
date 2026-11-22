@@ -127,7 +127,7 @@ export function titleDots(input, { width, label = "타이틀 시즌" }) {
     py: ys.apply(d.key) + rowH / 2, px: xs.apply(Math.max(...d.seasons)),
     head: d.name,
     rows: [{ value: `${d.n}회`, label: "타이틀", key: { type: "dot", color: C.s1 } }],
-    note: `${d.seasons.join(", ")}. ${d.sub}`,
+    note: d.sub ? `${d.seasons.join(", ")}. ${d.sub}` : `${d.seasons.join(", ")}.`,
   }));
   const w = frameOf(svg);
   readout(w, svg, stops, { axis: "y", label, rowH });

@@ -29,7 +29,6 @@ const nameRef = (t: TeamSummary, particle: (w: string) => string) => {
 };
 
 const lead =
-  `${last} 그리드 ${teams.length}개 팀을 이름이 바뀌어도 조직이 이어진 흐름(계보)으로 묶었다. ` +
   `가장 오래된 계보는 ${oldest.since}년부터 이어진 ${nameRef(oldest, (w) => `${w}이고`)}, 가장 짧은 계보는 ${youngest.since}년에 출발한 ${nameRef(youngest, (w) => josa(w, '이다', '다'))}. ` +
   `이름이 가장 많이 바뀐 계보는 ${nameRef(mostNames, ro)} 이름 ${mostNames.names.length}개를 거쳤고, ${single.length}개 계보는 처음 이름 그대로다.`;
 
@@ -42,7 +41,7 @@ const cols: Column<TeamSummary>[] = [
       `<a class="row-link" href="${routes.team(t.lineage_id)}"><b>${esc(t.name_ko)}</b></a><span class="sub-line" lang="en">${esc(t.base)}</span>`,
   },
   { label: `${last} 컨스트럭터`, cls: 'hide-sm', render: (t) => `<span class="nw" lang="en">${esc(t.constructor.name)}</span>` },
-  { label: 'PU', cls: 'hide-sm', render: (t) => (t.pu ? `<span class="nw" lang="en">${esc(t.pu.name)}</span>` : '결측') },
+  { label: 'PU', cls: 'hide-sm', render: (t) => (t.pu ? `<span class="nw" lang="en">${esc(t.pu.name)}</span>` : '미상') },
   { label: '이름', num: true, cls: 'hide-xs', render: (t) => `${t.names.length}개` },
   { label: '첫 시즌', num: true, render: (t) => String(t.since) },
   { label: `${last} 순위`, num: true, cls: 'pos', render: (t) => (t.last?.position ? `${t.last.position}위` : '미부여') },
@@ -66,17 +65,17 @@ const cols: Column<TeamSummary>[] = [
 const fastest = rows.filter((t) => t.last?.quali_index_mean != null).sort((a, c) => a.last!.quali_index_mean! - c.last!.quali_index_mean!)[0];
 const read =
   `표는 ${last} 컨스트럭터 순위 순서다. 예선 평균 지수는 마른 예선에서 팀 최고 랩이 세션 최고 랩보다 평균 몇 % 느렸는지이며, ` +
-  `${en(esc(fastest.constructor.name))} 팀이 ${b(pct(fastest.last!.quali_index_mean))}로 가장 작다. 행을 누르면 그 계보의 팀 페이지로 간다.`;
+  `${en(esc(fastest.constructor.name))} 팀이 ${b(pct(fastest.last!.quali_index_mean))}로 가장 작다.`;
 ---
 
 <BaseLayout title="팀" description={`${last} 그리드 ${teams.length}개 팀의 계보, 순위, 예선 지수, 업그레이드 항목 수`} current="teams">
-  <PageHead kicker={['팀', `${last} 그리드의 ${teams.length}개 계보`]} title="팀" lead={lead} />
+  <PageHead title="팀" lead={lead} />
   <Section id="list" title="계보 목록" read={read} meta={`${last} 컨스트럭터 순위 순`}>
     <div class="fig-row wide">
       <div class="fig">
         <DataTable class="team-list" caption={`${last} 그리드 ${teams.length}개 계보`} columns={cols} rows={rows} />
         <SourceLine
-          source={`이 사이트의 계보 테이블(F1DB chronology에서 출발), 순위와 점수는 ${JOLPICA}, 예선 지수는 이 사이트 계산, 업그레이드 항목은 FIA Car Presentation Submissions(2023-${last})`}
+          source={`이 사이트의 계보 자료(F1DB chronology에서 출발), 순위와 점수는 ${JOLPICA}, 예선 지수는 이 사이트 계산, 업그레이드 항목은 FIA Car Presentation Submissions(2023-${last})`}
           asof={asofQualiIndex()}
         />
         <p class="ctr-link">
@@ -86,7 +85,7 @@ const read =
       </div>
       <aside class="notes" aria-label="계보 목록 주석">
         <div class="note">
-          <p class="note-h">읽는 법</p>
+          <p class="note-h">계보</p>
           <p>
             계보는 참가 명칭과 컨스트럭터 이름이 바뀌어도 같은 공장과 조직이 이어진 흐름이다. 이름 수는 계보 안에서 쓴 컨스트럭터 이름의 개수다. 연결
             근거는 팀 페이지의 "구간별 표와 연결 근거 보기"에 있다.

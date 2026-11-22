@@ -57,13 +57,13 @@ const segCols: Column[] = [
   { label: '기간', render: (s) => nw(s.from === s.to ? String(s.from) : `${s.from}-${s.to}`) },
   { label: '팀', render: (s) => constructorLink(s.constructor_id, en(esc(s.team_name))) },
   { label: '연결', render: (s) => esc(s.link_type_ko) },
-  { label: 'Jolpica ID', render: (s) => `<span class="mono">${esc(s.constructor_id)}</span>` },
+  { label: 'Jolpica 컨스트럭터', render: (s) => `<span class="mono">${esc(s.constructor_id)}</span>` },
   { label: '메모', cls: 'hide-sm', render: (s) => (s.note ? esc(s.note) : '') },
 ];
 const KIND: Record<string, string> = { link: '연결', exclusion: '제외' };
 const evCols: Column[] = [
   { label: '시즌', render: (e) => String(e.season_from) },
-  { label: 'Jolpica ID', render: (e) => `<span class="mono">${esc(e.constructor_id)}</span>` },
+  { label: 'Jolpica 컨스트럭터', render: (e) => `<span class="mono">${esc(e.constructor_id)}</span>` },
   { label: '근거', render: (e) => esc(KIND[e.kind] ?? e.kind) },
   { label: '원문 인용', render: (e) => `<q lang="en">${esc(e.quote)}</q>` },
   {
@@ -121,7 +121,7 @@ const qCols = (y: string): Column[] => [
 const rCols = (y: string): Column[] => [
   { label: '라운드', num: true, render: (r) => String(r.round) },
   { label: '대회', render: (r) => esc(r.short) },
-  { label: '지수', num: true, render: (r) => (r.teams[M.pace[y].cid] ? num(r.teams[M.pace[y].cid][0], 2, { sign: true }) : '결측') },
+  { label: '지수', num: true, render: (r) => (r.teams[M.pace[y].cid] ? num(r.teams[M.pace[y].cid][0], 2, { sign: true }) : '미상') },
   {
     label: '95% 구간',
     num: true,
@@ -189,7 +189,7 @@ const trendSrc =
 const recCols: Column[] = [
   { label: '시즌', render: (r) => String(r.season) },
   { label: '팀', cls: 'who', render: (r) => `${constructorLink(r.constructor_id, en(esc(r.team_name)), r.season)}${dup(r)}` },
-  { label: 'PU', cls: 'hide-sm', render: (r) => (r.pu ? en(esc(r.pu.name)) : '결측') },
+  { label: 'PU', cls: 'hide-sm', render: (r) => (r.pu ? en(esc(r.pu.name)) : '미상') },
   { label: '순위', num: true, render: (r) => (r.position ? `${r.position}위` : '<span class="muted">미부여</span>') },
   { label: '점수', num: true, render: (r) => formatPoints(r.points ?? 0) },
   { label: '우승', num: true, render: (r) => String(r.race_wins) },
@@ -249,7 +249,7 @@ const pageData = {
 
 <BaseLayout title={team.name_ko} description={description} current="teams">
   <PageHead
-    kicker={['팀', `${last} 그리드의 ${teams.length}개 계보`, `계보 ID <span class="mono">${esc(lineage)}</span>`]}
+    kicker={[`<a href="${routes.teams()}">팀</a>`]}
     title={esc(team.name_ko)}
     latin={M.latin}
     lead={M.lead}
@@ -296,12 +296,12 @@ const pageData = {
             team.evidence.length ? (
               <DataTable caption={`${short} 계보 연결 근거`} columns={evCols} rows={team.evidence} />
             ) : (
-              <EmptyState title="연결 근거가 0건이다">이 계보의 근거 행이 계보 테이블에 아직 들어 있지 않다.</EmptyState>
+              <EmptyState title="연결 근거가 0건이다" />
             )
           }
         </details>
         <SourceLine
-          source={`이 사이트의 계보 테이블(F1DB chronology에서 출발, 연결 근거는 위 표), 출전과 우승은 ${JOLPICA}`}
+          source={`이 사이트의 계보 자료(F1DB chronology에서 출발, 연결 근거는 위 표), 출전과 우승은 ${JOLPICA}`}
           asof={`${asofJolpica()}${M.evidenceOn ? `, 계보 근거 ${nw(M.evidenceOn)} 확인` : ''}`}
         />
       </div>
@@ -323,7 +323,7 @@ const pageData = {
       id="f-units"
       title="대회별 업그레이드 항목"
       scope={`${M.paceYears[0]}-${M.paceYears[M.paceYears.length - 1]} · 항목 1건이 기호 하나`}
-      sub="모양이 변경 사유 범주다. 칸을 누르거나 Enter를 누르면 아래 목록이 그 대회로 바뀐다."
+      sub="칸을 누르면 아래 목록이 그 대회로 바뀐다.<span class='sr-only'> 키보드로는 Enter로 고른다.</span>"
       legend={[
         { type: 'glyph', cat: 'performance', label: '성능' },
         { type: 'glyph', cat: 'circuit_specific', label: '서킷 대응' },
@@ -335,7 +335,7 @@ const pageData = {
       ]}
       manual
       ariaLabel={unitsLabel}
-      source={`${FIA_CP} 문서 ${docsN}건(팀별 쪽), 이 사이트 파싱`}
+      source={`${FIA_CP} 문서 ${docsN}건(팀별 쪽), 이 사이트 추출`}
       asof={asofFia()}
       twin={{ caption: `${C} 대회별 업그레이드 항목 수`, columns: tlCols, rows: M.tlRows }}
       notes={unitNotes}
@@ -376,7 +376,7 @@ const pageData = {
       id="f-tq"
       title={`${tname} 퀄리파잉 지수와 필드`}
       scope={`<span id="tq-scope">${yr0} · 라운드별 · 위가 빠르다</span>`}
-      sub="세션 최고 랩 대비 팀 최고 랩의 차이(%)다. 0이 그 예선의 가장 빠른 팀이고, 위로 갈수록 빠르다. 회색 선과 띠는 그 대회 필드의 중앙값과 가운데 절반이다."
+      sub="세션 최고 랩 대비 팀 최고 랩의 차이(%)다. 0이 그 예선의 가장 빠른 팀이다."
       legend={[
         { type: 'line', color: 's1', label: tname },
         { type: 'line', color: 'ctx', label: '필드 중앙값' },
@@ -393,7 +393,7 @@ const pageData = {
         { head: '우천 예선', body: '우천 예선은 빈 고리로만 찍고 선을 끊는다. 평균과 순위 계산에서 뺀다. 웨트 계열 타이어를 썼거나 날씨 표본의 10% 이상에서 강우가 기록된 예선이다.' },
         {
           head: '추정된 연관',
-          body: '아래 핑크 세모는 팀이 업그레이드를 신고한 대회와 항목 수다. 시점을 나란히 놓을 뿐이며 지수 변화와의 관계는 추정된 연관으로만 다룬다. 개별 업그레이드의 영향을 단정하지 않는다.',
+          body: '아래 세모는 팀이 업그레이드를 신고한 대회와 항목 수다. 시점을 나란히 놓을 뿐이며 지수 변화와의 관계는 추정된 연관으로만 다룬다. 개별 업그레이드의 영향을 단정하지 않는다.',
           caution: true,
         },
       ]}
@@ -426,7 +426,7 @@ const pageData = {
       source={`${OPENF1} 랩, 스틴트, 날씨, 레이스 컨트롤 (${OPENF1_LICENSE}), 이 사이트 계산(부트스트랩 1,000회)`}
       asof={asofRaceIndex()}
       notes={[
-        { head: '우천과 결측', body: '우천 결승은 빈 고리와 회색 구간으로 남기고 기본 분석에서 뺀다. 클린 랩이 8개 미만이면 지수를 내지 않고 결측으로 적는다.' },
+        { head: '우천과 빈 값', body: '우천 결승은 빈 고리와 회색 구간으로 남기고 기본 분석에서 뺀다. 클린 랩이 8개 미만이면 지수를 내지 않고 비워 둔다.' },
         {
           head: '주의',
           body: '구간은 랩 사이의 흩어짐만 담는다. 타이어 종류와 마모, 트래픽, 페이스 관리는 보정하지 않는다. 퀄리파잉 지수와 기준점이 달라 두 값을 비교하지 않는다.',
@@ -460,7 +460,7 @@ const pageData = {
       chart="standingsSteps"
       data={M.stepsData}
       opts={{ eras: M.chartEras, from: M.first, to: M.lastTo }}
-      source={`${JOLPICA} 컨스트럭터 순위, 계보 연결은 이 사이트의 계보 테이블`}
+      source={`${JOLPICA} 컨스트럭터 순위, 계보 연결은 이 사이트의 계보 자료`}
       asof={asofJolpica()}
       twin={{ caption: `${short} 계보 시즌 최종 컨스트럭터 순위`, columns: stepCols, rows: team.seasons, rowClass: linOnly }}
     />
@@ -469,7 +469,7 @@ const pageData = {
       wide
       title="시즌 평균 퀄리파잉 지수와 필드"
       scope={`<span data-lin-scope="trend">${esc(M.linScope.trend.on)}</span>`}
-      sub="그 시즌 예선들의 퀄리파잉 지수 평균(%)이다. 위가 빠르다. 회색 선과 띠는 그 시즌에 참가한 팀들의 시즌 평균에서 구한 중앙값과 가운데 절반이다."
+      sub="그 시즌 예선들의 퀄리파잉 지수 평균(%)이고 위가 빠르다. 필드 중앙값과 가운데 절반은 그 시즌에 참가한 팀들의 시즌 평균에서 구한다."
       legend={trendLegend}
       chart="seasonTrend"
       data={M.trendData}
@@ -485,7 +485,7 @@ const pageData = {
     id="record"
     title="시즌별 기록"
     meta="최근 시즌부터"
-    read="시즌마다 팀 이름, PU, 최종 순위와 점수, 우승, 예선 지수 평균을 적었다. 예선 지수 평균은 2022년까지 우천 여부를 가르지 못한 모든 예선의 평균이고(미분류), 2023년부터는 우천 예선을 뺀 평균이다. 굵은 괘선은 계보 구간이 바뀐 시즌이다."
+    read="예선 지수 평균은 2022년까지 우천 여부를 가르지 못한 모든 예선의 평균이고(미분류), 2023년부터는 우천 예선을 뺀 평균이다. 굵은 괘선은 계보 구간이 바뀐 시즌이다."
   >
     <div class="record-tbl">
       <DataTable
@@ -503,7 +503,7 @@ const pageData = {
     <TeamPu lineage={lineage} short={short} />
     <h3 class="sub-title pu-spans"><span>PU 공급사 구간</span><span class="sec-meta">최근 구간부터</span></h3>
     <DataTable caption={`${short} 계보 PU 공급사 구간`} columns={puCols} rows={M.puSpans} rowClass={(s) => (hasSwitch && s.to < curFrom ? 'lin-only' : '')} />
-    <SourceLine source={`${F1DB} 시즌 엔트런트의 엔진 제조사, 계보 연결은 이 사이트의 계보 테이블`} asof={asofF1db()} />
+    <SourceLine source={`${F1DB} 시즌 엔트런트의 엔진 제조사, 계보 연결은 이 사이트의 계보 자료`} asof={asofF1db()} />
   </Section>
 
   <JsonData id="team-page" data={pageData} />

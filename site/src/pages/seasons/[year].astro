@@ -18,11 +18,7 @@ export function getStaticPaths() {
 
 const year = Number(Astro.params.year);
 const season = getSeason(year);
-const kicker = [
-  `<a href="${routes.seasons()}">시즌</a>`,
-  `<span class="nw">${meta.first_season}-${meta.last_season}</span>`,
-  String(year),
-];
+const kicker = [`<a href="${routes.seasons()}">시즌</a>`];
 ---
 
 <BaseLayout

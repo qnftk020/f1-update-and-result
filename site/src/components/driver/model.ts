@@ -5,7 +5,7 @@ import { formatPoints, n0, num } from '../../lib/format.ts';
 import type { DriverFile, DriverRace, DriverSeasonRow } from '../../lib/drivers-data.ts';
 import { aside, b, en, esc, nw } from '../../lib/typeset.ts';
 
-export const pts = (x: number | null | undefined) => (x == null ? '결측' : formatPoints(Math.round(x * 100) / 100));
+export const pts = (x: number | null | undefined) => (x == null ? '미상' : formatPoints(Math.round(x * 100) / 100));
 export const span = (a: number, z: number) => (a === z ? String(a) : `${a}-${z}`);
 const pc = (a: number, n: number, d = 1) => (n ? `${num((a / n) * 100, d)}%` : '');
 
@@ -160,9 +160,9 @@ export function buildDriver(d: DriverFile) {
   const teamList = d.teams.map((t) => `<span lang="en" class="nw">${esc(t.name)}</span>`).join(', ');
   const facts: [string, string][] = [
     ['국적', esc(d.nationality_ko)],
-    ['생년월일', d.dob ? nw(d.dob) : '결측'],
+    ['생년월일', d.dob ? nw(d.dob) : '미상'],
     ['결승', `${nw(span(d.first_season, d.last_season))}, ${d.seasons}개 시즌`],
-    ['팀', teamList || '결측'],
+    ['팀', teamList || '미상'],
   ];
   if (d.code) facts.push(['약어', `<span class="mono">${esc(d.code)}</span>`]);
 
