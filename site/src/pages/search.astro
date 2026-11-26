@@ -1,0 +1,90 @@
+---
+// 검색 페이지(/search/?q=…): 머리 띠 검색 칸과 같은 색인과 규칙으로 모든 결과를 종류별 표로 보인다.
+// 스크립트가 없으면 목록 쪽 바로가기만 보인다.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHead from '../components/PageHead.astro';
+import Section from '../components/Section.astro';
+import { routes } from '../lib/paths.ts';
+
+const lists = [
+  ['시즌', routes.seasons()],
+  ['드라이버', routes.drivers()],
+  ['컨스트럭터', routes.constructors()],
+  ['팀 계보', routes.teams()],
+  ['업그레이드', routes.upgrades()],
+  ['엔진', routes.engines()],
+  ['규정', routes.regulations()],
+];
+---
+
+<BaseLayout title="검색" description="드라이버, 컨스트럭터, 팀 계보, 시즌, 대회, 엔진, 규정을 이름, 약어, 연도로 검색한다." current="search">
+  <PageHead title="검색">
+    <form class="search-page" role="search" action={routes.search()} method="get">
+      <label class="sr-only" for="sp-q">검색어</label>
+      <input id="sp-q" name="q" type="search" placeholder="검색: 드라이버, 팀, 연도, 대회 (예: VER, 1988 모나코, 워킹)" autocomplete="off" data-index={routes.searchIndex()} />
+      <button class="btn" type="submit">검색</button>
+    </form>
+  </PageHead>
+
+  <div id="sp-out" aria-live="polite"></div>
+
+  <Section id="lists" title="목록">
+    <ul class="chips-row">
+      {lists.map(([label, href]) => <li><a class="chip-link" href={href}>{label}</a></li>)}
+    </ul>
+  </Section>
+</BaseLayout>
+
+<script>
+  import { KIND_LABEL, type SearchEntry, groupResults, searchEntries } from '../lib/search.ts';
+
+  const input = document.getElementById('sp-q') as HTMLInputElement;
+  const out = document.getElementById('sp-out') as HTMLElement;
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
+  let index: SearchEntry[] = [];
+
+  const render = () => {
+    const q = input.value.trim();
+    const url = new URL(window.location.href);
+    if (q) url.searchParams.set('q', q);
+    else url.searchParams.delete('q');
+    history.replaceState(null, '', url);
+    if (!q) {
+      out.innerHTML = '';
+      return;
+    }
+    const groups = groupResults(searchEntries(index, q), 200);
+    out.innerHTML = groups.length
+      ? groups
+          .map(
+            (g) =>
+              `<section class="sec"><div class="sec-head"><h2>${KIND_LABEL[g.kind]}</h2><p class="sec-meta">${g.items.length + g.more}개</p></div>` +
+              `<div class="tbl-wrap"><table class="dt"><thead><tr><th scope="col">이름</th><th scope="col">기간·날짜</th></tr></thead><tbody>` +
+              g.items.map((e) => `<tr><td><a href="${esc(e.u)}">${esc(e.n)}</a></td><td class="num">${esc(e.m ?? '')}</td></tr>`).join('') +
+              `</tbody></table></div></section>`,
+          )
+          .join('')
+      : `<p class="empty-title">"${esc(q)}" 검색 결과는 0건이다.</p>`;
+  };
+
+  fetch(input.dataset.index as string)
+    .then((r) => r.json())
+    .then((data: SearchEntry[]) => {
+      index = data;
+      input.value = new URLSearchParams(window.location.search).get('q') ?? '';
+      render();
+    });
+  input.addEventListener('input', render);
+  input.closest('form')?.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    render();
+  });
+</script>
+
+<style>
+  .search-page {
+    display: flex;
+    gap: var(--sp-2);
+    max-width: 36rem;
+  }
+</style>
