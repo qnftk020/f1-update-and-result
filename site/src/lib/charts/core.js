@@ -13,6 +13,7 @@ export const C = {
   s1: v("s1"), s2: v("s2"), s3: v("s3"), ctx: v("ctx"), band: v("band"),
   ink: v("ink"), ink2: v("ink-2"), ink3: v("ink-3"), paper: v("paper"), paper2: v("paper-2"), paper3: v("paper-3"),
   grid: v("grid"), axis: v("axis"), warn: v("warn"), warnInk: v("warn-ink"),
+  cz: v("chekoji-red"),
 };
 export const SLOTS = [C.s1, C.s2, C.s3];
 

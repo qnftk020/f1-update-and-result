@@ -40,7 +40,7 @@ const raceCell = (r: (typeof rows)[number]) =>
 const rankCols: Column<(typeof rows)[number]>[] = [
   { label: '순위', num: true, cls: 'pos', render: (r) => String(r.rank) },
   { label: '대회', cls: 'stick', render: raceCell },
-  { label: '체코지수', num: true, render: (r) => `<b>${f2(r.score)}</b>` },
+  { label: '<span class="cz-mark" aria-hidden="true"></span>체코지수', labelHtml: true, num: true, render: (r) => `<b>${f2(r.score)}</b>` },
   ...items.map(
     (it): Column<(typeof rows)[number]> => ({
       label: `${esc(it.name_ko)}<span class="sub-line">${Math.round(it.weight * 100)}</span>`,
@@ -162,7 +162,7 @@ const nameList = unscored.map((r) => `${r.season} ${r.info.name_ko}`).join(', ')
             title="시즌별 체코지수"
             scope={`${allFrom}-${allTo} · 그랑프리 결승 ${scored.length}개`}
             legend={[
-              { type: 'dot', color: 's1', label: '결승' },
+              { type: 'dot', color: 'chekoji-red', label: '결승' },
               { type: 'line', color: 'ink', label: '시즌 중앙값' },
             ]}
             chart="scoreStrip"

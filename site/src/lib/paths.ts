@@ -46,7 +46,7 @@ export const aboutRoutes = {
 
 export type NavKey = 'home' | 'seasons' | 'drivers' | 'constructors' | 'teams' | 'upgrades' | 'engines' | 'regulations' | 'about' | 'search' | 'chekoji';
 
-/** 주 메뉴 여덟 칸(2026-11-26). 홈은 사이트 이름 링크가 맡고, 컨스트럭터 목록을 메뉴에 올렸다. */
+/** 주 메뉴 아홉 칸(2026-11-26). 홈은 사이트 이름 링크가 맡고, 컨스트럭터 목록과 체코지수를 메뉴에 올렸다. */
 export const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: 'seasons', label: '시즌', href: routes.seasons() },
   { key: 'drivers', label: '드라이버', href: routes.drivers() },
@@ -55,6 +55,7 @@ export const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: 'upgrades', label: '업그레이드', href: routes.upgrades() },
   { key: 'engines', label: '엔진', href: routes.engines() },
   { key: 'regulations', label: '규정', href: routes.regulations() },
+  { key: 'chekoji', label: '체코지수', href: routes.chekoji() },
   { key: 'about', label: '방법론', href: routes.about() },
 ];
 

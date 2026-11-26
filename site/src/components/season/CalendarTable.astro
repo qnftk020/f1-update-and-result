@@ -48,7 +48,8 @@ const columns: Column<Round>[] = [
 const withScore = seasonHasScore(season.season);
 if (withScore) {
   columns.push({
-    label: '체코지수',
+    label: '<span class="cz-mark" aria-hidden="true"></span>체코지수',
+    labelHtml: true,
     num: true,
     cls: 'hide-xs',
     render: (r) => {

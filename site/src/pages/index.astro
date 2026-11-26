@@ -203,7 +203,7 @@ const description = `${first}-${last} F1 기록 데이터베이스: 시즌, 드�
       <a class="chip-link" href={routes.upgrades()}>업그레이드 {n0(counts.upgradeItems)}건</a>
       {E && <a class="chip-link" href={routes.engines()}>엔진</a>}
       {RS && <a class="chip-link" href={routes.regulations()}>규정</a>}
-      {CZ && <a class="chip-link" href={routes.chekoji()}>체코지수</a>}
+      {CZ && <a class="chip-link cz" href={routes.chekoji()}>체코지수</a>}
     </p>
   </PageHead>
 
@@ -239,7 +239,7 @@ const description = `${first}-${last} F1 기록 데이터베이스: 시즌, 드�
     <p class="chips-row">
       <a class="chip-link" href={`${routes.season(season)}#r${race.round}`}>{season} 시즌 캘린더</a>
       <a class="chip-link" href={`${routes.season(season)}#pace`}>{season} 팀 페이스 지수</a>
-      {czRace && <a class="chip-link" href={scoreHref(season, race.round)}>{czRace.score === null ? '체코지수 계산 안 함' : `체코지수 ${czRace.score.toFixed(2)} · ${czRace.rank}위`}</a>}
+      {czRace && <a class="chip-link cz" href={scoreHref(season, race.round)}>{czRace.score === null ? '체코지수 계산 안 함' : `체코지수 ${czRace.score.toFixed(2)} · ${czRace.rank}위`}</a>}
     </p>
   </Section>
 

@@ -5,7 +5,7 @@ import { C, frameOf, plot, readout, textWidth } from "./core.js";
 
 /**
  * data: {max, seasons: [{season, median, races: [{key, name, short, round, score}]}]}
- * 행이 시즌, 가로가 점수다. 시즌마다 중앙값에 세로 눈금을 두고 가장 높은 대회에 이름을 붙인다.
+ * 행이 시즌, 가로가 점수다. 점은 체코지수 빨강(--chekoji-red)이다. 시즌마다 중앙값에 세로 눈금을 두고 가장 높은 대회에 이름을 붙인다.
  */
 export function scoreStrip(input, { width, label = "시즌별 체코지수 분포" }) {
   const rows = input.seasons;
@@ -27,7 +27,7 @@ export function scoreStrip(input, { width, label = "시즌별 체코지수 분�
     marks: [
       Plot.gridX({ stroke: C.grid, strokeOpacity: 1, ticks: xMax / 10 }),
       Plot.tickX(rows, { x: "median", y: (s) => String(s.season), stroke: C.ink, strokeWidth: 2, inset: rowH * 0.22 }),
-      Plot.dot(dots, { x: "score", y: "season", r: rad, fill: C.s1, fillOpacity: 0.75, stroke: C.paper, strokeWidth: 1 }),
+      Plot.dot(dots, { x: "score", y: "season", r: rad, fill: C.cz, fillOpacity: 0.85, stroke: C.paper, strokeWidth: 1 }),
       Plot.text(tops, {
         x: "score", y: "season", dy: -(rad + 7), fill: C.ink, fontSize: 11.5,
         textAnchor: "end", dx: rad,
@@ -44,7 +44,7 @@ export function scoreStrip(input, { width, label = "시즌별 체코지수 분�
       px: xs.apply(r.score),
       py: ys.apply(String(s.season)) + rowH / 2,
       head: `${s.season} ${r.name}`,
-      rows: [{ value: r.score.toFixed(2), label: "체코지수", key: { type: "dot", color: C.s1 } }],
+      rows: [{ value: r.score.toFixed(2), label: "체코지수", key: { type: "dot", color: C.cz } }],
       note: `R${r.round} · ${s.season} 시즌 중앙값 ${s.median.toFixed(2)}`,
     })),
   );
