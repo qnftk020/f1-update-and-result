@@ -458,8 +458,30 @@ export interface RaceScoreRow {
   inputs: Record<string, number | string | boolean | null>;
 }
 
+/** 2023-2025년 결승을 두 계열로 함께 계산한 대조(race_score.compare_methods) */
+export interface RaceScoreComparison {
+  races: number;
+  score_corr: number;
+  rank_corr: number;
+  abs_diff_median: number;
+  abs_diff_p90: number;
+  abs_diff_max: number;
+  top10_overlap: number;
+  position_changes_corr: number;
+  lead_changes_equal: number;
+  neutral_runs_equal: number;
+  rain_class_equal: number;
+  dnf_equal: number;
+  pit_stops_corr: number;
+}
+
 export interface RaceScore {
   formula: string;
+  /** 계산한 결승의 첫 시즌과 마지막 시즌 */
+  seasons: [number, number];
+  /** 계열별 시즌 범위: openf1(랩 끝 시각, 레이스 컨트롤, 타이어), jolpica(랩 순위, 랩 시간으로 추정) */
+  methods: Partial<Record<'openf1' | 'jolpica', [number, number]>>;
+  comparison: RaceScoreComparison | null;
   label: string;
   source_url: string;
   source_checked: string;

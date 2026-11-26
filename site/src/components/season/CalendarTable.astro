@@ -1,12 +1,12 @@
 ---
 // 시즌 캘린더와 우승자 표. 열: R, 날짜(640 아래 숨김), 대회(영문 아래 줄, 400 아래에서는 배지가 이 칸 아래로),
-// 폴(약어, 640 아래 숨김), 우승(팀 아래 줄), 체코지수(2023-2025, 400 아래 숨김), 표시(배지, 400 아래 숨김). 표 바로 아래에 출처 줄.
+// 폴(약어, 640 아래 숨김), 우승(팀 아래 줄), 체코지수(2014-2025, 400 아래 숨김), 표시(배지, 400 아래 숨김). 표 바로 아래에 출처 줄.
 import DataTable, { type Column } from '../DataTable.astro';
 import SourceLine from '../SourceLine.astro';
 import type { Round, Season } from '../../lib/types.ts';
 import { esc } from '../../lib/typeset.ts';
 import { driverLink } from '../../lib/driver-links.ts';
-import { scoreHref, scoreOf, scoreSource, scoreAsof, seasonHasScore } from '../score/score-data.ts';
+import { scoreHref, scoreOf, scoreSourceFor, scoreAsof, seasonHasScore } from '../score/score-data.ts';
 import { badgeList, calendarSource, gpNameHtml, roundBadges, shortName } from './season-text.ts';
 
 interface Props {
@@ -44,7 +44,7 @@ const columns: Column<Round>[] = [
   { label: '폴', cls: 'hide-sm', render: poleHtml },
   { label: '우승', render: winnersHtml },
 ];
-// 체코지수가 계산된 시즌(2023-2025)에만 점수 칸을 둔다. 점수가 없는 대회는 체코지수 페이지의 까닭으로 연결한다.
+// 체코지수가 계산된 시즌(2014-2025)에만 점수 칸을 둔다. 점수가 없는 대회는 체코지수 페이지의 까닭으로 연결한다.
 const withScore = seasonHasScore(season.season);
 if (withScore) {
   columns.push({
@@ -68,7 +68,7 @@ if (season.rounds.some((r) => roundBadges(r).length > 0)) {
 <div class="cal-block">
   <DataTable caption={`${season.season} 시즌 캘린더와 우승자`} columns={columns} rows={season.rounds} rowId={(r) => `r${r.round}`} />
   <SourceLine source={source} asof={asof} />
-  {withScore && <SourceLine source={scoreSource} asof={scoreAsof()} />}
+  {withScore && <SourceLine source={scoreSourceFor(season.season)} asof={scoreAsof()} />}
 </div>
 
 <style>

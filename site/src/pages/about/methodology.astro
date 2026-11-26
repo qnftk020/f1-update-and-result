@@ -204,7 +204,7 @@ const exc = areas.exception;
       <Section id="chekoji" title="체코지수">
         <p>
           결승 한 경기의 볼거리를 항목별 점수로 합친 관전 지수다. 이름과 처음 여섯 항목, 환산표는 DC인사이드 F1 갤러리의 제안 글(<Fragment set:html={extHtml(CZ.source_url, '원문')} />, 2026-11-22 게시)에서 왔고,
-          댓글 의견을 반영해 항목을 {CZ.items.length}개로 늘린 {CZ.formula}판을 <a href={routes.chekoji()}>체코지수 페이지</a>에 수록한다. 대상은 랩·스틴트·레이스 컨트롤 기록이 있는 {CZ.reference_seasons[0]}-{CZ.reference_seasons[1]}년 그랑프리 결승이고, 스프린트는 계산하지 않는다.
+          댓글 의견을 반영해 항목을 {CZ.items.length}개로 늘린 {CZ.formula}판을 <a href={routes.chekoji()}>체코지수 페이지</a>에 수록한다. 대상은 {CZ.seasons[0]}-{CZ.seasons[1]}년 그랑프리 결승이고, 스프린트는 계산하지 않는다.
         </p>
         <div class="formula-wrap" role="region" tabindex="0" aria-label="식: 체코지수">
           <pre class="formula">반영 점수   = 항목 점수(0-100) × 비중
@@ -222,11 +222,36 @@ const exc = areas.exception;
           <li>이변의 팀 순위는 대회 직전 컨스트럭터 순위표다. 개막전은 앞 시즌 최종 순위를 사용하고, 이름이 바뀐 팀은 계보로 연결한다.</li>
           <li>항목 하나라도 계산하지 못한 결승은 점수를 내지 않는다.</li>
         </ul>
+        {
+          CZ.methods.jolpica && (
+            <>
+              <h3 class="sub-title"><span>{CZ.methods.jolpica[0]}-{CZ.methods.jolpica[1]}년 계산</span></h3>
+              <ul class="bul">
+                <li>이 시기에는 랩 끝 시각, 레이스 컨트롤, 타이어 기록이 없다. 2013년 이전은 정리된 랩 기록이 없어 계산하지 않는다. 순위 변동과 선두 교체는 <span lang="en">Jolpica-F1</span>의 랩별 순위로, 피트 인·아웃 랩은 피트스톱 기록으로 판정하고, 피트 스톱 항목은 체커를 받은 차의 평균 피트스톱 횟수다.</li>
+                <li>세이프티 카는 레이스 페이스 지수의 같은 시기 계산처럼 필드 중앙 랩 시간이 그 결승 중앙값의 1.15배를 넘는 랩으로 추정하고, 이어진 랩 묶음 하나를 세이프티 카 1회로 본다. 가상 세이프티 카와 적기는 구분하지 못한다. 마지막 랩이 이렇게 추정된 결승은 세이프티 카 뒤에서 끝난 것으로 본다.</li>
+                <li>노면은 랩 시간으로 추정한다. 랩마다 필드 중앙 랩 시간을 구해 그 결승의 빠른 랩(10번째 백분위수)에 대한 비율을 내고, 세이프티 카로 추정한 랩을 뺀 90번째 백분위수가 1.05 이상이면 웨트 타이어와 슬릭을 함께 쓴 혼용 결승으로 본다. 2023-2025년 결승 70개에 같은 규칙을 적용하면 타이어로 판정한 혼용·웨트 8개를 모두 찾고, 맑은 결승 62개 가운데 1개(2024년 모나코)를 혼용으로 판정한다. 처음부터 끝까지 웨트로 달린 결승, 웨트 구간이 짧은 결승은 맑은 결승으로 판정될 수 있다. 결승 시간대 강수량은 맑은 결승 가운데 3mm가 넘는 곳이 있어 사용하지 않는다.</li>
+                <li>DNF는 결승 상태가 완주, 랩 뒤진 완주, 실격, 미출발이 아닌 차다.</li>
+                <li>백분위의 기준 분포는 {CZ.reference_seasons[0]}-{CZ.reference_seasons[1]}년 그대로 두어, 이 시기를 더해도 그 뒤 결승의 점수는 바뀌지 않는다.</li>
+                {
+                  CZ.comparison && (
+                    <li>
+                      {CZ.reference_seasons[0]}-{CZ.reference_seasons[1]}년 결승 {CZ.comparison.races}개를 두 방식으로 함께 계산해 비교했다. 점수 상관은 {CZ.comparison.score_corr.toFixed(2)}, 순위 상관은 {CZ.comparison.rank_corr.toFixed(2)}이고, 점수 차는
+                      중앙값 {CZ.comparison.abs_diff_median.toFixed(1)}점, 90번째 백분위수 {CZ.comparison.abs_diff_p90.toFixed(1)}점, 최대 {CZ.comparison.abs_diff_max.toFixed(1)}점이다. 상위 10개 가운데 {CZ.comparison.top10_overlap}개가 같다.
+                      항목별로는 선두 교체가 {Math.round(CZ.comparison.lead_changes_equal * 100)}%, DNF가 {Math.round(CZ.comparison.dnf_equal * 100)}%, 노면 판정(맑음과 그 밖)이 {Math.round(CZ.comparison.rain_class_equal * 100)}%,
+                      세이프티 카 횟수가 {Math.round(CZ.comparison.neutral_runs_equal * 100)}% 같고, 순위 변동의 상관은 {CZ.comparison.position_changes_corr.toFixed(2)}, 피트 스톱의 상관은 {CZ.comparison.pit_stops_corr.toFixed(2)}다.
+                      큰 차이는 세이프티 카 뒤에서 끝난 것을 찾지 못한 결승(2023년 호주, 2025년 캐나다, 17-19점)과 노면 판정이 갈린 2024년 모나코(17점)에서 나온다.
+                    </li>
+                  )
+                }
+              </ul>
+            </>
+          )
+        }
         <h3 class="sub-title"><span>한계</span></h3>
         <ul class="bul">
           <li>순위 변동은 추월 횟수가 아니다. 한 랩 안에서 주고받은 추월은 집계하지 못하고, 느려진 차가 잃은 순위도 한 랩에 3자리까지는 포함된다. 제안 글은 추월 횟수를 사용하므로 그 글의 점수와 직접 비교할 수 없다.</li>
           <li>비중, 순위대 배수(3, 2, 1), 막판 2배, 이변 건당 점수는 이 사이트가 임시로 정한 값이고 관객 평가에 맞춘 값이 아니다. 순위 상승 구간 점수(3, 5, 7)만 제안자가 든 값이다.</li>
-          <li>이변은 누적 순위표 기준이라 시즌 중에 빨라진 팀을 늦게 반영한다. 4강 밖 포디움 18건 가운데 8건이 2023년 10-18라운드의 <span lang="en">McLaren</span>이다.</li>
+          <li>이변은 누적 순위표 기준이라 시즌 중에 빨라진 팀을 늦게 반영한다. 2023-2025년 4강 밖 포디움 18건 가운데 8건이 2023년 10-18라운드의 <span lang="en">McLaren</span>이다.</li>
           <li>백분위는 기준 대회 안의 상대 위치라 기준 시즌이 바뀌면 모든 대회의 점수가 바뀐다.</li>
         </ul>
         <SourceLine source={scoreSource} asof={scoreAsof()} />

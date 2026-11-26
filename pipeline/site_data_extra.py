@@ -1051,6 +1051,8 @@ SCORE_INPUTS = [
     "bottom_team_points",
     "order_status",
     "order_coverage",
+    "method",
+    "lap_time_spread",
 ]
 
 
@@ -1111,8 +1113,19 @@ def build_race_score() -> dict | None:
         stamps = list(
             manifest_rows.loc[manifest_rows["source"].isin(["openf1", "jolpica"]), "fetched_at"]
         )
+    comparison_path = SCORE / "method_comparison.json"
+    comparison = (
+        json.loads(comparison_path.read_text(encoding="utf-8"))
+        if comparison_path.exists()
+        else None
+    )
+    seasons = [int(sc["season"].min()), int(sc["season"].max())]
+    methods = {m: [int(g["season"].min()), int(g["season"].max())] for m, g in sc.groupby("method")}
     return {
         "formula": SCORE_FORMULA,
+        "seasons": seasons,
+        "methods": methods,
+        "comparison": comparison,
         "label": formula["label"],
         "source_url": formula["source_url"],
         "source_checked": formula["source_checked"],

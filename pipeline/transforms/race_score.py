@@ -7,6 +7,7 @@ DC인사이드 F1 갤러리 글의 제안을 이 저장소의 정제 데이터�
     data/curated/score/race_inputs.parquet   대회별 항목 원값
     data/curated/score/race_score.parquet    공식 판별 항목 반영 점수와 합계
     data/curated/score/formulas.json         공식 판(가중치, 환산표, 기준 시즌)
+    data/curated/score/method_comparison.json  2023-2025년 두 계열 대조(compare_methods)
 
 항목 원값의 출처:
 - 순위 변동, 선두 교체: OpenF1 랩의 결승선 통과 시각으로 랩마다 순서를 다시 세운다.
@@ -18,6 +19,16 @@ DC인사이드 F1 갤러리 글의 제안을 이 저장소의 정제 데이터�
 - 피트 스톱: OpenF1 스틴트에서 센 타이어 교체 횟수.
 - 타이틀 긴장도: Jolpica 드라이버 순위표와 시즌 일정.
 - 이변: Jolpica 컨스트럭터 순위표와 계보 표로 정한 대회 직전 팀 순위.
+
+2014-2022년 결승(Jolpica 계열): OpenF1 자료가 없어 Jolpica 랩별 순위, 랩 시간, 피트스톱,
+결승 상태로 원값을 만든다(build_inputs_jolpica).
+- 랩 끝 순서는 Jolpica 랩 순위를 그대로 쓴다.
+- 세이프티 카 구간은 레이스 페이스 지수의 Jolpica 계열처럼 느려진 랩으로 추정해 세이프티 카로
+  센다. 가상 세이프티 카와 가르지 못한다.
+- 노면은 랩 시간의 폭(lap_time_spread)이 RAIN_SPREAD_MIN 이상이면 혼용으로 추정한다. 웨트
+  타이어와 슬릭을 함께 쓴 결승은 같은 결승 안에서 랩 시간이 크게 갈린다. 처음부터 끝까지 웨트로
+  달린 결승은 가르지 못한다.
+두 계열의 차이는 2023-2025년 결승을 두 방식으로 함께 계산해 잰다(compare_methods).
 
 제안 원문의 추월 횟수(The Field의 on-track passes)는 이 저장소의 데이터원이 아니다. 순위 변동은
 결승선에서 본 순서가 랩 사이에 뒤바뀐 횟수라서, 한 랩 안에서 주고받은 추월은 세지 못한다.
@@ -67,11 +78,29 @@ GAIN_TIERS = (5, 10, 15)
 RACE_WIN_POINTS = 25
 SPRINT_WIN_POINTS = 8
 FASTEST_LAP_POINT_SEASONS = range(2019, 2025)
+# 2021년 스프린트(당시 이름은 스프린트 예선)는 우승 3점이었다.
+# 2014년 최종전(아부다비)은 점수가 두 배였다.
+# 둘 다 Jolpica 순위표의 대회별 최대 획득 점수와 맞춰 본 값이다(test_round_points_max_bounds_...).
+SPRINT_WIN_POINTS_BY_SEASON = {2021: 3}
+DOUBLE_POINTS_ROUNDS = {(2014, 19)}
 # 이변: 대회 직전 컨스트럭터 순위가 TOP_TEAMS 밖인 팀의 포디움과, 맨 아래 BOTTOM_TEAMS개 팀이 얻은
 # 포인트(10위 이내 완주)를 센다. "4강이 아닌 팀의 포디움"과 최하위권 두 팀의 포인트를 꼽은 의견에서
 # 온 값이다.
 TOP_TEAMS = 4
 BOTTOM_TEAMS = 2
+# Jolpica 계열로 계산하는 시즌. 2013년 이전은 정제 랩 자료가 없어(레이스 페이스 지수와 같이
+# 2014년부터) 넣지 않는다. 2023년부터는 OpenF1 계열이다.
+JOLPICA_SEASONS = (2014, 2022)
+# 랩 시간의 폭(lap_time_spread)이 이 값 이상이면 노면을 혼용으로 추정한다. 2023-2025년 70개
+# 결승에서 타이어로 판정한 혼용·웨트 8개는 모두 1.053 이상이고, 맑은 결승 62개는 하나(2024년
+# 8라운드 모나코 1.057)를 빼고 1.046 이하다. 결승 시간대 ERA5 강수량은 맑은 결승 가운데 3mm가 넘는
+# 곳(2025년 일본, 마이애미)이 있어 쓰지 않는다.
+RAIN_SPREAD_MIN = 1.05
+# 랩 시간의 폭을 잴 때 이보다 느린 랩(세이프티 카 추정 구간과 같은 기준)은 뺀다
+SPREAD_NEUTRAL_RATIO = 1.15
+# Jolpica 결승 상태 코드: 0 완주, 1 랩 뒤진 완주, 20 실격, 30 미출발·기권. 그 밖은 리타이어다.
+FLAG_STATUS = (0, 1)
+NOT_RETIRED_STATUS = (0, 1, 20, 30)
 
 INPUT_COLUMNS = [
     "season", "round", "race_session_key", "race_laps", "order_coverage", "order_status",
@@ -82,7 +111,7 @@ INPUT_COLUMNS = [
     "dnf_podium", "dnf_points", "dnf_rest", "gap_p3_p4_s", "gap_p10_p11_s",
     "gain_5", "gain_10", "gain_15", "pit_stops_mean",
     "title_gap_points", "round_points_max", "remaining_points_max",
-    "underdog_podiums", "bottom_team_points",
+    "underdog_podiums", "bottom_team_points", "method", "lap_time_spread",
 ]  # fmt: skip
 ITEM_IDS = [
     "position_changes", "lead_changes", "win_gap", "safety_car", "dnf", "rain",
@@ -496,10 +525,12 @@ def pit_stops_mean(stints, session_result, table) -> float | None:
     return round(float(counts.mean()), 3)
 
 
-def round_points_max(season: int, has_sprint: bool) -> int:
+def round_points_max(season: int, has_sprint: bool, rnd: int | None = None) -> int:
     """그 대회에서 한 드라이버가 얻을 수 있는 최대 점수."""
     fastest_lap = 1 if season in FASTEST_LAP_POINT_SEASONS else 0
-    return RACE_WIN_POINTS + fastest_lap + (SPRINT_WIN_POINTS if has_sprint else 0)
+    race = RACE_WIN_POINTS * (2 if (season, rnd) in DOUBLE_POINTS_ROUNDS else 1)
+    sprint = SPRINT_WIN_POINTS_BY_SEASON.get(season, SPRINT_WIN_POINTS) if has_sprint else 0
+    return race + fastest_lap + sprint
 
 
 def title_context(season: int, rnd: int, races: pd.DataFrame, standings: pd.DataFrame) -> dict:
@@ -516,9 +547,12 @@ def title_context(season: int, rnd: int, races: pd.DataFrame, standings: pd.Data
     top = before["points"].sort_values(ascending=False)
     return {
         "title_gap_points": float(top.iloc[0] - top.iloc[1]) if len(top) >= 2 else 0.0,
-        "round_points_max": round_points_max(season, bool(this_round)),
+        "round_points_max": round_points_max(season, bool(this_round), rnd),
         "remaining_points_max": int(
-            sum(round_points_max(season, bool(s)) for s in remaining["has_sprint"])
+            sum(
+                round_points_max(season, bool(s), int(r))
+                for s, r in zip(remaining["has_sprint"], remaining["round"], strict=True)
+            )
         ),
     }
 
@@ -535,7 +569,8 @@ def team_ranks_before(
     last = len(teams)
     if rnd > 1:
         before = standings[(standings["season"] == season) & (standings["round"] == rnd - 1)]
-        position = before.set_index("constructor_id")["position"]
+        position = before.set_index("constructor_id")["position"].dropna()
+        # 순위가 비어 있는 행(2014-2020년 개막전 뒤 0점 팀 일부)은 맨 아래로 본다
         return {team: int(position.get(team, last)) for team in teams}
     previous = standings[standings["season"] == season - 1]
     previous = previous[previous["round"] == previous["round"].max()]
@@ -564,7 +599,8 @@ def upsets(results: pd.DataFrame, ranks: dict[str, int]) -> dict:
     }
 
 
-def build_inputs() -> pd.DataFrame:
+def build_inputs_openf1() -> pd.DataFrame:
+    """2023년부터의 결승: OpenF1 랩, 스틴트, 레이스 컨트롤로 만든 원값."""
     meeting_map = pd.read_csv(OF / "meeting_map.csv").dropna(subset=["race_session_key"])
     names = ["laps", "stints", "pit", "race_control", "session_result"]
     tables = {n: pd.read_parquet(OF / f"{n}.parquet") for n in names}
@@ -617,8 +653,12 @@ def build_inputs() -> pd.DataFrame:
         teams = race_results["constructor_id"].unique()
         ranks = team_ranks_before(m.season, m.round, teams, team_standings, lineage)
         row |= upsets(race_results, ranks)
+        row["method"] = "openf1"
         rows.append(row)
+    return _finish_inputs(rows)
 
+
+def _finish_inputs(rows: list[dict]) -> pd.DataFrame:
     out = pd.DataFrame(rows).reindex(columns=INPUT_COLUMNS).sort_values(["season", "round"])
     counts = ["position_changes", "lead_changes", "lead_changes_on_track", "wet_cars", "slick_cars"]
     counts += [f"pc_{t}" for t in TIERS] + [f"pc_late_{t}" for t in TIERS]
@@ -626,6 +666,255 @@ def build_inputs() -> pd.DataFrame:
     for col in counts:
         out[col] = out[col].astype("Int64")  # 내지 못한 결승은 NULL
     return out.reset_index(drop=True)
+
+
+# --- Jolpica 계열(2014-2022) -----------------------------------------------------------------
+
+
+def jolpica_lap_table(laps: pd.DataFrame, pits: pd.DataFrame) -> tuple[pd.DataFrame, list[int]]:
+    """Jolpica 랩으로 lap_table과 같은 꼴의 표를 만든다. 중립화로 추정한 랩 번호도 돌려준다.
+
+    Jolpica 랩의 position은 그 랩 끝의 순위라 그대로 랩 끝 순서(end_s 자리)로 쓴다. 같은 랩 안의
+    순서만 비교하므로 시각이 아니어도 된다. 피트 인 랩은 피트스톱이 기록된 랩, 아웃 랩은 그다음
+    랩이다. 중립화 구간은 레이스 페이스 지수의 Jolpica 계열(race_index_jolpica.neutralised_laps)로
+    추정하고, 그 다음 랩까지 중립화 랩으로 본다.
+    """
+    from pipeline.transforms.race_index_jolpica import neutralised_laps
+
+    df = laps.copy()
+    stops = {(int(c), int(n)) for c, n in zip(pits["car_number"], pits["lap"], strict=True)}
+    df["is_in_lap"] = [
+        (int(c), int(n)) in stops for c, n in zip(df["car_number"], df["lap"], strict=True)
+    ]
+    df["is_out_lap"] = [
+        (int(c), int(n) - 1) in stops for c, n in zip(df["car_number"], df["lap"], strict=True)
+    ]
+    df["lap_s"] = df["time_ms"] / 1000
+    neutral = sorted(neutralised_laps(df))
+    extended = set(neutral) | {n + 1 for n in neutral}
+    table = pd.DataFrame(
+        {
+            "driver_number": df["car_number"].astype(int),
+            "lap_number": df["lap"].astype(int),
+            "end_s": df["position"].astype(float),
+            "pit_lap": df["is_in_lap"] | df["is_out_lap"],
+            "neutral_lap": df["lap"].isin(extended),
+            "red_lap": False,
+        }
+    )
+    return table, neutral
+
+
+def neutral_runs(laps: list[int]) -> int:
+    """이어진 랩 번호 묶음의 수. 추정한 중립화 구간의 횟수다."""
+    runs, previous = 0, None
+    for lap in sorted(laps):
+        if previous is None or lap != previous + 1:
+            runs += 1
+        previous = lap
+    return runs
+
+
+def jolpica_session_result(results: pd.DataFrame) -> pd.DataFrame:
+    """dnf_tiers에 넘길 세션 결과 꼴. 리타이어는 완주, 실격, 미출발·기권이 아닌 차다."""
+    return pd.DataFrame(
+        {
+            "driver_number": results["car_number"].astype(int),
+            "dnf": ~results["status_code"].isin(NOT_RETIRED_STATUS),
+        }
+    )
+
+
+def jolpica_order_coverage(table: pd.DataFrame, results: pd.DataFrame) -> float:
+    """결과의 완주 랩 수만큼 랩 순위를 아는 비율."""
+    done = results.set_index(results["car_number"].astype(int))["laps_completed"].dropna()
+    expected = int(done.sum())
+    if expected == 0:
+        return 0.0
+    limit = table["driver_number"].map(done)
+    return float((table["lap_number"] <= limit).sum() / expected)
+
+
+def jolpica_pit_stops_mean(results: pd.DataFrame, pits: pd.DataFrame) -> float | None:
+    """체커를 받은 차의 평균 피트스톱 횟수(Jolpica 피트스톱 기록)."""
+    finishers = results[results["status_code"].isin(FLAG_STATUS)]["car_number"].astype(int)
+    if finishers.empty:
+        return None
+    counts = pits.groupby(pits["car_number"].astype(int)).size()
+    return round(float(counts.reindex(finishers, fill_value=0).mean()), 3)
+
+
+def lap_time_spread(laps: pd.DataFrame, pits: pd.DataFrame) -> float | None:
+    """결승 안에서 랩 시간이 얼마나 갈렸는지.
+
+    랩마다 필드 중앙 랩 시간(1랩, 피트 인·아웃 랩 제외)을 구하고, 그 가운데 빠른 쪽 10번째
+    백분위수에 대한 비율을 낸다. 비율이 SPREAD_NEUTRAL_RATIO를 넘는 랩(세이프티 카로 추정하는 랩)을
+    빼고, 남은 랩 비율의 90번째 백분위수를 돌려준다. 웨트 타이어 구간과 슬릭 구간이 함께 있으면 이
+    값이 커진다.
+    """
+    stops = {(int(c), int(n)) for c, n in zip(pits["car_number"], pits["lap"], strict=True)}
+    keys = list(zip(laps["car_number"].astype(int), laps["lap"].astype(int), strict=True))
+    keep = [(c, n) not in stops and (c, n - 1) not in stops for c, n in keys]
+    green = laps[keep & (laps["lap"] > 1).to_numpy() & laps["time_ms"].notna().to_numpy()]
+    per_lap = green.groupby("lap")["time_ms"].median()
+    if len(per_lap) < 5:
+        return None
+    ratio = per_lap / per_lap.quantile(0.1)
+    ratio = ratio[ratio <= SPREAD_NEUTRAL_RATIO]
+    return round(float(ratio.quantile(0.9)), 4)
+
+
+def spread_condition(spread: float | None) -> str | None:
+    """랩 시간의 폭으로 추정한 노면. 값이 없으면 None(노면 항목을 내지 않는다)."""
+    if spread is None:
+        return None
+    return "mixed" if spread >= RAIN_SPREAD_MIN else "dry"
+
+
+def jolpica_race_row(
+    season: int,
+    rnd: int,
+    laps: pd.DataFrame,
+    pits: pd.DataFrame,
+    race_results: pd.DataFrame,
+    races: pd.DataFrame,
+    standings: pd.DataFrame,
+    team_standings: pd.DataFrame,
+    lineage: pd.DataFrame,
+) -> dict:
+    """Jolpica 계열로 결승 하나의 원값을 만든다.
+
+    우승 격차, 순위 상승, 타이틀, 이변은 OpenF1 계열과 같은 함수로 계산한다.
+    """
+    winner = race_results[race_results["position"] == 1]
+    race_laps = int(winner["laps_completed"].iloc[0])
+    table, neutral = jolpica_lap_table(laps, pits)
+    table = table[table["lap_number"] <= race_laps]
+    row: dict = {"season": season, "round": rnd, "race_laps": race_laps, "method": "jolpica"}
+    coverage = jolpica_order_coverage(table, race_results)
+    row["order_coverage"] = round(coverage, 4)
+    session_result = jolpica_session_result(race_results)
+    if coverage >= ORDER_COVERAGE_MIN:
+        row |= {
+            "order_status": "ok",
+            "position_changes": position_changes(table),
+            "lead_changes": lead_changes(table),
+            "lead_changes_on_track": lead_changes_on_track(table),
+        }
+        row |= position_change_tiers(table, race_laps)
+        row |= dnf_tiers(table, session_result, race_results)
+    else:
+        row |= {"order_status": "laps_missing"}
+    row["win_gap_s"] = win_gap_seconds(race_results)
+    row["gap_p3_p4_s"] = gap_seconds(race_results, PODIUM_PLACES)
+    row["gap_p10_p11_s"] = gap_seconds(race_results, POINTS_PLACES)
+    # 마지막 랩이 중립화 랩으로 추정되면 세이프티 카 뒤에서 끝난 결승으로 본다.
+    # 결승 기록이 한 랩뿐인 결승(2021년 12라운드 벨기에: 세이프티 카 뒤 세 바퀴 뒤 중단, 한 랩으로
+    # 판정)은 랩 시간으로 추정할 기준이 없어 따로 세이프티 카 뒤에서 끝난 것으로 본다.
+    row["finished_behind_safety_car"] = race_laps in neutral or race_laps < 2
+    row |= {"sc_periods": neutral_runs(neutral), "vsc_periods": 0, "red_flags": pd.NA}
+    row["dnf"] = int(session_result["dnf"].sum())
+    spread = lap_time_spread(laps[laps["lap"] <= race_laps], pits)
+    row |= {"lap_time_spread": spread, "track_condition": spread_condition(spread)}
+    row |= grid_gains(race_results)
+    row["pit_stops_mean"] = jolpica_pit_stops_mean(race_results, pits)
+    row |= title_context(season, rnd, races, standings)
+    teams = race_results["constructor_id"].unique()
+    ranks = team_ranks_before(season, rnd, teams, team_standings, lineage)
+    row |= upsets(race_results, ranks)
+    return row
+
+
+def build_inputs_jolpica(seasons: tuple[int, int] = JOLPICA_SEASONS) -> pd.DataFrame:
+    """Jolpica 계열 원값. 랩 자료가 있는 결승만 계산한다."""
+    first, last = seasons
+    laps = pd.read_parquet(J / "race_laps.parquet")
+    laps = laps[laps["season"].between(first, last)]
+    pits = pd.read_parquet(J / "pitstops.parquet")
+    results = pd.read_parquet(J / "results.parquet")
+    results = results[(results["session_type"] == "R") & results["season"].between(first, last)]
+    races = pd.read_parquet(J / "races.parquet")
+    standings = pd.read_parquet(J / "driver_standings.parquet")
+    team_standings = pd.read_parquet(J / "constructor_standings.parquet")
+    lineage = pd.read_parquet(LINEAGE / "constructor_seasons.parquet")
+    rows = []
+    for (season, rnd), race_laps in laps.groupby(["season", "round"]):
+        season, rnd = int(season), int(rnd)
+        race_results = results[(results["season"] == season) & (results["round"] == rnd)]
+        race_pits = pits[(pits["season"] == season) & (pits["round"] == rnd)]
+        rows.append(
+            jolpica_race_row(
+                season,
+                rnd,
+                race_laps,
+                race_pits,
+                race_results,
+                races,
+                standings,
+                team_standings,
+                lineage,
+            )  # fmt: skip
+        )
+    return _finish_inputs(rows)
+
+
+def build_inputs() -> pd.DataFrame:
+    """Jolpica 계열(2014-2022)과 OpenF1 계열(2023-)의 원값을 합친다."""
+    both = pd.concat([build_inputs_jolpica(), build_inputs_openf1()], ignore_index=True)
+    return both.sort_values(["season", "round"]).reset_index(drop=True)
+
+
+def compare_methods(formula_name: str = "v0.4") -> dict:
+    """2023-2025년 결승을 Jolpica 계열로도 계산해 OpenF1 계열 점수와 비교한다.
+
+    백분위 기준 분포는 OpenF1 계열 그대로 두고(공개한 점수의 기준), 두 계열 모두 점수가 있는
+    결승만 비교한다. 돌려주는 값: 비교한 결승 수, 점수 상관, 순위 상관, 점수 차의 중앙값과 90번째
+    백분위수, 최댓값, 상위 10개 겹침, 원값별 상관과 일치율.
+    """
+    openf1 = pd.read_parquet(SCORE / "race_inputs.parquet")
+    openf1 = openf1[openf1["method"] == "openf1"]
+    jolpica = build_inputs_jolpica((2023, 2025))
+    formula = load_formulas()[formula_name]
+    reference = reference_values(openf1, formula)
+
+    def scored(inputs: pd.DataFrame) -> pd.DataFrame:
+        rows = [
+            {"season": r.season, "round": r.round} | score_race(r, formula, reference)
+            for r in inputs.itertuples()
+        ]
+        return pd.DataFrame(rows)
+
+    m = scored(openf1).merge(scored(jolpica), on=["season", "round"], suffixes=("", "_j"))
+    m = m.dropna(subset=["score", "score_j"])
+    diff = (m["score_j"] - m["score"]).abs()
+    top = set(m.nlargest(10, "score").index) & set(m.nlargest(10, "score_j").index)
+    raw = openf1.merge(jolpica, on=["season", "round"], suffixes=("", "_j"))
+    raw = raw[(raw["order_status"] == "ok") & (raw["order_status_j"] == "ok")]
+    sc = raw["sc_periods"] + raw["vsc_periods"]
+    # 혼용과 웨트를 가르지 못하므로 맑음과 그 밖으로만 비교한다
+    rain = raw["track_condition"].ne("dry") == raw["track_condition_j"].ne("dry")
+    return {
+        "races": len(m),
+        "score_corr": round(float(m["score"].corr(m["score_j"])), 3),
+        "rank_corr": round(float(m["score"].rank().corr(m["score_j"].rank())), 3),
+        "abs_diff_median": round(float(diff.median()), 2),
+        "abs_diff_p90": round(float(diff.quantile(0.9)), 2),
+        "abs_diff_max": round(float(diff.max()), 2),
+        "top10_overlap": len(top),
+        "position_changes_corr": round(
+            float(
+                raw["position_changes"].astype(float).corr(raw["position_changes_j"].astype(float))
+            ),
+            3,
+        ),
+        "lead_changes_equal": round(
+            float((raw["lead_changes"] == raw["lead_changes_j"]).mean()), 3
+        ),
+        "neutral_runs_equal": round(float((sc == raw["sc_periods_j"]).mean()), 3),
+        "rain_class_equal": round(float(rain.mean()), 3),
+        "dnf_equal": round(float((raw["dnf"] == raw["dnf_j"]).mean()), 3),
+        "pit_stops_corr": round(float(raw["pit_stops_mean"].corr(raw["pit_stops_mean_j"])), 3),
+    }
 
 
 # --- 공식 ---------------------------------------------------------------------------------
@@ -800,7 +1089,12 @@ def build() -> dict[str, int]:
     inputs.to_parquet(SCORE / "race_inputs.parquet", index=False, compression="zstd")
     scores = build_scores(inputs)
     scores.to_parquet(SCORE / "race_score.parquet", index=False, compression="zstd")
-    return {"race_inputs": len(inputs), "race_score": len(scores)}
+    # 두 계열 대조 결과(사이트 방법론 쪽에 싣는다)
+    comparison = compare_methods()
+    (SCORE / "method_comparison.json").write_text(
+        json.dumps(comparison, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return {"race_inputs": len(inputs), "race_score": len(scores), "compared": comparison["races"]}
 
 
 if __name__ == "__main__":

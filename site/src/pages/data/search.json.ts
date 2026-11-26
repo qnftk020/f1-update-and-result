@@ -88,7 +88,7 @@ export const GET: APIRoute = () => {
       k: 'page',
       n: '체코지수',
       a: 'chekoji 관전 지수 결승 점수 재미 race score',
-      m: `${raceScore.reference_seasons.join('-')} 결승`,
+      m: `${raceScore.seasons.join('-')} 결승`,
       u: routes.chekoji(),
       w: 3000,
     });

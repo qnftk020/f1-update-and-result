@@ -15,13 +15,30 @@ SCORE = CURATED_DIR / "score"
 
 
 @pytest.fixture(scope="module")
-def inputs():
+def all_inputs():
     return pd.read_parquet(SCORE / "race_inputs.parquet")
 
 
 @pytest.fixture(scope="module")
-def scores():
+def all_scores():
     return pd.read_parquet(SCORE / "race_score.parquet")
+
+
+@pytest.fixture(scope="module")
+def inputs(all_inputs):
+    """OpenF1 계열(2023-2025). 아래 대부분의 검증은 이 계열의 정의를 본다."""
+    return all_inputs[all_inputs["method"] == "openf1"].reset_index(drop=True)
+
+
+@pytest.fixture(scope="module")
+def scores(all_scores):
+    return all_scores[all_scores["season"] >= 2023].reset_index(drop=True)
+
+
+@pytest.fixture(scope="module")
+def jolpica_inputs(all_inputs):
+    """Jolpica 계열(2014-2022)."""
+    return all_inputs[all_inputs["method"] == "jolpica"].reset_index(drop=True)
 
 
 @pytest.fixture(scope="module")
@@ -391,16 +408,25 @@ def test_tyre_changes_ignore_pit_lane_drive_throughs_and_red_flags(openf1, input
 def test_round_points_max_bounds_every_gain_in_the_standings(inputs):
     """한 드라이버가 한 대회에 얻은 점수는 그 대회의 최대 점수를 넘지 않는다."""
     standings = pd.read_parquet(J / "driver_standings.parquet")
-    standings = standings[standings["season"].between(2023, 2025)]
+    standings = standings[standings["season"].between(2014, 2025)]
     standings = standings.sort_values(["season", "driver_id", "round"])
     gain = standings.groupby(["season", "driver_id"])["points"].diff().fillna(standings["points"])
     races = pd.read_parquet(J / "races.parquet").set_index(["season", "round"])["has_sprint"]
-    limit = [
-        rs.round_points_max(s, bool(races[(s, r)]))
-        for s, r in zip(standings["season"], standings["round"], strict=True)
-    ]
+    limit = pd.Series(
+        [
+            rs.round_points_max(s, bool(races[(s, r)]), r)
+            for s, r in zip(standings["season"], standings["round"], strict=True)
+        ],
+        index=standings.index,
+    )
     assert (gain <= limit).all()
-    assert (gain == limit).sum() >= 30  # 최대 점수를 실제로 얻은 대회가 있어야 상한이 헐겁지 않다
+    assert (gain == limit).sum() >= 100  # 최대 점수를 실제로 얻은 대회가 있어야 상한이 헐겁지 않다
+    # 2014년 최종전은 두 배 점수(50점)를 실제로 얻었다.
+    # 2021년 스프린트 대회는 상한이 29점(25+1+3)이다. 결승 점수만으로는 나올 수 없는
+    # 27점(2021년 10라운드)이 있어 스프린트 점수가 들어간다.
+    assert gain[(standings["season"] == 2014) & (standings["round"] == 19)].max() == 50
+    sprint_2021 = (standings["season"] == 2021) & standings["round"].isin([10, 14, 19])
+    assert set(limit[sprint_2021]) == {29} and gain[sprint_2021].max() == 27
 
 
 def test_title_context_before_the_2025_finale(inputs):
@@ -490,6 +516,100 @@ def test_v0_4_scores_stay_within_0_and_100(scores, formulas):
         assert points.between(0, item["weight"] * 100 + 1e-9).all(), item["id"]
 
 
-def test_scores_match_recalculation_from_inputs(inputs, scores):
-    again = rs.build_scores(inputs)
-    pd.testing.assert_frame_equal(again, scores, check_dtype=False)
+def test_scores_match_recalculation_from_inputs(all_inputs, all_scores):
+    again = rs.build_scores(all_inputs)
+    pd.testing.assert_frame_equal(again, all_scores, check_dtype=False)
+
+
+# --- Jolpica 계열 (2014-2022) -------------------------------------------------------------
+
+
+def test_jolpica_inputs_cover_every_race_2014_2022(jolpica_inputs):
+    races = pd.read_parquet(J / "races.parquet")
+    races = races[races["season"].between(*rs.JOLPICA_SEASONS)]
+    assert len(jolpica_inputs) == len(races) == 182
+    assert (jolpica_inputs["order_status"] == "ok").all()
+    assert jolpica_inputs["race_session_key"].isna().all()
+    # 노면을 추정하지 못한 결승은 한 랩으로 판정된 2021년 벨기에뿐이다
+    no_spread = jolpica_inputs[jolpica_inputs["lap_time_spread"].isna()]
+    assert list(zip(no_spread["season"], no_spread["round"], strict=True)) == [(2021, 12)]
+
+
+def test_jolpica_estimates_only_safety_cars_and_dry_or_mixed(jolpica_inputs):
+    """가상 세이프티 카와 웨트를 가르지 못하므로 그 두 값은 쓰지 않는다."""
+    assert (jolpica_inputs["vsc_periods"] == 0).all()
+    known = jolpica_inputs.dropna(subset=["lap_time_spread"])
+    assert set(known["track_condition"]) == {"dry", "mixed"}
+    mixed = known["track_condition"] == "mixed"
+    assert (mixed == (known["lap_time_spread"] >= rs.RAIN_SPREAD_MIN)).all()
+
+
+def test_lap_time_spread_separates_tyre_based_conditions(inputs):
+    """2023-2025년에 같은 규칙을 적용하면 타이어로 판정한 혼용·웨트 8개를 모두 찾고, 맑은 결승
+    62개 가운데 하나(2024년 8라운드 모나코)만 혼용으로 판정한다."""
+    laps = pd.read_parquet(J / "race_laps.parquet")
+    pits = pd.read_parquet(J / "pitstops.parquet")
+    wrong = []
+    for row in inputs.itertuples():
+        lap = laps[(laps["season"] == row.season) & (laps["round"] == row.round)]
+        pit = pits[(pits["season"] == row.season) & (pits["round"] == row.round)]
+        guess = rs.spread_condition(rs.lap_time_spread(lap[lap["lap"] <= row.race_laps], pit))
+        if (guess != "dry") != (row.track_condition != "dry"):
+            wrong.append((row.season, row.round))
+    assert wrong == [(2024, 8)]
+
+
+def test_jolpica_races_that_finished_behind_the_safety_car(jolpica_inputs):
+    """2014 캐나다·일본, 2015 중국, 2019·2020 바레인, 2022 이탈리아, 한 랩 판정의 2021 벨기에."""
+    behind = jolpica_inputs[jolpica_inputs["finished_behind_safety_car"]]
+    assert sorted(zip(behind["season"], behind["round"], strict=True)) == [
+        (2014, 7), (2014, 15), (2015, 3), (2019, 2), (2020, 15), (2021, 12), (2022, 16),
+    ]  # fmt: skip
+
+
+def test_jolpica_lap_order_uses_the_lap_chart():
+    """Jolpica 랩 순위는 그대로 랩 끝 순서다(2023년 21라운드 16랩)."""
+    laps = pd.read_parquet(J / "race_laps.parquet")
+    laps = laps[(laps["season"] == 2023) & (laps["round"] == 21)]
+    pits = pd.read_parquet(J / "pitstops.parquet")
+    pits = pits[(pits["season"] == 2023) & (pits["round"] == 21)]
+    table, _ = rs.jolpica_lap_table(laps, pits)
+    lap16 = table[table["lap_number"] == 16].sort_values("end_s")
+    assert lap16["end_s"].tolist() == list(range(1, len(lap16) + 1))
+
+
+def test_neutral_runs():
+    assert rs.neutral_runs([]) == 0
+    assert rs.neutral_runs([5, 6, 7, 20, 21, 40]) == 3
+
+
+def test_methods_agree_on_2023_2025():
+    """두 계열을 2023-2025년에 함께 계산한 결과. docs/methodology.md에 적은 값과 같아야 한다."""
+    c = rs.compare_methods()
+    assert c["races"] == 69
+    assert c["score_corr"] >= 0.9 and c["rank_corr"] >= 0.9
+    assert c["top10_overlap"] >= 8
+    assert c["lead_changes_equal"] >= 0.95 and c["dnf_equal"] >= 0.95
+    assert c["rain_class_equal"] >= 0.9
+
+
+def test_v0_4_scores_2014_2022_stay_within_0_and_100(all_scores, formulas):
+    v4 = all_scores[(all_scores["formula"] == "v0.4") & all_scores["season"].between(2014, 2022)]
+    assert len(v4) == 182
+    missing = v4[v4["status"] != "ok"]
+    assert list(zip(missing["season"], missing["round"], missing["status"], strict=True)) == [
+        (2021, 12, "missing:rain")
+    ]
+    ok = v4[v4["status"] == "ok"]
+    assert ok["score"].between(0, 100).all()
+    for item in formulas["v0.4"]["items"]:
+        assert ok[f"pt_{item['id']}"].between(0, item["weight"] * 100 + 1e-9).all(), item["id"]
+
+
+def test_reference_distribution_stays_2023_2025(all_inputs, inputs, formulas):
+    """기준 시즌은 2023-2025 그대로라 Jolpica 계열을 더해도 공개한 점수의 기준 분포가 같다."""
+    for formula in formulas.values():
+        a, b = rs.reference_values(all_inputs, formula), rs.reference_values(inputs, formula)
+        assert a.keys() == b.keys()
+        for k in a:
+            np.testing.assert_array_equal(a[k], b[k])

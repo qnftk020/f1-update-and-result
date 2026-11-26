@@ -10,7 +10,7 @@ import PageHead from '../components/PageHead.astro';
 import Section from '../components/Section.astro';
 import Seg from '../components/Seg.astro';
 import SourceLine from '../components/SourceLine.astro';
-import { missingReason, raceScore, scoreAsof, scoreSource, withRound } from '../components/score/score-data.ts';
+import { isEstimated, missingReason, raceScore, scoreAsof, scoreSource, withRound } from '../components/score/score-data.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { aboutRoutes, routes } from '../lib/paths.ts';
 import { extHtml } from '../lib/markup.ts';
@@ -23,6 +23,14 @@ const unscored = rows.filter((r) => r.status !== 'ok');
 const items = RS?.items ?? [];
 const seasonsDesc = [...new Set(rows.map((r) => r.season))].sort((a, b) => b - a);
 const [refFrom, refTo] = RS?.reference_seasons ?? [0, 0];
+const [allFrom, allTo] = RS?.seasons ?? [0, 0];
+const [jFrom, jTo] = RS?.methods.jolpica ?? [0, 0];
+const hasEstimates = Boolean(RS?.methods.jolpica);
+const refCount = scored.filter((r) => r.season >= refFrom && r.season <= refTo).length;
+const cmp = RS?.comparison ?? null;
+// 추정한 항목: Jolpica 계열의 세이프티 카와 노면
+const ESTIMATED = new Set(['safety_car', 'rain']);
+const EST = '<sup class="est" aria-label="추정">*</sup>';
 const f2 = (v: number | null | undefined) => (v === null || v === undefined ? '' : v.toFixed(2));
 const f1 = (v: number | null | undefined) => (v === null || v === undefined ? '' : v.toFixed(1));
 const raceCell = (r: (typeof rows)[number]) =>
@@ -38,7 +46,7 @@ const rankCols: Column<(typeof rows)[number]>[] = [
       label: `${esc(it.name_ko)}<span class="sub-line">${Math.round(it.weight * 100)}</span>`,
       labelHtml: true,
       num: true,
-      render: (r) => f1(r.points[it.id]),
+      render: (r) => f1(r.points[it.id]) + (ESTIMATED.has(it.id) && isEstimated(r) ? EST : ''),
     }),
   ),
 ];
@@ -81,9 +89,9 @@ const DEF: Record<string, string> = {
   lead_changes: '랩 끝 선두가 앞 랩과 달라진 횟수. 피트 스톱으로 바뀐 선두를 포함하고 출발은 제외한다. 기준 대회 안 백분위.',
   win_gap:
     '1-2위, 3-4위, 10-11위 기록 차를 환산한 점수의 평균. 1초 이하 100점, 3초 이하 80점, 5초 이하 60점, 10초 이하 40점, 20초 이하 20점. 완주 랩 수가 다른 경계와 세이프티 카 뒤에서 끝난 결승은 0점.',
-  safety_car: '세이프티 카 1·2·3·4회 이상 40·70·90·100점과 가상 세이프티 카 20·40·60·80점의 합. 최대 100점.',
+  safety_car: '세이프티 카 1·2·3·4회 이상 40·70·90·100점과 가상 세이프티 카 20·40·60·80점의 합. 최대 100점. 2014-2022년은 느려진 랩 묶음을 세이프티 카로 추정한다.',
   dnf: '체커를 받지 못한 차의 수. 멈추기 전 순위가 1-3위면 3배, 4-10위면 2배. 기준 대회 안 백분위.',
-  rain: '타이어 종류로 판정한 노면. 슬릭과 웨트 계열이 모두 출전 차의 절반 이상에서 사용된 결승 100점, 웨트 계열만 그런 결승 50점, 그 밖 0점.',
+  rain: '타이어 종류로 판정한 노면. 슬릭과 웨트 계열이 모두 출전 차의 절반 이상에서 사용된 결승 100점, 웨트 계열만 그런 결승 50점, 그 밖 0점. 2014-2022년은 랩 시간의 폭으로 혼용 여부만 추정한다.',
   grid_gains: '완주차가 그리드보다 오른 자리. 5자리 이상 3점, 10자리 이상 5점, 15자리 이상 7점의 합. 기준 대회 안 백분위.',
   pit_stops: '완주차의 평균 타이어 교체 횟수. 기준 대회 안 백분위.',
   title: '(이 대회의 최대 점수 ÷ 남은 최대 점수 합) × (1 − 1·2위 점수 차 ÷ 남은 최대 점수 합) × 100. 점수 차는 앞 대회까지의 드라이버 순위표 기준.',
@@ -99,7 +107,7 @@ const itemCols: Column<(typeof itemRows)[number]>[] = [
 const facts: [string, string][] = RS
   ? [
       ['공식', `${esc(RS.formula)} 초안`],
-      ['대상', `${refFrom}-${refTo} 그랑프리 결승 ${RS.summary.races}개`],
+      ['대상', `${allFrom}-${allTo} 그랑프리 결승 ${RS.summary.races}개`],
       ['평균', RS.summary.mean.toFixed(2)],
       ['중앙값', RS.summary.median.toFixed(2)],
       ['범위', `${RS.summary.min.toFixed(2)}-${RS.summary.max.toFixed(2)}`],
@@ -109,7 +117,7 @@ const facts: [string, string][] = RS
 const nameList = unscored.map((r) => `${r.season} ${r.info.name_ko}`).join(', ');
 ---
 
-<BaseLayout title="체코지수" description="2023-2025 그랑프리 결승의 관전 지수(체코지수): 대회별 점수와 항목별 반영 점수" current="chekoji">
+<BaseLayout title="체코지수" description="2014-2025 그랑프리 결승의 관전 지수(체코지수): 대회별 점수와 항목별 반영 점수" current="chekoji">
   <PageHead title="체코지수" meta={RS ? `결승 관전 지수 · ${esc(RS.formula)} 초안` : undefined} facts={facts} />
 
   {
@@ -134,18 +142,25 @@ const nameList = unscored.map((r) => `${r.season} ${r.info.name_ko}`).join(', ')
           />
           <div class="notes" role="note" aria-label="대회별 점수 주">
             <Note body="항목 칸은 항목 점수(0-100)에 비중을 곱한 반영 점수이고, 머리 아래 숫자가 그 항목의 만점이다. 체코지수는 반영 점수(소수 둘째 자리)의 합이다." />
-            <Note body={`백분위 항목은 ${refFrom}-${refTo}년 결승 ${scored.length}개 안에서의 상대 위치다. 기준 대회가 바뀌면 모든 대회의 점수가 바뀐다.`} />
+            <Note body={`백분위 항목은 ${refFrom}-${refTo}년 결승 ${refCount}개 안에서의 상대 위치다.${hasEstimates ? ` ${jFrom}-${jTo}년 결승도 이 기준 분포로 환산한다.` : ''} 기준 대회가 바뀌면 모든 대회의 점수가 바뀐다.`} />
+            {
+              hasEstimates && (
+                <Note
+                  body={`* ${jFrom}-${jTo}년 결승의 세이프티 카와 노면은 랩 시간으로 추정한 값이다. 이 시기의 순위 변동, 선두 교체, 피트 스톱은 랩 순위와 피트스톱 기록으로 집계한다.${cmp ? ` ${refFrom}-${refTo}년 결승 ${cmp.races}개를 두 방식으로 함께 계산하면 점수 상관이 ${cmp.score_corr.toFixed(2)}이고 상위 10개 가운데 ${cmp.top10_overlap}개가 같다.` : ''}`}
+                />
+              )
+            }
             <Note body="순위 변동은 결승선 통과 순서의 변화이며 추월 횟수가 아니다. 제안 글은 추월 횟수를 사용하므로 그 글의 점수와 직접 비교할 수 없다." />
             <Note body="항목과 방향은 제안 글과 댓글 의견에서 왔고, 비중과 배수의 숫자는 이 사이트가 임시로 정한 값이다." />
           </div>
           <SourceLine source={scoreSource} asof={scoreAsof()} />
         </Section>
 
-        <Section id="seasons" title="시즌별 분포" meta={`${refFrom}-${refTo}`}>
+        <Section id="seasons" title="시즌별 분포" meta={`${allFrom}-${allTo}`}>
           <Figure
             id="f-cz-seasons"
             title="시즌별 체코지수"
-            scope={`${refFrom}-${refTo} · 그랑프리 결승 ${scored.length}개`}
+            scope={`${allFrom}-${allTo} · 그랑프리 결승 ${scored.length}개`}
             legend={[
               { type: 'dot', color: 's1', label: '결승' },
               { type: 'line', color: 'ink', label: '시즌 중앙값' },
@@ -162,7 +177,7 @@ const nameList = unscored.map((r) => `${r.season} ${r.info.name_ko}`).join(', ')
           <DataTable caption="체코지수 항목과 비중" columns={itemCols} rows={itemRows} />
           <div class="notes" role="note" aria-label="항목과 비중 주">
             <Note body={`백분위 점수 = min(1, 기준 대회 가운데 이 값보다 작은 대회 수 ÷ (기준 대회 수 − 1)) × 100.`} />
-            <Note body={`스프린트는 계산하지 않는다. 랩과 레이스 컨트롤 기록이 ${refFrom}년부터 있어 그 이전 결승은 계산할 수 없다.`} />
+            <Note body={`스프린트는 계산하지 않는다. ${allFrom}년 이전 결승은 정리된 랩 순위 기록이 없어 계산하지 않는다.`} />
             <Note body={`판정 기준과 예외는 <a href="${aboutRoutes.methodology()}#chekoji">방법론</a>에 있다.`} />
           </div>
         </Section>
@@ -210,6 +225,11 @@ const nameList = unscored.map((r) => `${r.season} ${r.info.name_ko}`).join(', ')
   }
   #ranking :global(.seg) {
     margin-bottom: var(--sp-3);
+  }
+  .cz-table :global(.est) {
+    font-size: 0.75em;
+    margin-left: 1px;
+    color: var(--ink-2);
   }
   :global(.num-in) {
     font-variant-numeric: tabular-nums;
