@@ -249,7 +249,7 @@ def post_race(season: int, rnd: int) -> dict:
     FIA 문서가 있으면 다시 파싱한다.
     """
     from pipeline import events
-    from pipeline.transforms import lineage, pace_index, results_api
+    from pipeline.transforms import lineage, pace_index, race_score, results_api
 
     counts = results_api.apply_round(season, rnd, force=True)
     record_jolpica_api_apply(season, rnd)
@@ -264,6 +264,8 @@ def post_race(season: int, rnd: int) -> dict:
         "qualifying_index_rows": pace_index.build_qualifying(),
         "race_index_rows": pace_index.build_race(),
         "wet_flags": pace_index.add_qualifying_wet_flags(),
+        # 체코지수는 결과, 순위표, 미팅 대응표가 모두 들어온 뒤에 다시 계산한다
+        "race_score": race_score.build(),
     }
     status = race_index_status(season, rnd)
     if status == "unmatched":

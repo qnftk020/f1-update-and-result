@@ -175,7 +175,7 @@ def test_post_session_reports_missing_raw(tmp_path, monkeypatch):
 @pytest.fixture
 def post_race_stubs(tmp_path, monkeypatch):
     """post-race의 무거운 단계를 기록만 하는 함수로 바꾼다. 호출 순서를 돌려준다."""
-    from pipeline.transforms import lineage, pace_index, results_api
+    from pipeline.transforms import lineage, pace_index, race_score, results_api
 
     calls: list[str] = []
 
@@ -190,6 +190,7 @@ def post_race_stubs(tmp_path, monkeypatch):
     monkeypatch.setattr(pace_index, "build_qualifying", stub("qualifying"))
     monkeypatch.setattr(pace_index, "build_race", stub("race"))
     monkeypatch.setattr(pace_index, "add_qualifying_wet_flags", stub("wet", {}))
+    monkeypatch.setattr(race_score, "build", stub("race_score", {}))
     return calls
 
 
@@ -199,7 +200,7 @@ def test_post_race_rebuilds_race_index(post_race_stubs, monkeypatch):
     result = update.post_race(2025, 24)
     calls = post_race_stubs
     assert calls.index("apply_round") < calls.index("maps") < calls.index("race")
-    assert calls.index("race") < calls.index("wet")
+    assert calls.index("race") < calls.index("wet") < calls.index("race_score")
     assert result["race_index_status"] == "ok"
 
 

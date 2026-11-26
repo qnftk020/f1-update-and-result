@@ -724,3 +724,29 @@ def test_ice_events_without_ordinal_explain_the_conflict(site):
     )
     coverage = {c["season"]: c["ice_unsure"] for c in engines["coverage"]}
     assert coverage[2022] == 2 and coverage[2019] == 1 and sum(coverage.values()) == 3
+
+
+def test_race_score_export_matches_curated_table(site):
+    """체코지수 화면 값은 정제 테이블의 그 판 점수와 같고, 점수 순으로 놓인다."""
+    from pipeline import site_data_extra as extra
+
+    data = site("race_score.json")
+    assert data["formula"] == extra.SCORE_FORMULA
+    assert [i["id"] for i in data["items"]] == list(extra.SCORE_ITEM_NAMES)
+    assert abs(sum(i["weight"] for i in data["items"]) - 1) < 1e-9
+    table = pd.read_parquet(CURATED_DIR / "score" / "race_score.parquet")
+    table = table[table["formula"] == extra.SCORE_FORMULA]
+    assert len(data["races"]) == len(table) == data["summary"]["races"]
+    by = {(r.season, r.round): r for r in table.itertuples()}
+    for r in data["races"]:
+        row = by[(r["season"], r["round"])]
+        if r["status"] == "ok":
+            assert r["score"] == row.score
+            for item in data["items"]:
+                assert r["points"][item["id"]] == getattr(row, f"pt_{item['id']}")
+        else:
+            assert r["score"] is None and r["rank"] is None and r["missing"]
+    scored = [r for r in data["races"] if r["status"] == "ok"]
+    assert [r["score"] for r in scored] == sorted((r["score"] for r in scored), reverse=True)
+    assert scored[0]["rank"] == 1
+    assert all(r["status"] != "ok" for r in data["races"][len(scored) :])

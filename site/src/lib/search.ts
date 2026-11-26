@@ -2,7 +2,7 @@
 // 색인은 빌드 때 pages/data/search.json.ts가 만들고, 브라우저는 components/search/search-client.ts가 처음 초점 때 받는다.
 // 새 의존성 없이 접두 일치 > 낱말 접두 > 포함 순으로 점수를 매긴다. 검색어의 낱말은 모두 맞아야 한다.
 
-export type SearchKind = 'driver' | 'constructor' | 'team' | 'season' | 'race' | 'engine' | 'regulation';
+export type SearchKind = 'driver' | 'constructor' | 'team' | 'season' | 'race' | 'engine' | 'regulation' | 'page';
 
 /** 색인 항목. 키를 짧게 둔다(색인 크기). */
 export interface SearchEntry {
@@ -20,7 +20,7 @@ export interface SearchEntry {
   w?: number;
 }
 
-export const KIND_ORDER: SearchKind[] = ['driver', 'constructor', 'team', 'season', 'race', 'engine', 'regulation'];
+export const KIND_ORDER: SearchKind[] = ['driver', 'constructor', 'team', 'season', 'race', 'engine', 'regulation', 'page'];
 export const KIND_LABEL: Record<SearchKind, string> = {
   driver: '드라이버',
   constructor: '컨스트럭터',
@@ -29,6 +29,7 @@ export const KIND_LABEL: Record<SearchKind, string> = {
   race: '대회',
   engine: '엔진',
   regulation: '규정',
+  page: '페이지',
 };
 
 /** 검색용 글자: 소문자, 발음 구별 기호 제거(Räikkönen -> raikkonen), 공백 하나로. */

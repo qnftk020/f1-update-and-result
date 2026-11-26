@@ -129,6 +129,6 @@ export function citeItems(): [CiteKey, string][] {
     ['openf1', `<span lang="en">${S.openf1.name}</span> (${S.openf1.license}), ${nw(S.openf1.as_of)} 수집`],
     ['openmeteo', `<span lang="en">Open-Meteo</span> ERA5 강수량 (CC BY 4.0)`],
     ['fia', `FIA 공개 문서, ${nw(S.fia.as_of)} 수집 (원문 링크만 제공)`],
-    ['site', `페이스 지수와 집계는 이 사이트에서 계산(${nw(S.pace.as_of)})`],
+    ['site', `지수와 집계는 이 사이트에서 계산(${nw(S.pace.as_of)})`],
   ];
 }

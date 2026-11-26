@@ -28,6 +28,8 @@ export const routes = {
   upgrades: () => url('/upgrades/'),
   engines: () => url('/engines/'),
   regulations: () => url('/regulations/'),
+  /** 체코지수(결승 관전 지수). 대회 행은 #s<연도>r<라운드> */
+  chekoji: () => url('/chekoji/'),
   about: () => url('/about/'),
   search: () => url('/search/'),
   /** 전역 검색 색인(빌드 때 만든다, pages/data/search.json.ts) */
@@ -42,7 +44,7 @@ export const aboutRoutes = {
   license: () => url('/about/license/'),
 };
 
-export type NavKey = 'home' | 'seasons' | 'drivers' | 'constructors' | 'teams' | 'upgrades' | 'engines' | 'regulations' | 'about' | 'search';
+export type NavKey = 'home' | 'seasons' | 'drivers' | 'constructors' | 'teams' | 'upgrades' | 'engines' | 'regulations' | 'about' | 'search' | 'chekoji';
 
 /** 주 메뉴 여덟 칸(2026-11-26). 홈은 사이트 이름 링크가 맡고, 컨스트럭터 목록을 메뉴에 올렸다. */
 export const NAV: { key: NavKey; label: string; href: string }[] = [

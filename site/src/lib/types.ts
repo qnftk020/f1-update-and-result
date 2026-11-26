@@ -435,3 +435,37 @@ export interface Labels {
   quali_formats: Record<string, string>;
   grand_prix: Record<string, { ko: string; short: string }>;
 }
+
+/** 체코지수(race_score.json, pipeline/site_data_extra.py build_race_score). 화면에 싣는 공식 한 판. */
+export interface RaceScoreItem {
+  id: string;
+  name_ko: string;
+  /** 비중(0-1). 반영 점수의 만점은 weight × 100 */
+  weight: number;
+  convert: string;
+}
+
+export interface RaceScoreRow {
+  season: number;
+  round: number;
+  status: 'ok' | 'missing';
+  /** 내지 못한 항목 id */
+  missing: string[];
+  score: number | null;
+  rank: number | null;
+  /** 항목별 반영 점수(항목 점수 × 비중) */
+  points: Record<string, number | null>;
+  inputs: Record<string, number | string | boolean | null>;
+}
+
+export interface RaceScore {
+  formula: string;
+  label: string;
+  source_url: string;
+  source_checked: string;
+  reference_seasons: [number, number];
+  as_of: string | null;
+  items: RaceScoreItem[];
+  summary: { races: number; scored: number; mean: number; median: number; min: number; max: number };
+  races: RaceScoreRow[];
+}

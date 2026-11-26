@@ -1,0 +1,217 @@
+---
+// 체코지수 /chekoji/ (T19). 결승 한 경기를 항목별 점수로 합친 관전 지수. 공식 한 판(race_score.json의 formula)만 싣는다.
+// 순서: 머리(요약 줄) -> 대회별 점수 표(시즌 선택) -> 시즌별 분포 -> 항목과 비중 -> 점수가 없는 대회.
+// 계산 정의는 docs/methodology.md "체코지수"와 /about/methodology/#chekoji.
+import DataTable, { type Column } from '../components/DataTable.astro';
+import EmptyState from '../components/EmptyState.astro';
+import Figure from '../components/Figure.astro';
+import Note from '../components/Note.astro';
+import PageHead from '../components/PageHead.astro';
+import Section from '../components/Section.astro';
+import Seg from '../components/Seg.astro';
+import SourceLine from '../components/SourceLine.astro';
+import { missingReason, raceScore, scoreAsof, scoreSource, withRound } from '../components/score/score-data.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { aboutRoutes, routes } from '../lib/paths.ts';
+import { extHtml } from '../lib/markup.ts';
+import { esc } from '../lib/typeset.ts';
+
+const RS = raceScore;
+const rows = (RS?.races ?? []).map(withRound);
+const scored = rows.filter((r) => r.status === 'ok');
+const unscored = rows.filter((r) => r.status !== 'ok');
+const items = RS?.items ?? [];
+const seasonsDesc = [...new Set(rows.map((r) => r.season))].sort((a, b) => b - a);
+const [refFrom, refTo] = RS?.reference_seasons ?? [0, 0];
+const f2 = (v: number | null | undefined) => (v === null || v === undefined ? '' : v.toFixed(2));
+const f1 = (v: number | null | undefined) => (v === null || v === undefined ? '' : v.toFixed(1));
+const raceCell = (r: (typeof rows)[number]) =>
+  `<a href="${routes.season(r.season)}#r${r.round}">${r.season} ${esc(r.info.name_ko)}</a><span class="sub-line">R${r.round} · <span class="nw">${r.info.date}</span></span>`;
+
+// ---------------------------------------------------------------- 대회별 점수
+const rankCols: Column<(typeof rows)[number]>[] = [
+  { label: '순위', num: true, cls: 'pos', render: (r) => String(r.rank) },
+  { label: '대회', cls: 'stick', render: raceCell },
+  { label: '체코지수', num: true, render: (r) => `<b>${f2(r.score)}</b>` },
+  ...items.map(
+    (it): Column<(typeof rows)[number]> => ({
+      label: `${esc(it.name_ko)}<span class="sub-line">${Math.round(it.weight * 100)}</span>`,
+      labelHtml: true,
+      num: true,
+      render: (r) => f1(r.points[it.id]),
+    }),
+  ),
+];
+
+// ---------------------------------------------------------------- 시즌별 분포
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+const perSeason = seasonsDesc.map((season) => {
+  const list = scored.filter((r) => r.season === season);
+  const scores = list.map((r) => r.score as number);
+  const best = list[0];
+  const worst = list[list.length - 1];
+  return {
+    season,
+    n: list.length,
+    mean: scores.reduce((a, b) => a + b, 0) / Math.max(1, scores.length),
+    median: median(scores),
+    best,
+    worst,
+    races: list.map((r) => ({ key: `${r.season}-${r.round}`, name: r.info.name_ko, short: r.info.short_ko, round: r.round, score: r.score as number })),
+  };
+});
+const stripData = { max: RS?.summary.max ?? 0, seasons: perSeason.map(({ season, median: m, races }) => ({ season, median: m, races })) };
+const seasonCols: Column<(typeof perSeason)[number]>[] = [
+  { label: '시즌', render: (s) => String(s.season) },
+  { label: '대회', num: true, render: (s) => String(s.n) },
+  { label: '평균', num: true, render: (s) => s.mean.toFixed(2) },
+  { label: '중앙값', num: true, render: (s) => s.median.toFixed(2) },
+  { label: '최고', render: (s) => `${esc(s.best.info.name_ko)} <span class="num-in">${f2(s.best.score)}</span>` },
+  { label: '최저', render: (s) => `${esc(s.worst.info.name_ko)} <span class="num-in">${f2(s.worst.score)}</span>` },
+];
+
+// ---------------------------------------------------------------- 항목과 비중
+const DEF: Record<string, string> = {
+  position_changes:
+    '결승선 통과 순서가 앞 랩과 뒤바뀐 두 차의 쌍. 피트 인·아웃 랩과 중립화 구간은 제외하고, 한 차가 한 랩에 내준 자리는 3자리까지 집계한다. 내준 자리가 1-3위면 3배, 4-10위면 2배, 마지막 10% 랩은 2배. 기준 대회 안 백분위.',
+  lead_changes: '랩 끝 선두가 앞 랩과 달라진 횟수. 피트 스톱으로 바뀐 선두를 포함하고 출발은 제외한다. 기준 대회 안 백분위.',
+  win_gap:
+    '1-2위, 3-4위, 10-11위 기록 차를 환산한 점수의 평균. 1초 이하 100점, 3초 이하 80점, 5초 이하 60점, 10초 이하 40점, 20초 이하 20점. 완주 랩 수가 다른 경계와 세이프티 카 뒤에서 끝난 결승은 0점.',
+  safety_car: '세이프티 카 1·2·3·4회 이상 40·70·90·100점과 가상 세이프티 카 20·40·60·80점의 합. 최대 100점.',
+  dnf: '체커를 받지 못한 차의 수. 멈추기 전 순위가 1-3위면 3배, 4-10위면 2배. 기준 대회 안 백분위.',
+  rain: '타이어 종류로 판정한 노면. 슬릭과 웨트 계열이 모두 출전 차의 절반 이상에서 사용된 결승 100점, 웨트 계열만 그런 결승 50점, 그 밖 0점.',
+  grid_gains: '완주차가 그리드보다 오른 자리. 5자리 이상 3점, 10자리 이상 5점, 15자리 이상 7점의 합. 기준 대회 안 백분위.',
+  pit_stops: '완주차의 평균 타이어 교체 횟수. 기준 대회 안 백분위.',
+  title: '(이 대회의 최대 점수 ÷ 남은 최대 점수 합) × (1 − 1·2위 점수 차 ÷ 남은 최대 점수 합) × 100. 점수 차는 앞 대회까지의 드라이버 순위표 기준.',
+  upset: '대회 직전 컨스트럭터 순위 5위 이하 팀의 포디움 1건 40점, 맨 아래 두 팀의 10위 이내 완주 1건 20점. 최대 100점.',
+};
+const itemRows = items.map((it) => ({ ...it, def: DEF[it.id] ?? '' }));
+const itemCols: Column<(typeof itemRows)[number]>[] = [
+  { label: '항목', render: (it) => `<span class="nw">${esc(it.name_ko)}</span>` },
+  { label: '비중', num: true, render: (it) => `${Math.round(it.weight * 100)}%` },
+  { label: '정의와 환산', render: (it) => esc(it.def) },
+];
+
+const facts: [string, string][] = RS
+  ? [
+      ['공식', `${esc(RS.formula)} 초안`],
+      ['대상', `${refFrom}-${refTo} 그랑프리 결승 ${RS.summary.races}개`],
+      ['평균', RS.summary.mean.toFixed(2)],
+      ['중앙값', RS.summary.median.toFixed(2)],
+      ['범위', `${RS.summary.min.toFixed(2)}-${RS.summary.max.toFixed(2)}`],
+      ['제안', extHtml(RS.source_url, 'DC인사이드 F1 갤러리 글')],
+    ]
+  : [];
+const nameList = unscored.map((r) => `${r.season} ${r.info.name_ko}`).join(', ');
+---
+
+<BaseLayout title="체코지수" description="2023-2025 그랑프리 결승의 관전 지수(체코지수): 대회별 점수와 항목별 반영 점수" current="chekoji">
+  <PageHead title="체코지수" meta={RS ? `결승 관전 지수 · ${esc(RS.formula)} 초안` : undefined} facts={facts} />
+
+  {
+    !RS ? (
+      <EmptyState title="체코지수 자료가 아직 생성되지 않았다." />
+    ) : (
+      <>
+        <Section id="ranking" title="대회별 점수" meta={`${scored.length}개 결승 · 점수 높은 순`}>
+          <Seg
+            label="시즌 선택"
+            attr="ys"
+            id="cz-season"
+            items={[{ value: 'all', label: '전체', pressed: true }, ...seasonsDesc.map((y) => ({ value: String(y), label: String(y) }))]}
+          />
+          <DataTable
+            caption="대회별 체코지수와 항목별 반영 점수"
+            columns={rankCols}
+            rows={scored}
+            rowId={(r) => `s${r.season}r${r.round}`}
+            rowClass={(r) => `ys-${r.season}`}
+            class="cz-table"
+          />
+          <div class="notes" role="note" aria-label="대회별 점수 주">
+            <Note body="항목 칸은 항목 점수(0-100)에 비중을 곱한 반영 점수이고, 머리 아래 숫자가 그 항목의 만점이다. 체코지수는 반영 점수(소수 둘째 자리)의 합이다." />
+            <Note body={`백분위 항목은 ${refFrom}-${refTo}년 결승 ${scored.length}개 안에서의 상대 위치다. 기준 대회가 바뀌면 모든 대회의 점수가 바뀐다.`} />
+            <Note body="순위 변동은 결승선 통과 순서의 변화이며 추월 횟수가 아니다. 제안 글은 추월 횟수를 사용하므로 그 글의 점수와 직접 비교할 수 없다." />
+            <Note body="항목과 방향은 제안 글과 댓글 의견에서 왔고, 비중과 배수의 숫자는 이 사이트가 임시로 정한 값이다." />
+          </div>
+          <SourceLine source={scoreSource} asof={scoreAsof()} />
+        </Section>
+
+        <Section id="seasons" title="시즌별 분포" meta={`${refFrom}-${refTo}`}>
+          <Figure
+            id="f-cz-seasons"
+            title="시즌별 체코지수"
+            scope={`${refFrom}-${refTo} · 그랑프리 결승 ${scored.length}개`}
+            legend={[
+              { type: 'dot', color: 's1', label: '결승' },
+              { type: 'line', color: 'ink', label: '시즌 중앙값' },
+            ]}
+            chart="scoreStrip"
+            data={stripData}
+            source={scoreSource}
+            asof={scoreAsof()}
+            twin={{ caption: '시즌별 체코지수 요약', columns: seasonCols, rows: perSeason }}
+          />
+        </Section>
+
+        <Section id="items" title="항목과 비중" meta={`${esc(RS.formula)} · ${items.length}개 항목`}>
+          <DataTable caption="체코지수 항목과 비중" columns={itemCols} rows={itemRows} />
+          <div class="notes" role="note" aria-label="항목과 비중 주">
+            <Note body={`백분위 점수 = min(1, 기준 대회 가운데 이 값보다 작은 대회 수 ÷ (기준 대회 수 − 1)) × 100.`} />
+            <Note body={`스프린트는 계산하지 않는다. 랩과 레이스 컨트롤 기록이 ${refFrom}년부터 있어 그 이전 결승은 계산할 수 없다.`} />
+            <Note body={`판정 기준과 예외는 <a href="${aboutRoutes.methodology()}#chekoji">방법론</a>에 있다.`} />
+          </div>
+        </Section>
+
+        {
+          unscored.length > 0 && (
+            <Section id="unscored" title="점수가 없는 결승" meta={`${unscored.length}개`}>
+              <ul class="bul">
+                {unscored.map((r) => (
+                  <li id={`s${r.season}r${r.round}`}>
+                    <a href={`${routes.season(r.season)}#r${r.round}`}>
+                      {r.season} {r.info.name_ko}
+                    </a>
+                    : {missingReason(r)}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )
+        }
+      </>
+    )
+  }
+
+  <script>
+    // 시즌 선택: 표의 행을 그 시즌만 남긴다. 스크립트가 없으면 모든 시즌이 보인다(Seg는 data-js-only).
+    const seg = document.getElementById('cz-season');
+    const rows = [...document.querySelectorAll<HTMLTableRowElement>('.cz-table tbody tr')];
+    if (seg && rows.length) {
+      const btns = [...seg.querySelectorAll<HTMLButtonElement>('[data-ys]')];
+      const apply = (v: string) => {
+        btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.ys === v)));
+        rows.forEach((tr) => (tr.hidden = v !== 'all' && !tr.classList.contains(`ys-${v}`)));
+      };
+      btns.forEach((b) => b.addEventListener('click', () => apply(b.dataset.ys as string)));
+      // 다른 페이지에서 대회 행(#s2024r9)으로 들어오면 전체를 보인 채 그 행으로 간다
+      apply('all');
+    }
+  </script>
+</BaseLayout>
+
+<style>
+  .cz-table :global(td b) {
+    font-weight: 700;
+  }
+  #ranking :global(.seg) {
+    margin-bottom: var(--sp-3);
+  }
+  :global(.num-in) {
+    font-variant-numeric: tabular-nums;
+  }
+</style>

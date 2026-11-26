@@ -50,11 +50,11 @@ export const lineageIds: string[] = teams.map((t) => t.lineage_id);
 
 /** T6, T8 산출물처럼 있을 수도 없을 수도 있는 JSON을 읽는다. 없으면 null이다. */
 const optionalFiles = import.meta.glob<{ default: unknown }>(
-  ['../data/generated/engines.json', '../data/generated/regulations.json'],
+  ['../data/generated/engines.json', '../data/generated/regulations.json', '../data/generated/race_score.json'],
   { eager: true },
 );
 
-export function getOptional<T>(name: 'engines' | 'regulations'): T | null {
+export function getOptional<T>(name: 'engines' | 'regulations' | 'race_score'): T | null {
   const mod = optionalFiles[`../data/generated/${name}.json`];
   return mod ? (mod.default as T) : null;
 }

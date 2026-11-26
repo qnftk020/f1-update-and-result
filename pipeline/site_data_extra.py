@@ -1011,7 +1011,128 @@ def build_regulations() -> dict | None:
     }
 
 
+# --- 체코지수(T19) ---------------------------------------------------------------------
+
+SCORE = CURATED_DIR / "score"
+# 화면에 싣는 공식 판. 다른 판은 정제 테이블에만 있다.
+SCORE_FORMULA = "v0.4"
+SCORE_ITEM_NAMES = {
+    "position_changes": "순위 변동",
+    "lead_changes": "선두 교체",
+    "win_gap": "자리 격차",
+    "safety_car": "세이프티 카",
+    "dnf": "DNF",
+    "rain": "노면",
+    "grid_gains": "순위 상승",
+    "pit_stops": "피트 스톱",
+    "title": "타이틀 긴장도",
+    "upset": "이변",
+}
+# 화면에 원값으로 함께 싣는 열
+SCORE_INPUTS = [
+    "race_laps",
+    "position_changes",
+    "lead_changes",
+    "win_gap_s",
+    "gap_p3_p4_s",
+    "gap_p10_p11_s",
+    "finished_behind_safety_car",
+    "sc_periods",
+    "vsc_periods",
+    "red_flags",
+    "dnf",
+    "track_condition",
+    "gain_5",
+    "gain_10",
+    "gain_15",
+    "pit_stops_mean",
+    "title_gap_points",
+    "underdog_podiums",
+    "bottom_team_points",
+    "order_status",
+    "order_coverage",
+]
+
+
+def build_race_score() -> dict | None:
+    """체코지수 한 판(SCORE_FORMULA)의 대회별 점수, 항목별 반영 점수, 원값.
+
+    races는 점수 높은 순이고 점수를 내지 못한 대회는 맨 뒤에 둔다. rank는 같은 점수면 같은
+    순위다(1, 2, 2, 4). 대회 이름과 날짜는 사이트가 시즌 자료에서 붙인다.
+    """
+    import json
+
+    scores = _read(SCORE / "race_score.parquet")
+    inputs = _read(SCORE / "race_inputs.parquet")
+    formulas_path = SCORE / "formulas.json"
+    if scores is None or inputs is None or not formulas_path.exists():
+        return None
+    formula = json.loads(formulas_path.read_text(encoding="utf-8"))[SCORE_FORMULA]
+    items = [
+        {
+            "id": it["id"],
+            "name_ko": SCORE_ITEM_NAMES[it["id"]],
+            "weight": it["weight"],
+            "convert": it["convert"],
+        }
+        for it in formula["items"]
+    ]
+    sc = scores[scores["formula"] == SCORE_FORMULA].merge(
+        inputs[["season", "round", *SCORE_INPUTS]], on=["season", "round"], how="left"
+    )
+    ok = sc["score"].notna()
+    sc["rank"] = sc["score"].rank(method="min", ascending=False)
+    sc = pd.concat(
+        [
+            sc[ok].sort_values(["score", "season", "round"], ascending=[False, True, True]),
+            sc[~ok].sort_values(["season", "round"]),
+        ]
+    )
+    races = []
+    for r in sc.to_dict("records"):
+        status = str(r["status"])
+        missing = status.split(":", 1)[1].split(",") if status.startswith("missing:") else []
+        races.append(
+            {
+                "season": int(r["season"]),
+                "round": int(r["round"]),
+                "status": "ok" if status == "ok" else "missing",
+                "missing": missing,
+                "score": _val(r["score"]),
+                "rank": _val(r["rank"]),
+                "points": {it["id"]: _val(r[f"pt_{it['id']}"]) for it in items},
+                "inputs": {k: _val(r[k]) for k in SCORE_INPUTS},
+            }
+        )
+    valid = sc.loc[ok, "score"]
+    manifest_rows = _read(MANIFEST_DIR / "datasets.csv")
+    stamps = []
+    if manifest_rows is not None:
+        stamps = list(
+            manifest_rows.loc[manifest_rows["source"].isin(["openf1", "jolpica"]), "fetched_at"]
+        )
+    return {
+        "formula": SCORE_FORMULA,
+        "label": formula["label"],
+        "source_url": formula["source_url"],
+        "source_checked": formula["source_checked"],
+        "reference_seasons": formula["reference_seasons"],
+        "as_of": _kst_date(stamps),
+        "items": items,
+        "summary": {
+            "races": len(sc),
+            "scored": int(ok.sum()),
+            "mean": round(float(valid.mean()), 2),
+            "median": round(float(valid.median()), 2),
+            "min": _val(valid.min()),
+            "max": _val(valid.max()),
+        },
+        "races": races,
+    }
+
+
 BUILDERS: dict[str, Callable[[], dict | None]] = {
     "engines.json": build_engines,
     "regulations.json": build_regulations,
+    "race_score.json": build_race_score,
 }

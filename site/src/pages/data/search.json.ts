@@ -1,8 +1,10 @@
 // 전역 검색 색인(/data/search.json). 모양은 lib/search.ts의 SearchEntry다.
-// 쪽이 있는 개체만 싣는다: 드라이버, 컨스트럭터, 팀 계보, 시즌, 대회(시즌 쪽 캘린더 행 #r<라운드>), 엔진 시즌, 규정 연도.
+// 쪽이 있는 개체만 싣는다: 드라이버, 컨스트럭터, 팀 계보, 시즌, 대회(시즌 쪽 캘린더 행 #r<라운드>), 엔진 시즌, 규정 연도,
+// 그리고 개체가 아닌 페이지(체코지수).
 import type { APIRoute } from 'astro';
 import { engineYears, engines } from '../../components/engines/engines-data.ts';
 import { regulations } from '../../components/regulations/reg-data.ts';
+import { raceScore } from '../../components/score/score-data.ts';
 import { constructors } from '../../lib/constructors-data.ts';
 import { getSeason, seasonYears, teams } from '../../lib/data.ts';
 import { drivers } from '../../lib/drivers-data.ts';
@@ -80,6 +82,16 @@ export const GET: APIRoute = () => {
         w: y.year,
       });
     }
+  }
+  if (raceScore) {
+    out.push({
+      k: 'page',
+      n: '체코지수',
+      a: 'chekoji 관전 지수 결승 점수 재미 race score',
+      m: `${raceScore.reference_seasons.join('-')} 결승`,
+      u: routes.chekoji(),
+      w: 3000,
+    });
   }
   return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
 };

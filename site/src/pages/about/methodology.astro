@@ -12,12 +12,15 @@ import { routes } from '../../lib/paths.ts';
 import { esc } from '../../lib/typeset.ts';
 import { FIA_CP, asofFia } from '../../lib/sources.ts';
 import { meta } from '../../lib/data.ts';
+import { raceScore as CZ, scoreAsof, scoreSource } from '../../components/score/score-data.ts';
+import { extHtml } from '../../lib/markup.ts';
 
 const toc = [
   { id: 'common', title: '공통 원칙' },
   { id: 'quali', title: '퀄리파잉 페이스 지수' },
   { id: 'race', title: '레이스 페이스 지수' },
   { id: 'wet', title: '우천 판정' },
+  ...(CZ ? [{ id: 'chekoji', title: '체코지수' }] : []),
   { id: 'upgrades', title: '업그레이드 목록' },
   { id: 'lineage', title: '팀 계보' },
   { id: 'drivers', title: '드라이버 통계' },
@@ -195,6 +198,41 @@ const exc = areas.exception;
       </li>
     </ul>
   </Section>
+
+  {
+    CZ && (
+      <Section id="chekoji" title="체코지수">
+        <p>
+          결승 한 경기의 볼거리를 항목별 점수로 합친 관전 지수다. 이름과 처음 여섯 항목, 환산표는 DC인사이드 F1 갤러리의 제안 글(<Fragment set:html={extHtml(CZ.source_url, '원문')} />, 2026-11-22 게시)에서 왔고,
+          댓글 의견을 반영해 항목을 {CZ.items.length}개로 늘린 {CZ.formula}판을 <a href={routes.chekoji()}>체코지수 페이지</a>에 수록한다. 대상은 랩·스틴트·레이스 컨트롤 기록이 있는 {CZ.reference_seasons[0]}-{CZ.reference_seasons[1]}년 그랑프리 결승이고, 스프린트는 계산하지 않는다.
+        </p>
+        <div class="formula-wrap" role="region" tabindex="0" aria-label="식: 체코지수">
+          <pre class="formula">반영 점수   = 항목 점수(0-100) × 비중
+체코지수    = 반영 점수의 합                                        [0-100]
+백분위 점수 = min(1, 기준 대회 중 이 값보다 작은 대회 수 ÷ (기준 대회 수 − 1)) × 100</pre>
+        </div>
+        <ul class="bul">
+          <li>순위 변동, 선두 교체, DNF, 순위 상승, 피트 스톱은 {CZ.reference_seasons[0]}-{CZ.reference_seasons[1]}년 결승 {CZ.summary.scored}개 안의 백분위로 환산한다. 기준 대회 가운데 가장 작은 값은 0점, 하나뿐인 가장 큰 값은 100점이다.</li>
+          <li>랩 끝 순서는 <span lang="en">OpenF1</span> 랩 타임을 2랩부터 이어 붙여 다시 세운다. 기록된 랩 출발 시각은 가끔 몇 초씩 어긋나므로 그대로 사용하지 않는다.</li>
+          <li>순위 변동은 앞 랩과 결승선 통과 순서가 뒤바뀐 두 차의 쌍이다. 피트 인·아웃 랩과 세이프티 카, 가상 세이프티 카, 적기 구간에 걸친 랩은 제외하고, 한 차가 한 랩에 내준 자리는 3자리까지만 집계한다(스핀이나 고장으로 한꺼번에 밀린 차).</li>
+          <li>선두 교체는 피트 스톱으로 바뀐 선두를 포함한다. 피트와 중립화 구간을 제외하면 {CZ.reference_seasons[0]}-{CZ.reference_seasons[1]}년 선두 교체 167회 가운데 32회만 남는다.</li>
+          <li>세이프티 카 구간은 레이스 컨트롤 메시지로 판정한다. 가상 세이프티 카가 끝 메시지 없이 세이프티 카로 바뀌면 세이프티 카 1회로 보고, 출발 전과 체커 뒤의 구간은 집계하지 않는다. 적기는 점수에 포함하지 않는다.</li>
+          <li>노면은 타이어 종류로 판정한다. 웨트 계열과 슬릭이 모두 출전 차의 절반 이상에서 사용되었으면 혼용, 웨트 계열만 그렇게 사용되었으면 웨트다.</li>
+          <li>타이틀 긴장도의 대회 최대 점수는 결승 우승 25점에 스프린트 8점, 2019-2024년 패스티스트 랩 1점을 더한 값이다. 규정 조항과의 대조는 미검증이다.</li>
+          <li>이변의 팀 순위는 대회 직전 컨스트럭터 순위표다. 개막전은 앞 시즌 최종 순위를 사용하고, 이름이 바뀐 팀은 계보로 연결한다.</li>
+          <li>항목 하나라도 계산하지 못한 결승은 점수를 내지 않는다.</li>
+        </ul>
+        <h3 class="sub-title"><span>한계</span></h3>
+        <ul class="bul">
+          <li>순위 변동은 추월 횟수가 아니다. 한 랩 안에서 주고받은 추월은 집계하지 못하고, 느려진 차가 잃은 순위도 한 랩에 3자리까지는 포함된다. 제안 글은 추월 횟수를 사용하므로 그 글의 점수와 직접 비교할 수 없다.</li>
+          <li>비중, 순위대 배수(3, 2, 1), 막판 2배, 이변 건당 점수는 이 사이트가 임시로 정한 값이고 관객 평가에 맞춘 값이 아니다. 순위 상승 구간 점수(3, 5, 7)만 제안자가 든 값이다.</li>
+          <li>이변은 누적 순위표 기준이라 시즌 중에 빨라진 팀을 늦게 반영한다. 4강 밖 포디움 18건 가운데 8건이 2023년 10-18라운드의 <span lang="en">McLaren</span>이다.</li>
+          <li>백분위는 기준 대회 안의 상대 위치라 기준 시즌이 바뀌면 모든 대회의 점수가 바뀐다.</li>
+        </ul>
+        <SourceLine source={scoreSource} asof={scoreAsof()} />
+      </Section>
+    )
+  }
 
   <Section id="upgrades" title="업그레이드 목록">
     <ul class="bul">

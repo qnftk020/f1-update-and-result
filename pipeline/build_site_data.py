@@ -16,6 +16,7 @@
     home.json               최신 대회 요약
     engines.json            PU 공급사와 구성요소 사용 현황 (정제 테이블이 있을 때)
     regulations.json        규정 아카이브 (정제 테이블이 있을 때)
+    race_score.json         체코지수 한 판의 대회별 점수 (정제 테이블이 있을 때)
 
 실행: uv run python -m pipeline.build_site_data
 """

@@ -499,7 +499,8 @@ FIA 기술 대표가 대회마다 내는 누적 문서("PU elements used per dri
 
 ## 체코지수
 
-- 상태: 초안 (2026-11-25 작성, 사용자 검토 대기). 사이트 화면에는 아직 싣지 않았다.
+- 상태: 초안 (2026-11-25 작성). 2026-11-26부터 v0.4판을 사이트 `/chekoji/`와 시즌 캘린더(2023–2025)에 "초안"으로 표시해 싣는다. 판과 가중치는 사용자 검토 대기다.
+- 화면 내보내기는 `pipeline/site_data_extra.py`의 `build_race_score`(`race_score.json`, 한 판만), 갱신은 `pipeline/update.py`의 `post_race()`가 레이스 지수 뒤에 `race_score.build()`를 부른다.
 - 계산은 `pipeline/transforms/race_score.py`, 공식은 `data/curated/score/formulas.json`, 결과는 `data/curated/score/race_inputs.parquet`(항목 원값)과 `race_score.parquet`(공식 판별 점수)에 있다.
 
 ### 출처와 범위

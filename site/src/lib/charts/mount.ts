@@ -17,6 +17,7 @@ import * as driverCharts from './drivers.js';
 import * as historyCharts from './history.js';
 import { puTeamSteps } from '../../components/engines/pu-charts.js';
 import { seasonMargins } from './home.js';
+import { scoreStrip } from './score.js';
 import { figureFallback, initFigures, mount } from './core.js';
 
 export * from './core.js';
@@ -72,6 +73,8 @@ export const REGISTRY = {
   titleGrid: historyCharts.titleGrid,
   lineageHeat: historyCharts.lineageHeat,
   lineageBars: historyCharts.lineageBars,
+  // 체코지수(/chekoji/): lib/charts/score.js
+  scoreStrip,
 } as const;
 
 export type ChartName = keyof typeof REGISTRY;
