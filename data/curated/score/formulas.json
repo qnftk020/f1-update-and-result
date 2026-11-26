@@ -1,0 +1,456 @@
+{
+  "v0.1": {
+    "label": "제안 원문 공식",
+    "source_url": "https://gall.dcinside.com/mgallery/board/view?id=formula1&no=1707019",
+    "source_checked": "2026-11-25",
+    "note": "원문은 추월 횟수에 The Field의 on-track passes를 쓴다. 이 저장소에는 그 값이 없어 순위 변동 횟수를 대신 넣으므로 원문 점수와 같은 값이 나오지 않는다. 횟수 항목(순위 변동, 선두 교체, DNF)은 환산 없이 횟수에 가중치를 곱한다.",
+    "items": [
+      {
+        "id": "position_changes",
+        "weight": 0.35,
+        "convert": "count"
+      },
+      {
+        "id": "lead_changes",
+        "weight": 0.2,
+        "convert": "count"
+      },
+      {
+        "id": "win_gap",
+        "weight": 0.15,
+        "convert": "gap_table"
+      },
+      {
+        "id": "safety_car",
+        "weight": 0.1,
+        "convert": "safety_car_table"
+      },
+      {
+        "id": "dnf",
+        "weight": 0.1,
+        "convert": "count"
+      },
+      {
+        "id": "rain",
+        "weight": 0.1,
+        "convert": "rain_table"
+      }
+    ],
+    "gap_table": [
+      [
+        1.0,
+        100
+      ],
+      [
+        3.0,
+        80
+      ],
+      [
+        5.0,
+        60
+      ],
+      [
+        10.0,
+        40
+      ],
+      [
+        20.0,
+        20
+      ]
+    ],
+    "gap_over": 0,
+    "safety_car_table": {
+      "sc": [
+        0,
+        40,
+        70,
+        90,
+        100
+      ],
+      "vsc": [
+        0,
+        20,
+        40,
+        60,
+        80
+      ]
+    },
+    "safety_car_cap": null,
+    "rain_table": {
+      "wet": 100,
+      "mixed": 50,
+      "dry": 0
+    },
+    "gap_zero_when_finished_behind_safety_car": false
+  },
+  "v0.2": {
+    "label": "항목을 모두 100점 만점으로 맞춘 공식",
+    "note": "가중치와 환산표는 v0.1과 같다. 횟수 항목은 기준 시즌 대회 안에서의 백분위(그 값보다 작은 대회의 비율)로 0에서 100 사이 점수로 바꾼 뒤 가중치를 곱한다. 세이프티 카 항목은 100점을 넘지 않는다. 세이프티 카 뒤에서 끝난 결승은 우승 격차 항목을 0점으로 한다.",
+    "reference_seasons": [
+      2023,
+      2025
+    ],
+    "items": [
+      {
+        "id": "position_changes",
+        "weight": 0.35,
+        "convert": "percentile"
+      },
+      {
+        "id": "lead_changes",
+        "weight": 0.2,
+        "convert": "percentile"
+      },
+      {
+        "id": "win_gap",
+        "weight": 0.15,
+        "convert": "gap_table"
+      },
+      {
+        "id": "safety_car",
+        "weight": 0.1,
+        "convert": "safety_car_table"
+      },
+      {
+        "id": "dnf",
+        "weight": 0.1,
+        "convert": "percentile"
+      },
+      {
+        "id": "rain",
+        "weight": 0.1,
+        "convert": "rain_table"
+      }
+    ],
+    "gap_table": [
+      [
+        1.0,
+        100
+      ],
+      [
+        3.0,
+        80
+      ],
+      [
+        5.0,
+        60
+      ],
+      [
+        10.0,
+        40
+      ],
+      [
+        20.0,
+        20
+      ]
+    ],
+    "gap_over": 0,
+    "safety_car_table": {
+      "sc": [
+        0,
+        40,
+        70,
+        90,
+        100
+      ],
+      "vsc": [
+        0,
+        20,
+        40,
+        60,
+        80
+      ]
+    },
+    "safety_car_cap": 100,
+    "rain_table": {
+      "wet": 100,
+      "mixed": 50,
+      "dry": 0
+    },
+    "gap_zero_when_finished_behind_safety_car": true
+  },
+  "v0.3": {
+    "label": "댓글 의견을 반영한 공식",
+    "source_url": "https://gall.dcinside.com/mgallery/board/view?id=formula1&no=1707019",
+    "source_checked": "2026-11-25",
+    "note": "제안 글의 댓글에서 나온 의견을 지금 자료로 계산할 수 있는 범위에서 반영했다. 항목과 방향은 댓글에서 왔고, 가중치와 배수의 숫자는 이 사이트가 정한 값이다(순위 상승 구간 점수 3, 5, 7만 제안자가 든 값이다). basis는 근거가 된 의견이다.",
+    "reference_seasons": [
+      2023,
+      2025
+    ],
+    "items": [
+      {
+        "id": "position_changes",
+        "weight": 0.25,
+        "convert": "percentile",
+        "place_weights": {
+          "podium": 3,
+          "points": 2,
+          "rest": 1
+        },
+        "late_multiplier": 2,
+        "basis": "추월 점수 비중이 너무 높다. 순위에 가중치가 있으면 좋겠다. 추월은 횟수보다 언제 어떻게 나왔는지가 중요하다."
+      },
+      {
+        "id": "lead_changes",
+        "weight": 0.1,
+        "convert": "percentile",
+        "basis": "원문 항목. 새 항목을 넣느라 비중을 줄였다."
+      },
+      {
+        "id": "win_gap",
+        "weight": 0.15,
+        "convert": "gap_table",
+        "boundaries": [
+          1,
+          3,
+          10
+        ],
+        "basis": "1위와 2위 말고 포디움권과 포인트권의 격차도 의미가 있다."
+      },
+      {
+        "id": "safety_car",
+        "weight": 0.05,
+        "convert": "safety_car_table",
+        "basis": "원문 항목. 새 항목을 넣느라 비중을 줄였다."
+      },
+      {
+        "id": "dnf",
+        "weight": 0.05,
+        "convert": "percentile",
+        "place_weights": {
+          "podium": 3,
+          "points": 2,
+          "rest": 1
+        },
+        "basis": "1위에서 리타이어한 것과 꼴찌에서 리타이어한 것은 체감이 다르다."
+      },
+      {
+        "id": "rain",
+        "weight": 0.15,
+        "convert": "rain_table",
+        "basis": "노면 비중을 높이는 것이 맞다. 웨트 타이어로만 달린 결승보다 슬릭과 섞인 결승이 전략 때문에 더 재미있다."
+      },
+      {
+        "id": "grid_gains",
+        "weight": 0.1,
+        "convert": "percentile",
+        "tier_points": [
+          3,
+          5,
+          7
+        ],
+        "basis": "순위 상승 5자리 이상 드라이버마다 3점, 10자리 이상 5점, 15자리 이상 7점(제안자). 피트 레인 출발이나 하위권에서 올라온 차를 더 높게 친다."
+      },
+      {
+        "id": "pit_stops",
+        "weight": 0.05,
+        "convert": "percentile",
+        "basis": "타이어 전략 싸움은 피트 횟수로 반영하는 것이 가장 간단하다(제안자)."
+      },
+      {
+        "id": "title",
+        "weight": 0.1,
+        "convert": "title_tension",
+        "basis": "챔피언이 걸린 경기는 점수가 달라야 한다. 그 경기로 타이틀이 얼마나 정해지는지를 가중한다."
+      }
+    ],
+    "gap_table": [
+      [
+        1.0,
+        100
+      ],
+      [
+        3.0,
+        80
+      ],
+      [
+        5.0,
+        60
+      ],
+      [
+        10.0,
+        40
+      ],
+      [
+        20.0,
+        20
+      ]
+    ],
+    "gap_over": 0,
+    "safety_car_table": {
+      "sc": [
+        0,
+        40,
+        70,
+        90,
+        100
+      ],
+      "vsc": [
+        0,
+        20,
+        40,
+        60,
+        80
+      ]
+    },
+    "safety_car_cap": 100,
+    "rain_table": {
+      "wet": 50,
+      "mixed": 100,
+      "dry": 0
+    },
+    "gap_zero_when_finished_behind_safety_car": true,
+    "not_reflected": [
+      "인터넷 언급량(게시글, 댓글 수): 이 저장소의 데이터원이 아니다.",
+      "DNF를 사고 항목으로 바꾸는 안: 2023년 이후 Jolpica 상태가 대부분 Retired라 사고와 고장을 가를 수 없다.",
+      "기대하지 못한 선수의 선전: 그리드 대비 순위 상승으로만 반영했다. 팀 전력 대비 성적은 넣지 않았다."
+    ]
+  },
+  "v0.4": {
+    "label": "이변 항목을 더한 공식",
+    "source_url": "https://gall.dcinside.com/mgallery/board/view?id=formula1&no=1707019",
+    "source_checked": "2026-11-25",
+    "note": "v0.3에 이변 항목(4강 밖 팀의 포디움, 최하위권 두 팀의 포인트)을 더했다. 글을 공유한 뒤 받은 의견에서 온 항목이다. 새 항목의 비중 10%는 순위 변동(25%에서 20%)과 선두 교체(10%에서 5%)에서 가져왔다. 건당 점수 40과 20, 가중치의 숫자는 이 사이트가 정한 값이다.",
+    "reference_seasons": [
+      2023,
+      2025
+    ],
+    "items": [
+      {
+        "id": "position_changes",
+        "weight": 0.2,
+        "convert": "percentile",
+        "place_weights": {
+          "podium": 3,
+          "points": 2,
+          "rest": 1
+        },
+        "late_multiplier": 2,
+        "basis": "추월 점수 비중이 너무 높다. 순위에 가중치가 있으면 좋겠다. 추월은 횟수보다 언제 어떻게 나왔는지가 중요하다."
+      },
+      {
+        "id": "lead_changes",
+        "weight": 0.05,
+        "convert": "percentile",
+        "basis": "원문 항목. 새 항목을 넣느라 비중을 줄였다."
+      },
+      {
+        "id": "win_gap",
+        "weight": 0.15,
+        "convert": "gap_table",
+        "boundaries": [
+          1,
+          3,
+          10
+        ],
+        "basis": "1위와 2위 말고 포디움권과 포인트권의 격차도 의미가 있다."
+      },
+      {
+        "id": "safety_car",
+        "weight": 0.05,
+        "convert": "safety_car_table",
+        "basis": "원문 항목. 새 항목을 넣느라 비중을 줄였다."
+      },
+      {
+        "id": "dnf",
+        "weight": 0.05,
+        "convert": "percentile",
+        "place_weights": {
+          "podium": 3,
+          "points": 2,
+          "rest": 1
+        },
+        "basis": "1위에서 리타이어한 것과 꼴찌에서 리타이어한 것은 체감이 다르다."
+      },
+      {
+        "id": "rain",
+        "weight": 0.15,
+        "convert": "rain_table",
+        "basis": "노면 비중을 높이는 것이 맞다. 웨트 타이어로만 달린 결승보다 슬릭과 섞인 결승이 전략 때문에 더 재미있다."
+      },
+      {
+        "id": "grid_gains",
+        "weight": 0.1,
+        "convert": "percentile",
+        "tier_points": [
+          3,
+          5,
+          7
+        ],
+        "basis": "순위 상승 5자리 이상 드라이버마다 3점, 10자리 이상 5점, 15자리 이상 7점(제안자). 피트 레인 출발이나 하위권에서 올라온 차를 더 높게 친다."
+      },
+      {
+        "id": "pit_stops",
+        "weight": 0.05,
+        "convert": "percentile",
+        "basis": "타이어 전략 싸움은 피트 횟수로 반영하는 것이 가장 간단하다(제안자)."
+      },
+      {
+        "id": "title",
+        "weight": 0.1,
+        "convert": "title_tension",
+        "basis": "챔피언이 걸린 경기는 점수가 달라야 한다. 그 경기로 타이틀이 얼마나 정해지는지를 가중한다."
+      },
+      {
+        "id": "upset",
+        "weight": 0.1,
+        "convert": "upset_table",
+        "podium_points": 40,
+        "bottom_points": 20,
+        "cap": 100,
+        "basis": "챔피언이 걸린 경기처럼, 4강이 아닌 팀의 포디움이나 최하위권 팀의 포인트에도 가중치를 주면 좋겠다."
+      }
+    ],
+    "gap_table": [
+      [
+        1.0,
+        100
+      ],
+      [
+        3.0,
+        80
+      ],
+      [
+        5.0,
+        60
+      ],
+      [
+        10.0,
+        40
+      ],
+      [
+        20.0,
+        20
+      ]
+    ],
+    "gap_over": 0,
+    "safety_car_table": {
+      "sc": [
+        0,
+        40,
+        70,
+        90,
+        100
+      ],
+      "vsc": [
+        0,
+        20,
+        40,
+        60,
+        80
+      ]
+    },
+    "safety_car_cap": 100,
+    "rain_table": {
+      "wet": 50,
+      "mixed": 100,
+      "dry": 0
+    },
+    "gap_zero_when_finished_behind_safety_car": true,
+    "not_reflected": [
+      "인터넷 언급량(게시글, 댓글 수): 이 저장소의 데이터원이 아니다.",
+      "DNF를 사고 항목으로 바꾸는 안: 2023년 이후 Jolpica 상태가 대부분 Retired라 사고와 고장을 가를 수 없다."
+    ]
+  }
+}
