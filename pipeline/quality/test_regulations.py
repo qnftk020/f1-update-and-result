@@ -1118,7 +1118,9 @@ def test_legacy_selection_is_explained():
     assert len({r["sha256"] for r in picked}) == len(picked)
     keys = [(r["season"], r["section"], reg.version_key(r)) for r in picked]
     assert len(set(keys)) == len(keys)
-    assert all(reg.row_path(r).exists() for r in picked)
+    # 원문 PDF는 커밋하지 않으므로(data/raw) 캐시가 있는 곳에서만 파일 위치를 확인한다
+    if any(reg.row_path(r).exists() for r in picked):
+        assert all(reg.row_path(r).exists() for r in picked)
 
 
 def test_documents_cover_the_manifest(documents):
