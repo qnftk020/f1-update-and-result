@@ -2,14 +2,14 @@
 import { status as siteStatus } from '../../lib/data.ts';
 // 업그레이드 탐색기. DESIGN.md "업그레이드 탐색기"와 design/final/explorer.html을 따른다.
 // 항목 855건을 모두 정적 HTML로 대회별 묶음에 싣는다(스크립트가 없어도 전부 읽힌다). 큰 JSON은 싣지 않고,
-// 브라우저 스크립트(components/upgrades/explorer-client.ts)가 항목의 data 속성으로 거르고 세고 그린다.
+// 브라우저 스크립트(components/upgrades/explorer-client.ts)가 항목의 data 속성으로 필터, 집계, 차트를 맡는다.
 // 스크립트가 있으면 처음 20건만 보이고 "20건 더 보기"로 늘린다(.ex-x는 스크립트가 있을 때만 숨는다).
 import EmptyState from '../../components/EmptyState.astro';
 import DataTable from '../../components/DataTable.astro';
 import Figure from '../../components/Figure.astro';
 import JsonData from '../../components/JsonData.astro';
 import Note from '../../components/Note.astro';
-import Notice from '../../components/Notice.astro';
+import SourceLine from '../../components/SourceLine.astro';
 import PageHead from '../../components/PageHead.astro';
 import Section from '../../components/Section.astro';
 import Seg from '../../components/Seg.astro';
@@ -20,7 +20,6 @@ import {
   COMPONENT_SPELLINGS,
   DOCS,
   GROUPS,
-  REVIEW_DOCS,
   SEASONS,
   TEAM_OPTIONS,
   TOTAL,
@@ -44,11 +43,6 @@ import { aboutRoutes } from '../../lib/paths.ts';
 import { FIA_CP, asofFia } from '../../lib/sources.ts';
 import { esc, nw } from '../../lib/typeset.ts';
 
-const reviewHead = REVIEW_DOCS.map((d) => {
-  const { bad, ok } = reviewTeams(d);
-  return `${d.season}년 ${d.round}라운드 ${esc(d.event_short_ko)} 문서는 ${bad.map(esc).join(', ')} 쪽 표가 그림으로만 들어 있어 문서 전체를 검수 대기로 둔다. 같은 문서의 나머지 ${ok}개 팀 항목은 목록에 있다.`;
-}).join(' ');
-
 const shareRows = CAT_ORDER.map((c) => ({ c: CAT[c], n: catCounts[c], p: TOTAL ? (catCounts[c] / TOTAL) * 100 : 0 }));
 const groupColumns = [
   { label: '팀', key: 'label' },
@@ -56,33 +50,19 @@ const groupColumns = [
   ...CAT_ORDER.map((c) => ({ label: CAT[c], num: true, render: (g: (typeof teamGroups)[number]) => String(g.cats[c]) })),
 ];
 
-const description = `${YEARS} FIA Car Presentation 문서의 업그레이드 항목 ${n0(TOTAL)}건을 시즌, 대회, 팀, 부품 영역, 변경 사유로 거른다`;
+const description = `${YEARS} FIA Car Presentation 문서의 업그레이드 항목 ${n0(TOTAL)}건. 시즌, 대회, 팀, 부품 영역, 변경 사유별 필터`;
 const shown = Math.min(PAGE, TOTAL);
 ---
 
 <BaseLayout title="업그레이드 탐색기" description={description} current="upgrades">
-  <PageHead
-    title="업그레이드 탐색기"
-    lead={lead}
-    leadId="ex-lead"
-  >
-    {
-      REVIEW_DOCS.length > 0 ? (
-        <Notice icon="review" class="ex-head-notice">
-          <b>검수 대기 {REVIEW_DOCS.length}건.</b> <Fragment set:html={reviewHead} /> 문서 범위: {scopeText}.
-        </Notice>
-      ) : (
-        <Notice class="ex-head-notice">문서 범위: {scopeText}.</Notice>
-      )
-    }
-  </PageHead>
+  <PageHead title="업그레이드 탐색기" />
   <noscript>
     <p class="notice ex-head-notice">
-      <span>스크립트가 꺼져 있어 거르기와 그림을 쓸 수 없다. 아래에는 항목 {n0(TOTAL)}건이 대회별로 모두 보이고, 요약은 표로 보인다.</span>
+      <span>스크립트를 켜면 필터와 차트를 사용할 수 있다.</span>
     </p>
   </noscript>
 
-  <form class="filters" id="filters" role="search" aria-label="업그레이드 항목 거르기" data-js-only>
+  <form class="filters" id="filters" role="search" aria-label="업그레이드 항목 필터" data-js-only>
     <div class="field">
       <label for="f-season">시즌</label>
       <select id="f-season">
@@ -142,7 +122,7 @@ const shown = Math.min(PAGE, TOTAL);
   <Section id="summary" title="요약">
     <Seg
       slot="meta"
-      label="묶는 기준"
+      label="분류 기준"
       attr="group"
       items={[
         { value: 'team', label: '팀', pressed: true },
@@ -157,7 +137,6 @@ const shown = Math.min(PAGE, TOTAL);
         id="f-share"
         title="변경 사유"
         scope={`<span id="share-scope">${n0(TOTAL)}건</span>`}
-        sub="원문 사유의 앞부분으로 정한 상위 범주다. 원문 사유는 항목 목록에 그대로 있다."
         source={`${FIA_CP} ${DOCS}건, 범주 구분은 이 사이트`}
         asof={asofFia()}
         twin={{
@@ -176,12 +155,11 @@ const shown = Math.min(PAGE, TOTAL);
         id="f-group"
         title={'<span id="group-title">팀별 항목 수</span>'}
         scope={`<span id="group-scope">${n0(TOTAL)}건 · 많은 순</span>`}
-        sub="막대를 누르면 그 묶음으로 거른다.<span class='sr-only'> 키보드로는 Enter로 고른다.</span>"
         legend={[
           { type: 'rect', color: 's1', label: CAT.performance },
           { type: 'rect', color: 's2', label: CAT.circuit_specific },
           { type: 'rect', color: 's3', label: CAT.reliability },
-          { type: 'hollow', color: 'ctx', label: `${CAT.other} (빈 네모)` },
+          { type: 'hollow', color: 'ctx', label: CAT.other },
           ...(siteStatus.reviewDocuments.length > 0 ? [{ type: 'review', label: '검수 대기 문서' }] : []),
         ]}
         source={`${FIA_CP} ${DOCS}건, 이 사이트 추출. 부품 영역 ${Object.keys(AREA).length}개는 이 사이트 분류`}
@@ -193,14 +171,13 @@ const shown = Math.min(PAGE, TOTAL);
       </Figure>
     </div>
     <div class="fig-row wide ex-notes">
-      <aside class="notes" aria-label="요약 주석">
-        <Note head="부품 영역">
-          원문 부품 표기 {COMPONENT_SPELLINGS}가지를 이 사이트가 {Object.keys(AREA).length}개 영역으로 묶은 값이다(<a href={aboutRoutes.methodology()}>데이터와 방법론</a>의 부품 영역 규칙). 에지 윙은 플로어, 콕핏 주변은 헤일로, 미러, 헤드레스트다. 원문 표기는 항목 목록에 그대로 있다.
+      <div class="notes" role="note" aria-label="요약 주석">
+        <Note>{scopeText}의 문서를 포함한다.</Note>
+        <Note>
+          변경 사유 범주는 원문 사유의 앞부분으로 정했다. 부품 영역은 원문 부품 표기 {COMPONENT_SPELLINGS}가지를 {Object.keys(AREA).length}개로 분류한 값이다(<a href={aboutRoutes.methodology()}>부품 영역 규칙</a>). 에지 윙은 플로어, 콕핏 주변은 헤일로, 미러, 헤드레스트다.
         </Note>
-        <Note head="주의" caution>
-          항목 수는 신고 건수일 뿐이다. 항목의 크기와 성능 영향은 문서에 적혀 있지 않으며 이 사이트도 추정하지 않는다.
-        </Note>
-      </aside>
+        <Note caution>항목 수는 신고 건수이며 항목의 크기와 성능 영향은 반영하지 않는다.</Note>
+      </div>
     </div>
   </Section>
 
@@ -208,14 +185,13 @@ const shown = Math.min(PAGE, TOTAL);
     id="items"
     title="항목"
     meta={`<span id="items-meta">${n0(TOTAL)}건</span>`}
-    read="영문은 FIA 문서에 적힌 그대로이고, 쪽은 그 팀 표가 있는 문서 쪽이다."
   >
     <div id="item-list" class="ex-list">
       {
         GROUPS.map((g) => {
           const pages = pagesOf(g.doc);
           const head = `ev-${g.key}`;
-          const { bad, ok } = reviewTeams(g.doc);
+          const { bad } = reviewTeams(g.doc);
           return (
             <section class:list={['ex-ev', { 'ex-x': groupBeyond(g) }]} data-ev={g.key} data-s={g.season} data-n={g.items.length} aria-labelledby={head}>
               <div class="ex-ev-head">
@@ -233,7 +209,7 @@ const shown = Math.min(PAGE, TOTAL);
                 <p class="notice ex-ev-notice">
                   <Fragment set:html={iconSvg('review')} />
                   <span>
-                    {bad.join(', ')} 쪽 표가 그림으로만 들어 있어 그 팀의 항목은 이 목록에 없다. 나머지 {ok}개 팀 항목은 목록에 있다.
+                    {bad.join(', ')}의 표가 그림으로만 들어 있어 그 팀 항목은 제외했다.
                   </span>
                 </p>
               )}
@@ -251,19 +227,15 @@ const shown = Math.min(PAGE, TOTAL);
     </div>
     <div id="ex-empty" hidden>
       <EmptyState title="조건에 맞는 항목이 0건이다">
-        <span id="ex-empty-why">고른 조건을 모두 만족하는 항목이 문서에 없다.</span>
+        <span id="ex-empty-why">선택한 조건을 모두 만족하는 항목이 문서에 없다.</span>
         <button slot="actions" class="btn" type="button" id="ex-empty-reset">조건 지우기</button>
       </EmptyState>
     </div>
     <p class="result-of ex-more" id="more-line" data-js-only>
-      <span id="more-text">{n0(TOTAL)}건 가운데 {shown}건을 보고 있다.</span>
+      <span id="more-text">{n0(TOTAL)}건 가운데 {shown}건 표시</span>
       <button class="btn" type="button" id="more">{Math.min(PAGE, TOTAL - shown)}건 더 보기</button>
     </p>
-    <p class="src ex-src">
-      <span><b>출처</b> {FIA_CP} {DOCS}건 (FIA 저작물, 원문 링크와 추출한 정보만 싣는다), 이 사이트 추출</span><span
-        ><b>기준일</b> <Fragment set:html={asofFia()} /></span
-      >
-    </p>
+    <SourceLine source={`${FIA_CP} ${DOCS}건, 이 사이트 추출`} asof={asofFia()} />
   </Section>
 
   <JsonData id="ex-meta" data={clientMeta} />
@@ -284,7 +256,7 @@ const shown = Math.min(PAGE, TOTAL);
   .ex-list { margin-top: var(--sp-4); }
   .ex-ev + .ex-ev { margin-top: var(--sp-5); }
   .ex-ev-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--rule); }
-  .ex-ev-head h3 { font-size: var(--fs-h3); font-weight: 750; line-height: 1.4; }
+  .ex-ev-head h3 { font-size: var(--fs-h3); font-weight: 700; line-height: 1.4; }
   .ex-ev-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; font-size: var(--fs-small); color: var(--ink-3); }
   .ex-ev-meta b { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
   .ex-ev-meta .ext { color: var(--ink); }

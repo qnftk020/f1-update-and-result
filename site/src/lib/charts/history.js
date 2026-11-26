@@ -86,7 +86,7 @@ export function seasonBars(input, { width, kind = "d", label = "시즌별 값" }
     note: r.note || null,
   }));
   const fmt = (v) => (d.unit === "%" ? `${v.toFixed(v < 10 ? 2 : 1)}%` : `${v}${d.unit}`);
-  const w = frameOf(svg, d.median != null ? [el("p", "axis-note", `점선은 ${from}-${to}년 중앙값 ${fmt(d.median)}이다.`)] : []);
+  const w = frameOf(svg, d.median != null ? [el("p", "axis-note", `${from}-${to}년 중앙값 ${fmt(d.median)}`)] : []);
   readout(w, svg, stops, { axis: "x", label });
   return w;
 }
@@ -276,7 +276,7 @@ function heatWide({ from, to, rows }, width, label) {
     const by = new Map(r.cells.map((c) => [c.s, c]));
     for (let s = from; s <= to; s++) stops.push({ px: xs.apply(s), py: ys.apply(r.id) + rowH / 2, ...heatStop(r, by.get(s), s) });
   }
-  const w = frameOf(svg, [el("p", "axis-note", "오른쪽 숫자는 계보의 컨스트럭터 타이틀 수다.")]);
+  const w = frameOf(svg, [el("p", "axis-note", "오른쪽 숫자: 컨스트럭터 타이틀 수")]);
   readout(w, svg, stops, { axis: "grid", cols: n, rowH, label });
   return w;
 }
@@ -309,7 +309,7 @@ function heatSmall({ from, to, rows }, width, label) {
     const by = new Map(r.cells.map((c) => [c.s, c]));
     for (let s = from; s <= to; s++) stops.push({ px: xs.apply(s), py: ys.apply(i + 0.7), ...heatStop(r, by.get(s), s) });
   });
-  const w = frameOf(svg, [el("p", "axis-note", "칸을 누르고 옆으로 끌면 시즌을 차례로 읽는다.")]);
+  const w = frameOf(svg, []);
   readout(w, svg, stops, { axis: "grid", cols: to - from + 1, rowH: rowH * 0.46, label });
   return w;
 }

@@ -61,20 +61,9 @@ export function causeBars(list: { o: string; rc?: string }[]) {
 
 export function buildConstructor(c: ConstructorFile) {
   const rows = c.season_rows;
-  const nameHtml = en(esc(c.name));
   const last = rows[rows.length - 1];
-  const ranked = rows.filter((r) => r.pos != null);
 
   // ---------------------------------------------------------------- 머리
-  const firstLast = c.first_season === c.last_season ? `${c.first_season}년 한 시즌` : `${c.first_season}년부터 ${c.last_season}년까지 ${c.seasons}개 시즌`;
-  let lead = `${b(nameHtml)}${c.nationality_ko ? aside(esc(c.nationality_ko)) : ''}의 결승 기록은 ${firstLast}, 출전 대회 ${b(`${n0(c.entries)}개`)}다.`;
-  if (c.titles) lead += ` 컨스트럭터 챔피언 ${b(`${c.titles}번`)}${aside(yearsHtml(c.title_seasons))}, 우승 ${n0(c.wins)}번, 포디움 ${n0(c.podiums)}번을 기록했다.`;
-  else if (c.wins) lead += ` 우승 ${b(`${c.wins}번`)}, 포디움 ${c.podiums}번을 기록했고${c.best ? `, 가장 높은 컨스트럭터 순위는 ${c.best}위` : ''}다.`;
-  else if (c.podiums) lead += ` 포디움은 ${b(`${c.podiums}번`)}이다.`;
-  else if (c.best != null) lead += ` 가장 높은 컨스트럭터 순위는 ${b(`${c.best}위`)}다.`;
-  if (c.driver_titles) lead += ` 그 시즌 드라이버 챔피언이 이 컨스트럭터로 나선 시즌은 ${c.driver_titles}개${aside(yearsHtml(c.driver_title_seasons))}다.`;
-  if (c.in_2025 && last) lead += ` 2025 시즌에는 ${last.pos ? `컨스트럭터 순위 ${last.pos}위${aside(`${pts(last.pts)}점`)}로 마쳤다` : '컨스트럭터 순위를 받지 못했다'}.`;
-
   const engines = [...new Set(rows.map((r) => r.engine).filter(Boolean))] as string[];
   const facts: [string, string][] = [
     ['국적', c.nationality_ko ? esc(c.nationality_ko) : '미상'],
@@ -82,6 +71,10 @@ export function buildConstructor(c: ConstructorFile) {
     ['드라이버', `${c.drivers_n}명`],
   ];
   if (c.names.length > 1 || c.names[0] !== c.name) facts.push(['시즌 명칭', c.names.map((n) => `<span lang="en" class="nw">${esc(n)}</span>`).join(', ')]);
+  const ex = rows.filter((r) => r.excluded);
+  if (ex.length) facts.push(['순위 제외', `${ex.map((r) => r.s).join(', ')} (시즌 결과에서 제외)`]);
+  const ded = rows.filter((r) => r.deducted);
+  if (ded.length) facts.push(['감점 반영', ded.map((r) => r.s).join(', ')]);
   if (engines.length) facts.push(['엔진', engines.slice(-6).map((e) => `<span lang="en" class="nw">${esc(e)}</span>`).join(', ') + (engines.length > 6 ? ` 외 ${engines.length - 6}개` : '')]);
 
   const tiles = [
@@ -112,69 +105,23 @@ export function buildConstructor(c: ConstructorFile) {
     p: d.p,
   }));
 
-  // ---------------------------------------------------------------- 절 문장
-  const n1 = ranked.filter((r) => r.pos === 1).length;
-  const n3 = ranked.filter((r) => (r.pos as number) <= 3).length;
-  const stRows = rows.filter((r) => r.s >= STANDINGS_FROM);
-  let stRead = stRows.length
-    ? ranked.length
-      ? `컨스트럭터 순위가 있는 ${STANDINGS_FROM}년부터 ${stRows.length}개 시즌을 달렸고, 순위를 받은 ${ranked.length}개 시즌 가운데 1위는 ${b(`${n1}번`)}, 3위 안은 ${n3}번이다.`
-      : `${STANDINGS_FROM}년부터 ${stRows.length}개 시즌을 달렸지만 컨스트럭터 순위를 받은 시즌은 0개다.`
-    : '';
-  const ex = rows.filter((r) => r.excluded);
-  if (ex.length) stRead += ` ${ex.map((r) => r.s).join(', ')}년은 시즌 결과에서 제외되어 순위가 없다.`;
-  const ded = rows.filter((r) => r.deducted);
-  if (ded.length) stRead += ` ${ded.map((r) => r.s).join(', ')}년은 감점이 반영된 점수다.`;
-
-  const topW = rows.reduce((a, r) => (r.wins > a.wins ? r : a), rows[0]);
-  const topP = rows.reduce((a, r) => (r.podiums > a.podiums ? r : a), rows[0]);
-  const winRead = c.wins
-    ? `우승은 ${rows.filter((r) => r.wins).length}개 시즌에서 나왔다. 한 시즌 최다 우승은 ${b(`${topW.s}년 ${topW.wins}번`)}${aside(`${topW.entries}개 대회 출전`)}이고, 포디움이 가장 많은 시즌은 ${topP.s}년${aside(`${topP.podiums}번`)}이다.`
-    : c.podiums
-      ? `포디움은 ${rows.filter((r) => r.podiums).length}개 시즌에서 ${b(`${c.podiums}번`)}이다. 가장 많은 시즌은 ${topP.s}년${aside(`${topP.podiums}번`)}이다.`
-      : '우승과 포디움은 0번이다.';
-
-  const top = c.drivers[0];
-  const winners = [...c.drivers].filter((d) => d.w > 0).sort((a, z) => z.w - a.w || z.n - a.n);
-  let rosterRead = `결승에 나선 드라이버는 ${b(`${c.drivers_n}명`)}이다. 가장 많이 나선 드라이버는 ${en(esc(top.name))}${aside(`${top.n}개 대회, ${yearsHtml(top.seasons)}`)}다.`;
-  if (winners.length) rosterRead += ` 이 컨스트럭터로 가장 많이 우승한 드라이버는 ${en(esc(winners[0].name))}${aside(`${winners[0].w}번`)}다.`;
-
-  const cars = rows.reduce((a, r) => a + r.cars, 0);
-  const fin = rows.reduce((a, r) => a + r.classified, 0);
-  const mech = rows.reduce((a, r) => a + r.causes.mech, 0);
-  const acc = rows.reduce((a, r) => a + r.causes.acc, 0);
-  const relRead = `결과 ${n0(cars)}개 가운데 완주로 분류된 결과는 ${b(`${n0(fin)}개`)}${aside(pc(fin, cars))}다. 완주하지 못한 결과 가운데 차량 문제는 ${n0(mech)}개, 사고·충돌은 ${n0(acc)}개다.${
-    c.last_season >= 2023 ? ' 2023년부터의 리타이어는 Jolpica가 원인을 적지 않아(Retired) 원인 미기재로 센다.' : ''
-  }`;
-
   return {
     rows,
     last,
-    lead,
     facts,
     tiles,
     stepRows,
     podRows,
     outcomeRows,
     roster,
-    reads: { st: stRead, win: winRead, roster: rosterRead, rel: relRead },
   };
 }
 
-/** 시즌 쪽: 그 시즌 결과 행과 드라이버 순번, 문장 */
+/** 시즌 쪽: 그 시즌 결과 행과 드라이버 순번, 요약 표 */
 export function buildConstructorSeason(c: ConstructorFile, row: ConstructorSeasonRow) {
   const races = c.races.filter((r) => r.s === row.s);
   const drivers = [...row.drivers].sort((a, z) => z.n - a.n || (a.best ?? 99) - (z.best ?? 99));
-  const nameHtml = en(esc(row.name));
   const fin = races.filter((r) => r.o === 'F').length;
-
-  let lead = `${row.s} 시즌 ${b(nameHtml)}${row.engine ? aside(`엔진 ${esc(row.engine)}`) : ''}의 결승 기록이다. ${row.rounds}개 대회 가운데 ${b(`${row.entries}개`)}에 나섰다.`;
-  if (row.pos != null) lead += ` 컨스트럭터 순위는 ${b(`${row.pos}위`)}${aside(`${pts(row.pts)}점${row.champ_pts && row.pos !== 1 ? `, 1위 ${pts(row.champ_pts)}점` : ''}`)}다.`;
-  else if (row.excluded) lead += ' 시즌 결과에서 제외되어 컨스트럭터 순위가 없다.';
-  else if (row.s >= STANDINGS_FROM) lead += ' 컨스트럭터 순위를 받지 못했다.';
-  else lead += ` 컨스트럭터 순위는 ${STANDINGS_FROM}년부터다.`;
-  if (row.wins) lead += ` 우승 ${row.wins}번, 포디움 ${row.podiums}번${row.one_two ? `, 원투 ${row.one_two}번` : ''}이다.`;
-  else if (row.podiums) lead += ` 포디움은 ${row.podiums}번이다.`;
 
   const tiles = [
     { label: '컨스트럭터 순위', value: row.pos ? `${row.pos}위` : row.excluded ? '제외' : '없음', who: row.pts != null ? `${pts(row.pts)}점` : row.s < STANDINGS_FROM ? '1958년 이전' : '순위 미부여' },
@@ -183,16 +130,8 @@ export function buildConstructorSeason(c: ConstructorFile, row: ConstructorSeaso
     { label: '완주', value: pc(fin, races.length, 0) || '0%', who: `결과 ${races.length}개 중 ${fin}개` },
   ];
 
-  const outs = races.filter((r) => r.o !== 'F');
-  const causeText = (['acc', 'mech', 'unk', 'nc', 'oth'] as const)
-    .filter((k) => row.causes[k])
-    .map((k) => `${CAUSE_KO[k]} ${row.causes[k]}개`)
-    .concat(row.dsq ? [`실격 ${row.dsq}개`] : [], row.dns ? [`출발 안 함 ${row.dns}개`] : [])
-    .join(', ');
-  const stripRead = `${drivers.length}명이 ${races.length}개 결과를 냈다. 완주로 분류된 결과는 ${b(`${fin}개`)}이고, 완주하지 못한 결과는 ${outs.length}개${causeText ? aside(causeText) : ''}다.`;
-
   const raceRows = races.map((r) => ({ ...r, name: drivers.find((d) => d.id === r.d)?.name ?? r.d }));
-  return { races, raceRows, drivers, lead, tiles, reads: { strip: stripRead } };
+  return { races, raceRows, drivers, tiles };
 }
 
 export type { ConstructorRace };

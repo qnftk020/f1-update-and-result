@@ -135,6 +135,8 @@ export const SECTION_KO: Record<Section, string> = { technical: '기술 규정',
 /** 등급 모양: 색으로 등급을 나타내지 않는다(DESIGN.md "규정 아카이브의 등급 행렬") */
 export const GRADE_SHAPE: Record<Grade, string> = { A: '■', B: '◧', C: '□' };
 export const GRADE_RANGE: Record<Grade, string> = { A: '2008-', B: '2001-2007', C: '1982-2000' };
+/** 조항 단위로 나눈 첫 해(등급 A, FIA 원본 텍스트 PDF). */
+export const CLAUSE_FROM = 2008;
 export const CHANGE_KO: Record<string, { mark: string; label: string }> = {
   added: { mark: '+', label: '추가' },
   removed: { mark: '−', label: '삭제' },
@@ -182,23 +184,23 @@ export function skippedHtml(c: RegComparison, esc: (s: string) => string): strin
   const items = c.skipped_versions.map((k) => {
     const name = esc(`${k.season} ${issueName(k.issue, k.version)}`);
     const linked = k.url ? `<a href="${esc(k.url)}" rel="noopener">${name}</a>` : name;
-    const state = k.status === 'needs_review' ? '검수 대기' : k.status === 'listed' ? '받지 않음' : esc(k.status ?? '상태 기록 없음');
+    const state = k.status === 'needs_review' ? '검수 대기' : k.status === 'listed' ? '미수집' : esc(k.status ?? '상태 기록 없음');
     return `${linked}(${state})`;
   });
   // 판의 상태를 그대로 적는다. 검수 대기 판은 조항을 읽었지만 확인을 마치지 않은 판이라 "파싱하지 못한 판"이 아니다
   const statuses = new Set(c.skipped_versions.map((k) => k.status));
-  const kinds = [statuses.has('needs_review') && '검수 대기', statuses.has('listed') && '받지 않은'].filter(Boolean);
+  const kinds = [statuses.has('needs_review') && '검수 대기', statuses.has('listed') && '수집하지 않은'].filter(Boolean);
   const known = [...statuses].every((s) => s === 'needs_review' || s === 'listed');
   const kind = !known
-    ? '비교에 넣지 않은'
+    ? '비교에서 제외한'
     : kinds.length === 2
-      ? '검수 대기이거나 받지 않은'
+      ? '검수 대기이거나 수집하지 않은'
       : kinds[0] === '검수 대기'
         ? '검수 대기인'
-        : '받지 않은';
+        : '수집하지 않은';
   const n = c.skipped_versions.length;
   const those = n === 1 ? '그 판에서' : '그 판들에서';
-  return `이 비교는 ${kind} 판 ${n}개를 건너뛰었다: ${items.join(', ')}. ${those} 바뀐 내용은 앞뒤 두 판의 차이로 한꺼번에 나온다.`;
+  return `이 비교는 ${kind} 판 ${n}개를 건너뛰었다: ${items.join(', ')}. ${those} 바뀐 내용은 앞뒤 두 판의 차이에 합쳐 반영된다.`;
 }
 
 export const FACT_KO: Record<string, string> = {

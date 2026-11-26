@@ -293,7 +293,7 @@ export function mateBars(rows, { width, kind = "race", from, to, label }) {
   const A = kind === "race" ? "ra" : "qa";
   const B = kind === "race" ? "rb" : "qb";
   const data = rows.filter((d) => d[A] + d[B] > 0);
-  if (!data.length) return el("p", "fig-fallback", "비교가 0번이라 그릴 막대가 없다.");
+  if (!data.length) return el("p", "fig-fallback", "비교 기록이 없다.");
   const f = from ?? data[0].s;
   const t = to ?? data[data.length - 1].s;
   const ml = 40;

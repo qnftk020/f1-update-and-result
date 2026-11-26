@@ -4,8 +4,7 @@
 // 조건은 주소 조각(#season=2025&team=enstone)에 남는다. 거르기는 차트 모듈 없이도 돈다(그림만 그 모듈을 쓴다).
 // 데이터에서 온 글자는 textContent로만 넣는다. innerHTML은 고정 틀로 만든 리드 문장에만 쓴다.
 import { n0 } from '../../lib/format.ts';
-import { keepNames, typeset } from '../../lib/typeset.ts';
-import { CAT_ORDER, type Cat, PAGE, eventLabel, leadHtml, topOf } from './explorer-text.ts';
+import { CAT_ORDER, type Cat, PAGE, eventLabel } from './explorer-text.ts';
 
 interface Meta {
   total: number;
@@ -235,11 +234,11 @@ export function start(): void {
     if (d && state.team) {
       const st = d.st[state.team];
       if (st === 'no_updates') return `${eventLabel(d.s, d.r, d.short)} 문서에는 이 팀이 No updates submitted로 적혀 있다.`;
-      if (st === 'needs_review') return `${eventLabel(d.s, d.r, d.short)} 문서의 이 팀 쪽은 검수 대기다. 표가 그림으로만 들어 있어 읽지 않았다.`;
+      if (st === 'needs_review') return `${eventLabel(d.s, d.r, d.short)} 문서의 이 팀 항목은 검수 대기다. 표가 그림으로만 들어 있어 추출하지 않았다.`;
     } else if (d && d.n === 0) {
       return `${eventLabel(d.s, d.r, d.short)} 문서에는 ${Object.keys(d.st).length}개 팀 모두 No updates submitted로 적혀 있다.`;
     }
-    return '고른 조건을 모두 만족하는 항목이 문서에 없다.';
+    return '선택한 조건을 모두 만족하는 항목이 문서에 없다.';
   }
 
   // ---------------------------------------------------------------- 그리기
@@ -249,32 +248,6 @@ export function start(): void {
     const n = activeChips();
     $('result').querySelector('.result-n')!.textContent = n0(list.length);
     $('result').querySelector('.result-of')!.textContent = `${n0(TOTAL)}건 가운데 · 조건 ${n}개`;
-
-    // 리드
-    const areas: Record<string, number> = {};
-    const cats: Record<string, number> = {};
-    const docs = new Set<string>();
-    for (const r of list) {
-      areas[r.a] = (areas[r.a] || 0) + 1;
-      cats[r.c] = (cats[r.c] || 0) + 1;
-      docs.add(r.ev);
-    }
-    const ta = topOf(areas, Object.keys(areas).sort((a, b) => areas[b] - areas[a] || AREA_KEYS.indexOf(a) - AREA_KEYS.indexOf(b)));
-    const tc = topOf(cats, CATS);
-    $('ex-lead').innerHTML = typeset(
-      keepNames(
-        leadHtml({
-          total: TOTAL,
-          n: list.length,
-          docs: docs.size,
-          allDocs: M.docs.length,
-          years: M.years,
-          area: ta ? [M.areas[ta[0]] || ta[0], ta[1]] : null,
-          cat: tc ? [M.cats[tc[0] as Cat], tc[1]] : null,
-          filtered: anyFilter(),
-        }),
-      ),
-    );
 
     // 범주 칩: 범주 조건만 빼고 센 건수
     const catAll: Record<string, number> = {};
@@ -292,6 +265,8 @@ export function start(): void {
     }
 
     // 요약: 변경 사유
+    const cats: Record<string, number> = {};
+    for (const r of list) cats[r.c] = (cats[r.c] || 0) + 1;
     lastCounts = Object.fromEntries(CATS.map((c) => [c, cats[c] || 0]));
     $('share-scope').textContent = `${n0(list.length)}건`;
     $('f-share').querySelector('.twin')!.replaceChildren(
@@ -344,7 +319,7 @@ export function start(): void {
     const shown = Math.min(state.shown, list.length);
     $('more-line').hidden = list.length === 0;
     $('more-text').textContent =
-      shown >= list.length ? `${n0(list.length)}건을 모두 보고 있다.` : `${n0(list.length)}건 가운데 ${n0(shown)}건을 보고 있다.`;
+      shown >= list.length ? `${n0(list.length)}건 모두 표시` : `${n0(list.length)}건 가운데 ${n0(shown)}건 표시`;
     const more = $<HTMLButtonElement>('more');
     more.hidden = shown >= list.length;
     more.textContent = `${n0(Math.min(PAGE, list.length - shown))}건 더 보기`;

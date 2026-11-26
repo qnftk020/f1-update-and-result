@@ -25,6 +25,8 @@ interface Props {
   columns?: Column[];
   rows?: any[];
   rowClass?: (row: any, i: number) => string;
+  /** 행 id(쪽 안 링크와 검색 결과가 가리킨다). 예: (r) => `r${r.round}` */
+  rowId?: (row: any, i: number) => string;
   compact?: boolean;
   /** 캡션을 표 위에 보이게 둔다(기본은 sr-only. 보통은 절 제목이 캡션을 맡는다) */
   captionVisible?: boolean;
@@ -37,6 +39,7 @@ const {
   columns,
   rows = [],
   rowClass,
+  rowId,
   compact = false,
   captionVisible = false,
   expand,
@@ -65,7 +68,8 @@ function renderTable(list: any[], cap: string, offset: number): string {
           return `<td${attr(cellCls(c))}>${v}</td>`;
         })
         .join('');
-      return `<tr${attr(rowClass ? rowClass(r, i) : '')}>${tds}</tr>`;
+      const id = rowId ? rowId(r, i) : '';
+      return `<tr${id ? ` id="${esc(id)}"` : ''}${attr(rowClass ? rowClass(r, i) : '')}>${tds}</tr>`;
     })
     .join('');
   const capCls = captionVisible ? 'vis' : 'sr-only';

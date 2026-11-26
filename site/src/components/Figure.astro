@@ -1,6 +1,6 @@
 ---
-// 차트 틀(figure.fig). DESIGN.md "차트 틀": 머리(제목, 범위 줄, 차트/표 전환), 부제, 범례, 그림(.viz),
-// 표 보기(.twin, 정적 HTML), 출처 줄(figcaption.src). pair가 아니면 .fig-row로 감싸고 옆에 여백 주석을 둔다.
+// 그림 틀(figure.fig). DESIGN.md "그림 틀": 머리(제목, 범위 줄, 그림·표 전환), 부제, 범례, 그림(.viz),
+// 표 보기(.twin, 정적 HTML), 출처 줄(figcaption.src). pair가 아니면 .fig-row로 감싸고 그림 아래에 각주 목록을 둔다.
 //
 // 차트 자료: chart(함수 이름)와 data를 주면 <script type="application/json" class="chart-data">로 싣고
 // 브라우저의 mountAll()이 그린다. opts는 JSON으로 넘길 수 있는 옵션만(width는 자동). 함수가 필요한 옵션
@@ -33,8 +33,8 @@ interface Props {
   source: string;
   asof: string;
   twin?: { caption: string; columns: Column[]; rows: any[]; rowClass?: (r: any, i: number) => string };
-  notes?: { head: string; body: string; caution?: boolean }[];
-  /** 넓은 틀(.fig-row.wide): 전체 폭, 주석은 아래 여러 칸 */
+  notes?: { head?: string; body: string; caution?: boolean }[];
+  /** 예전 넓은 틀 표시. 지금은 모든 그림이 본문 열 전체를 쓰므로 모양은 같다 */
   wide?: boolean;
   /** .pair 안에 둘 때: figure만 내보낸다(주석은 바깥에서 따로) */
   pair?: boolean;
@@ -82,10 +82,10 @@ const frame = {
     <div class:list={['fig-row', { wide }]}>
       <FigureFrame {...frame} />
       {hasNotes && (
-        <aside class="notes" aria-label={`${plain} 주석`}>
-          {notes?.map((n) => <Note head={n.head} body={n.body} caution={n.caution} />)}
+        <div class="notes" role="note" aria-label={`${plain} 주`}>
+          {notes?.map((n) => <Note body={n.body} />)}
           <slot name="notes" />
-        </aside>
+        </div>
       )}
     </div>
   )

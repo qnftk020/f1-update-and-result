@@ -1,57 +1,45 @@
 ---
-// 홈: 분석 사이트의 첫 쪽. 최신 대회 결과를 짧게 두고, 부문(연도별, 드라이버, 팀, 업그레이드, 엔진, 규정)마다
-// 요약 수치와 작은 그림을 둔 뒤 끝에 전체 쪽 링크를 단다. 문장과 표, 출처 줄은 모두 빌드 때 생성 JSON에서 만든다
-// (components/home/home-data.ts, sentences.ts). 브라우저는 그림 셋과 시즌 고르기만 맡는다.
+// 홈(DESIGN.md "홈"): 데이터베이스의 첫 페이지. 사이트 이름과 범위 한 줄, 검색 칸, 최신 대회 결과 표, 시즌 연도 표,
+// 드라이버·팀 기록 표, 업그레이드·엔진·규정 요약 표 순이다. 서술 문단과 큰 숫자 칸을 두지 않는다.
+// 표와 출처 줄은 빌드 때 생성 JSON에서 만든다(components/home/home-data.ts).
 import '../components/home/home.css';
 import DataTable, { type Column } from '../components/DataTable.astro';
 import Figure from '../components/Figure.astro';
-import JsonData from '../components/JsonData.astro';
-import LinkPick from '../components/LinkPick.astro';
 import PageHead from '../components/PageHead.astro';
 import Section from '../components/Section.astro';
-import Seg from '../components/Seg.astro';
 import SourceLine from '../components/SourceLine.astro';
 import Tiles from '../components/Tiles.astro';
 import {
   catCounts,
   catOrder,
   changed,
-  closest,
   counts,
   engineAsOf,
   engineSummary,
   history,
   latestSeason,
   lineageTitles,
-  marginData,
-  maxWinners,
-  mostActive,
-  mostActiveLatest,
   perSeason,
   regSummary,
-  seasonCards,
   sparkMax,
   sparkSvg,
   teamPoints,
   teamRows,
-  tightSeasons,
+  teams,
   titleLeaders,
   top10,
-  upgradeSeasons,
-  widest,
   winLeaders,
 } from '../components/home/home-data.ts';
-import { seasonCardHtml } from '../components/home/season-card.ts';
-import { finishFact, homeLead, isFinal, ranked, resultsRead, timeText, upgradesRead } from '../components/home/sentences.ts';
+import { finishFact, isFinal, ranked, timeText } from '../components/home/sentences.ts';
 import { issueName, SECTION_KO, yearHref } from '../components/regulations/reg-data.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import * as cd from '../lib/chart-data.ts';
-import { home, labels, meta } from '../lib/data.ts';
-import { formatPoints, josa, n0, pct, posChange } from '../lib/format.ts';
+import { home, labels, meta, seasons } from '../lib/data.ts';
+import { formatPoints, n0, pct, posChange } from '../lib/format.ts';
 import { badgeHtml, extHtml, glyphHtml } from '../lib/markup.ts';
 import { routes } from '../lib/paths.ts';
 import { F1DB, FIA_CP, JOLPICA, asofF1db, asofFia, asofJolpica, asofQualiIndex } from '../lib/sources.ts';
-import { aside, b, esc, nw } from '../lib/typeset.ts';
+import { esc, nw } from '../lib/typeset.ts';
 import type { ClassificationRow } from '../lib/types.ts';
 
 const h = home;
@@ -67,21 +55,7 @@ const last = meta.last_season;
 const dlink = (id: string, name: string) => `<a href="${routes.driver(id)}">${esc(name)}</a>`;
 
 // ---------------------------------------------------------------- 머리
-const facts: [string, string][] = [
-  ['시즌', `${n0(counts.seasons)}개`],
-  ['대회', `${n0(counts.races)}개`],
-  ['드라이버', `${n0(counts.drivers)}명`],
-  ['업그레이드 항목', `${n0(counts.upgradeItems)}건`],
-];
-const parts = [
-  ['latest', '최신 대회'],
-  ['by-season', '연도별'],
-  ['drivers', '드라이버'],
-  ['teams', '팀'],
-  ['upgrades', '업그레이드'],
-  ['engines', '엔진'],
-  ['regulations', '규정'],
-].filter(([id]) => (id === 'engines' ? engineSummary : id === 'regulations' ? regSummary : true));
+const scope = `${first}-${last} · 시즌 ${n0(counts.seasons)}개 · 대회 ${n0(counts.races)}개 · 드라이버 ${n0(counts.drivers)}명 · 업그레이드 항목 ${n0(counts.upgradeItems)}건`;
 
 // ---------------------------------------------------------------- 최신 대회
 const tiles = [{ label: '우승 기록', value: win?.time ?? '미상', who: win?.name, team: win?.constructor }];
@@ -129,45 +103,18 @@ const gridTwin = {
   rows: grid,
 };
 
-// ---------------------------------------------------------------- 연도별
-const latestCard = seasonCards.find((c) => c.s === last) ?? seasonCards[seasonCards.length - 1];
-const years = seasonCards.map((c) => c.s).sort((a, b) => b - a);
-const decades = [...new Set(years.map((y) => Math.floor(y / 10) * 10))];
-const yearGroups = decades.map((d) => ({
-  label: `${d}년대`,
-  links: years.filter((y) => Math.floor(y / 10) * 10 === d).sort((a, b) => a - b).map((y) => ({ href: routes.season(y), text: String(y), current: y === last })),
-}));
-const seasonRead =
-  `${first}-${last} 시즌 ${n0(history.seasons.length)}개 가운데 드라이버 1위와 2위의 점수 차이가 1위 점수의 5% 미만인 시즌은 ${b(`${tightSeasons.length}개`)}다. ` +
-  `가장 근소한 시즌은 ${b(`${closest.season}년`)}${aside(`${formatPoints(closest.margin)}점, ${formatPoints(closest.margin_pct)}%`)}이고, ` +
-  `차이가 가장 큰 시즌은 ${b(`${widest.season}년`)}${aside(`${formatPoints(widest.margin_pct)}%`)}이다. ` +
-  `서로 다른 우승자가 가장 많이 나온 시즌은 ${maxWinners.season}년${aside(`${maxWinners.winners}명`)}이다.`;
-type M = (typeof marginData)[number];
-const marginTwin = {
-  caption: '시즌별 1위와 2위의 점수 차',
-  columns: [
-    { label: '시즌', num: true, render: (r: M) => `<a href="${routes.season(r.s)}">${r.s}</a>` },
-    { label: '드라이버 1위', render: (r: M) => `<span lang="en">${esc(r.d1)}</span>` },
-    { label: '2위', cls: 'hide-sm', render: (r: M) => `<span lang="en">${esc(r.d2)}</span>` },
-    { label: '차이 (점)', num: true, render: (r: M) => formatPoints(r.dm) },
-    { label: '1위 대비 (%)', num: true, render: (r: M) => r.d.toFixed(2) },
-    { label: '컨스트럭터 차이 (점)', num: true, cls: 'hide-sm', render: (r: M) => (r.cm == null ? '순위 없음' : formatPoints(r.cm)) },
-    { label: '1위 대비 (%)', num: true, cls: 'hide-sm', render: (r: M) => (r.c == null ? '순위 없음' : r.c.toFixed(2)) },
-  ],
-  rows: [...marginData].reverse(),
-  rowClass: (r: M) => (r.s === last ? 'hl' : ''),
-};
+// ---------------------------------------------------------------- 시즌
+const decades = [...new Set(seasons.map((x) => Math.floor(x.season / 10) * 10))].sort((a, z) => z - a);
+type SeasonRow = (typeof seasons)[number];
+const recent = [...seasons].sort((a, z) => z.season - a.season).slice(0, 10);
+const champCols: Column<SeasonRow>[] = [
+  { label: '시즌', render: (r) => `<a href="${routes.season(r.season)}">${r.season}</a>` },
+  { label: '대회', num: true, render: (r) => String(r.rounds) },
+  { label: '드라이버 챔피언', render: (r) => (r.champion_driver ? `<a href="${routes.driver(r.champion_driver.id)}" lang="en">${esc(r.champion_driver.name)}</a>` : '') },
+  { label: '컨스트럭터 챔피언', render: (r) => (r.champion_constructor ? `<a href="${routes.constructorPage(r.champion_constructor.id)}" lang="en">${esc(r.champion_constructor.name)}</a>` : '<span class="muted">1958년부터</span>') },
+];
 
 // ---------------------------------------------------------------- 드라이버
-const champ = history.seasons.find((s) => s.season === last)!;
-const champRow = top10[0];
-const driverRead =
-  `${last} 시즌 드라이버 1위는 ${b(esc(champ.d1.name))}${aside(esc(champ.d1.teams.join(', ')))}의 ${formatPoints(champ.d1.pts)}점이고, ` +
-  `2위 ${esc(champ.d2.name)}의 ${formatPoints(champ.d2.pts)}점과 ${b(`${formatPoints(champ.margin)}점`)} 차이다.` +
-  (champ.lead_change && champ.lead_change > 1
-    ? ` 순위 선두는 ${champ.lead_change}라운드에 마지막으로 바뀌었고, 1위가 선두였던 라운드는 ${champ.d1.led}개다.`
-    : ` 1위가 선두였던 라운드는 ${champ.d1.led}개다.`) +
-  ` 역대 최다 우승은 ${esc(winLeaders[0].name)}의 ${winLeaders[0].wins}승이다.`;
 type T = (typeof top10)[number];
 const top10Cols: Column<T>[] = [
   { label: '순위', cls: 'pos', render: (r) => String(r.position) },
@@ -180,95 +127,87 @@ const top10Cols: Column<T>[] = [
   { label: '점수', num: true, render: (r) => formatPoints(r.points) },
   {
     label: '라운드별 순위',
-    cls: 'hm-spark-cell',
-    render: (r) => `${sparkSvg(r.positions, sparkMax, 96, 28)}<span class="sr-only">최고 ${r.best}위, 최저 ${r.worst}위, 최종 ${r.position}위</span>`,
+    cls: 'hm-spark-cell hide-xs',
+    render: (r) => `${sparkSvg(r.positions, sparkMax, 96, 22)}<span class="sr-only">최고 ${r.best}위, 최저 ${r.worst}위, 최종 ${r.position}위</span>`,
   },
-  { label: '선두 라운드 수', num: true, cls: 'hide-sm', render: (r) => String(r.led) },
 ];
-const maxTitles = titleLeaders[0]?.titles || 1;
-const maxWins = winLeaders[0]?.wins || 1;
-const bar = (v: number, max: number) => `<span class="bar" aria-hidden="true"><span style="width:${((v / max) * 100).toFixed(1)}%"></span></span>`;
+type L = (typeof titleLeaders)[number];
+const titleCols: Column<L>[] = [
+  { label: '순위', cls: 'pos', render: (r) => String(r.rank) },
+  { label: '드라이버', render: (r) => dlink(r.id, r.name) },
+  { label: '기간', cls: 'hide-xs', render: (r) => `${r.first_season}-${r.last_season}` },
+  { label: '타이틀', num: true, render: (r) => `${r.titles}` },
+];
+type W = (typeof winLeaders)[number];
+const winCols: Column<W>[] = [
+  { label: '순위', cls: 'pos', render: (r) => String(r.rank) },
+  { label: '드라이버', render: (r) => dlink(r.id, r.name) },
+  { label: '출발', num: true, cls: 'hide-xs', render: (r) => n0(r.starts) },
+  { label: '우승', num: true, render: (r) => `${r.wins}` },
+];
 
 // ---------------------------------------------------------------- 팀
 type TR = (typeof teamRows)[number];
-const cmax = teamRows[0]?.points || 1;
 const teamCols: Column<TR>[] = [
   { label: '순위', cls: 'pos', render: (r) => String(r.position) },
   {
-    label: '팀',
-    render: (r) =>
-      `<span class="who">${r.lineage_id ? `<a href="${routes.team(r.lineage_id)}" lang="en">${esc(r.name)}</a>` : `<span lang="en">${esc(r.name)}</span>`}</span>` +
-      (r.name_ko ? `<span class="sub-line">${esc(r.name_ko)}</span>` : ''),
+    label: '컨스트럭터',
+    render: (r) => `<a href="${routes.constructorPage(r.id)}" lang="en">${esc(r.name)}</a>`,
   },
+  { label: '팀 계보', cls: 'hide-sm', render: (r) => (r.lineage_id && r.name_ko ? `<a href="${routes.team(r.lineage_id)}">${esc(r.name_ko)}</a>` : '') },
   { label: '승', num: true, cls: 'hide-xs', render: (r) => n0(r.wins) },
   { label: '점수', num: true, render: (r) => formatPoints(r.points) },
-  { label: '<span class="sr-only">점수 막대</span>', labelHtml: true, cls: 'meter-cell hide-sm', render: (r) => `<span class="meter" style="width:${((r.points / cmax) * 100).toFixed(1)}%" aria-hidden="true"></span>` },
-  {
-    label: '예선 평균 지수',
-    num: true,
-    render: (r) => (r.q == null ? '미상' : `${pct(r.q)}<span class="sub-line">${r.qRank}위</span>`),
-  },
+  { label: '예선 평균 지수', num: true, cls: 'hide-xs', render: (r) => (r.q == null ? '미상' : pct(r.q)) },
 ];
-const qBest = [...teamRows].filter((r) => r.q != null).sort((a, z) => (a.q as number) - (z.q as number))[0];
-const c1 = teamRows[0];
-const c2 = teamRows[1];
-const teamRead =
-  `${last} 컨스트럭터 1위 ${b(esc(c1.name))}의 ${formatPoints(c1.points)}점은 2위 ${esc(c2.name)}보다 ${b(`${formatPoints(c1.points - c2.points)}점`)} 많다. ` +
-  (qBest ? `시즌 예선 평균 지수가 가장 작은 팀은 ${esc(qBest.name)} 팀${aside(pct(qBest.q))}이다. ` : '') +
-  `점수 순위와 예선 지수 순위가 같은 팀은 ${teamRows.filter((r) => r.qRank === r.position).length}개다.`;
+type LT = (typeof lineageTitles)[number];
+const lineageCols: Column<LT>[] = [
+  { label: '팀 계보', render: (r) => `<a href="${routes.team(r.lineage_id)}">${esc(r.name_ko)}</a>` },
+  { label: '마지막 타이틀', num: true, render: (r) => String(r.title_seasons.at(-1) ?? '') },
+  { label: '타이틀', num: true, render: (r) => String(r.titles) },
+];
 const hlTeams = teamPoints.slice(0, 3);
 const rounds = cd.roundLabels(latestSeason);
 const ptsCell = (v: number | null) => (v == null ? '' : formatPoints(v));
-const maxLineageTitles = lineageTitles[0]?.titles || 1;
 
 // ---------------------------------------------------------------- 업그레이드
 const catTotal = catOrder.reduce((a, c) => a + catCounts[c], 0);
-const share = (n: number) => (catTotal ? (n / catTotal) * 100 : 0);
 const shareText = (n: number) => {
-  const s = share(n);
+  const s = catTotal ? (n / catTotal) * 100 : 0;
   return s > 0 && s < 1 ? '1% 미만' : `${Math.round(s)}%`;
 };
-const topCat = [...catOrder].sort((a, z) => catCounts[z] - catCounts[a])[0];
-const topLabel = labels.reason_categories[topCat];
-const upRead =
-  `${upgradeSeasons[0]}-${upgradeSeasons.at(-1)} FIA 문서 ${n0(counts.upgradeDocs)}건의 업그레이드 항목은 ${n0(counts.upgradeItems)}건이다. ` +
-  `변경 사유는 ${topLabel}${aside(shareText(catCounts[topCat]))}${josa(topLabel, '이', '가').slice(topLabel.length)} 가장 많다.`;
 
 // ---------------------------------------------------------------- 엔진
 const E = engineSummary;
-const engineRead = E
-  ? `${E.season} 시즌 PU 공급사는 ${E.suppliers.length}곳이고 ${E.teams}개 팀에 PU를 댔다. ` +
-    (E.iceAllowed != null ? `ICE 허용 개수(${E.iceAllowed}개)를 넘긴 드라이버는 ${E.drivers}명 가운데 ${b(`${E.iceOver}명`)}이다.` : '')
-  : '';
-const supMax = E ? Math.max(...E.suppliers.map((p) => p.teams.length)) : 1;
 const engineAsof = `${asofF1db()}, 문서 ${engineAsOf ? `${nw(engineAsOf)} 수집` : '수집일 기록 부재'}`;
 
 // ---------------------------------------------------------------- 규정
 const RS = regSummary;
-const regRead = RS
-  ? `바뀐 조항 수는 ${RS.year - 1}년과 ${RS.year}년의 마지막으로 읽은 판을 조항 단위로 비교한 값이다.`
-  : '';
 
-const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀 순위, 업그레이드 항목, PU 사용 현황, 규정 변경을 부문별로 요약하고 ${season} 시즌 ${isFinal(h) ? '최종전' : `${race.round}라운드`} 결과를 보인다`;
+const description = `${first}-${last} F1 기록 데이터베이스: 시즌, 드라이버, 컨스트럭터, 팀 계보, 차체 업그레이드 항목, PU 사용 현황, 규정 문서. ${season} 시즌 ${isFinal(h) ? '최종전' : `${race.round}라운드`} 결과.`;
 ---
 
 <BaseLayout description={description} current="home">
-  <PageHead title="부문별 데이터 요약" facts={facts}>
-    <nav class="hm-parts" aria-label="이 쪽의 부문">
-      {parts.map(([id, label]) => <a href={`#${id}`}>{label}</a>)}
-    </nav>
+  <PageHead title="F1 업그레이드와 성능 추이" meta={scope} crumbs={false}>
+    <form class="hm-search" role="search" action={routes.search()} method="get">
+      <label class="sr-only" for="hm-q">드라이버, 팀, 시즌, 대회 검색</label>
+      <input id="hm-q" name="q" type="search" placeholder="이름, 약어, 연도, 대회 (예: Senna, HAM, 1988 모나코, 워킹)" autocomplete="off" />
+      <button class="btn" type="submit">검색</button>
+    </form>
+    <p class="chips-row hm-lists">
+      <a class="chip-link" href={routes.seasons()}>시즌 {n0(counts.seasons)}개</a>
+      <a class="chip-link" href={routes.drivers()}>드라이버 {n0(counts.drivers)}명</a>
+      <a class="chip-link" href={routes.constructors()}>컨스트럭터</a>
+      <a class="chip-link" href={routes.teams()}>팀 계보 {teams.length}개</a>
+      <a class="chip-link" href={routes.upgrades()}>업그레이드 {n0(counts.upgradeItems)}건</a>
+      {E && <a class="chip-link" href={routes.engines()}>엔진</a>}
+      {RS && <a class="chip-link" href={routes.regulations()}>규정</a>}
+    </p>
   </PageHead>
 
-  <Section id="latest" title="최신 대회" meta={`${R} · <span class="nw">${race.date}</span> · <span lang="en">${esc(race.circuit)}</span>`}>
-    <h3 class="sub-title hm-race-title">
-      <span>{race.name_ko}<span class="latin" lang="en">{race.name}</span></span>
-      <span class="sec-meta">{raceMeta}</span>
-    </h3>
-    <p class="read" set:html={`${homeLead(h)} ${resultsRead(h)}`} />
-    <Tiles items={tiles} />
+  <Section id="latest" title={`최신 대회: ${R} ${race.name_ko}`} meta={`<span class="nw">${race.date}</span> · <span lang="en">${esc(race.circuit)}</span> · ${raceMeta}`}>
+    <Tiles items={tiles} caption="최신 대회 기록" />
     <div class="pair">
       <div>
-        <h4 class="sr-only">결승 순위표</h4>
         <DataTable
           caption="결승 결과 1위부터 10위"
           columns={resultCols}
@@ -283,7 +222,6 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
         id="f-grid"
         title="출발 순위와 결승 순위"
         scope={`${R} · ${grid.length}대`}
-        sub="변화량은 5칸 이상 바뀐 차에만 적는다."
         legend={[
           { type: 'ring', color: 's1', label: '출발 (그리드)' },
           { type: 'dot', color: 's2', label: '결승' },
@@ -295,405 +233,187 @@ const description = `${first}-${last} 시즌 연도별 1위, 드라이버와 팀
         twin={gridTwin}
       />
     </div>
-    <p class="hm-more hm-split">
-      <a href={routes.season(season)}>{season} 시즌 캘린더와 순위 추이</a>
-      <a href={`${routes.season(season)}#pace`}>팀 페이스 지수 추이</a>
+    <p class="chips-row">
+      <a class="chip-link" href={`${routes.season(season)}#r${race.round}`}>{season} 시즌 캘린더</a>
+      <a class="chip-link" href={`${routes.season(season)}#pace`}>{season} 팀 페이스 지수</a>
     </p>
   </Section>
 
-  <Section id="by-season" title="연도별" read={seasonRead} meta={`<a href="${routes.seasons()}">${first}-${last} 시즌 목록</a>`}>
+  <Section id="seasons" title="시즌" meta={`<a href="${routes.seasons()}">${first}-${last} 시즌 목록</a>`}>
     <div class="pair">
       <div>
-        <div class="ev-picker hm-picker" data-js-only>
-          <div class="field">
-            <label for="hm-year">시즌 고르기</label>
-            <select id="hm-year">
+        <div class="tbl-wrap" role="region" tabindex="0" aria-label="연대별 시즌">
+          <table class="dt hm-years">
+            <caption class="sr-only">연대별 시즌</caption>
+            <thead><tr><th scope="col">연대</th><th scope="col">시즌</th></tr></thead>
+            <tbody>
               {
                 decades.map((d) => (
-                  <optgroup label={`${d}년대`}>
-                    {years
-                      .filter((y) => Math.floor(y / 10) * 10 === d)
-                      .map((y) => (
-                        <option value={String(y)} selected={y === last}>
-                          {y}
-                        </option>
-                      ))}
-                  </optgroup>
+                  <tr>
+                    <th scope="row">{d}년대</th>
+                    <td>
+                      <div class="hm-yrs">
+                        {seasons
+                          .filter((x) => Math.floor(x.season / 10) * 10 === d)
+                          .sort((a, z) => a.season - z.season)
+                          .map((x) => <a href={routes.season(x.season)}>{x.season}</a>)}
+                      </div>
+                    </td>
+                  </tr>
                 ))
               }
-            </select>
-          </div>
-          <div class="field">
-            <span class="lab" aria-hidden="true">&nbsp;</span>
-            <button class="btn" type="button" id="hm-prev">이전 시즌</button>
-          </div>
-          <div class="field">
-            <span class="lab" aria-hidden="true">&nbsp;</span>
-            <button class="btn" type="button" id="hm-next" aria-disabled="true">다음 시즌</button>
-          </div>
+            </tbody>
+          </table>
         </div>
-        <div class="hm-nojs">
-          <LinkPick summary="다른 시즌 쪽으로 가기" navLabel="시즌 목록" groups={yearGroups} />
-        </div>
-        <div class="hm-card" id="hm-card" aria-live="polite" set:html={seasonCardHtml(latestCard, history.constructor_first_season)} />
-        <SourceLine source={`${JOLPICA} 최종 순위와 결승 결과, 이 사이트 집계`} asof={asofJolpica()} />
       </div>
       <div>
-        <div class="hm-kind">
-          <Seg
-            label="점수 차이를 볼 순위"
-            attr="kind"
-            id="hm-kind"
-            items={[
-              { value: 'd', label: '드라이버', pressed: true },
-              { value: 'c', label: '컨스트럭터' },
-            ]}
-          />
-        </div>
-        <Figure
-          pair
-          id="f-margins"
-          title="1위와 2위의 점수 차"
-          scope={`${first}-${last} · <span id="hm-kind-scope">드라이버 순위</span> · 1위 점수 대비 %`}
-          sub={`시즌마다 점수 체계가 달라 점수 차를 1위 점수에 대한 비율로 적었다. 막대가 낮을수록 접전이다.<span data-js-only> 막대를 누르면 그 시즌을 고른다.</span> 우승자 수와 선두 라운드를 함께 본 분석은 <a href="${routes.seasons()}#trend">시즌 목록의 챔피언십 추이</a>에 있다.`}
-          legend={[
-            { type: 'rect', color: 's1', label: '1위와 2위의 점수 차' },
-            { type: 'rect', color: 's2', label: '고른 시즌' },
-          ]}
-          chart="seasonMargins"
-          data={marginData}
-          opts={{ selected: last, kind: 'd' }}
-          source={`${JOLPICA} 시즌 최종 드라이버, 컨스트럭터 순위, 이 사이트 계산`}
-          asof={asofJolpica()}
-          twin={marginTwin}
-        />
+        <DataTable caption={`최근 ${recent.length}개 시즌의 챔피언`} columns={champCols} rows={recent} />
+        <SourceLine source={`${JOLPICA} 시즌 최종 순위`} asof={asofJolpica()} />
       </div>
     </div>
-    <JsonData id="hm-seasons" data={{ first: history.constructor_first_season, cards: seasonCards }} />
   </Section>
 
-  <Section id="drivers" title="드라이버" read={driverRead} meta={`<a href="${routes.drivers()}">드라이버 ${n0(counts.drivers)}명 전체 보기</a>`}>
-    <dl class="hm-figs hm-figs4">
-      <div><dt>결승 기록이 있는 드라이버</dt><dd>{n0(counts.drivers)}<small>명</small></dd></div>
-      <div><dt>결승 우승 경험</dt><dd>{n0(counts.winners)}<small>명</small></dd></div>
-      <div><dt>드라이버 챔피언</dt><dd>{n0(counts.champions)}<small>명</small></dd></div>
-      <div><dt>{last} 시즌 출전</dt><dd>{n0(counts.entrants2025)}<small>명</small></dd></div>
-    </dl>
+  <Section id="drivers" title="드라이버" meta={`<a href="${routes.drivers()}">드라이버 ${n0(counts.drivers)}명</a>`}>
+    <h3 class="sub-title"><span>{last} 드라이버 순위 1-10위</span></h3>
+    <DataTable caption={`${last} 드라이버 최종 순위 1위부터 10위와 라운드별 순위`} columns={top10Cols} rows={top10} rowClass={breakTop3} />
+    <SourceLine source={`${JOLPICA} 드라이버 순위(라운드별)`} asof={asofJolpica()} />
     <div class="pair">
       <div>
-        <h3 class="sub-title"><span>{last} 최종 순위 상위 10명</span><span class="sec-meta">선은 라운드별 순위, 위가 1위</span></h3>
-        <DataTable caption={`${last} 드라이버 최종 순위 1위부터 10위와 라운드별 순위`} columns={top10Cols} rows={top10} rowClass={breakTop3} />
-        <SourceLine source={`${JOLPICA} 드라이버 순위(라운드별)`} asof={asofJolpica()} />
+        <h3 class="sub-title"><span>드라이버 챔피언 타이틀</span><span class="sec-meta">{first}-{last}</span></h3>
+        <DataTable caption="드라이버 챔피언 타이틀 상위" columns={titleCols} rows={titleLeaders} />
       </div>
       <div>
-        <h3 class="sub-title"><span>역대 기록</span><span class="sec-meta">{first}-{last}</span></h3>
-        <div class="hm-two">
-          <div>
-            <p class="hm-cap">드라이버 챔피언 타이틀</p>
-            <ol class="hm-rank" aria-label="드라이버 챔피언 타이틀 상위">
-              {
-                titleLeaders.map((d) => (
-                  <li class:list={{ top: d.rank === 1 }}>
-                    <span class="r">{d.rank}</span>
-                    <span class="nm">
-                      <a href={routes.driver(d.id)} lang="en">{d.name}</a>
-                      <small>{d.first_season}-{d.last_season}</small>
-                    </span>
-                    <Fragment set:html={bar(d.titles, maxTitles)} />
-                    <span class="v">{d.titles}회</span>
-                  </li>
-                ))
-              }
-            </ol>
-          </div>
-          <div>
-            <p class="hm-cap">결승 우승</p>
-            <ol class="hm-rank" aria-label="결승 우승 상위">
-              {
-                winLeaders.map((d) => (
-                  <li class:list={{ top: d.rank === 1 }}>
-                    <span class="r">{d.rank}</span>
-                    <span class="nm">
-                      <a href={routes.driver(d.id)} lang="en">{d.name}</a>
-                      <small>출발 {n0(d.starts)}회</small>
-                    </span>
-                    <Fragment set:html={bar(d.wins ?? 0, maxWins)} />
-                    <span class="v">{d.wins}승</span>
-                  </li>
-                ))
-              }
-            </ol>
-          </div>
-        </div>
-        <SourceLine source={`${JOLPICA} 결승 결과와 시즌 최종 순위, 이 사이트 집계. 같은 값은 같은 등수다`} asof={asofJolpica()} />
+        <h3 class="sub-title"><span>결승 우승</span><span class="sec-meta">{first}-{last}</span></h3>
+        <DataTable caption="결승 우승 상위" columns={winCols} rows={winLeaders} />
       </div>
     </div>
-    <p class="hm-more hm-split">
-      <a href={routes.drivers()}>드라이버 목록과 기록 비교</a>
-      {champRow && <a href={routes.driver(champRow.id)}>{champRow.name} 드라이버 쪽</a>}
-    </p>
+    <SourceLine source={`${JOLPICA} 결승 결과와 시즌 최종 순위, 이 사이트 집계. 같은 값은 같은 등수다`} asof={asofJolpica()} />
   </Section>
 
-  <Section id="teams" title="팀" read={teamRead} meta={`<a href="${routes.teams()}">${last} 그리드 ${teamRows.length}개 계보</a>`}>
+  <Section id="teams" title="컨스트럭터와 팀 계보" meta={`<a href="${routes.constructors()}">컨스트럭터 목록</a> · <a href="${routes.teams()}">팀 계보 ${teams.length}개</a>`}>
     <div class="pair">
       <div>
-        <h3 class="sub-title"><span>{last} 컨스트럭터 최종 순위</span><span class="sec-meta">막대는 1위 점수 대비, 지수 아래는 그 순위</span></h3>
+        <h3 class="sub-title"><span>{last} 컨스트럭터 순위</span></h3>
         <DataTable caption={`${last} 컨스트럭터 최종 순위와 예선 평균 지수`} columns={teamCols} rows={teamRows} rowClass={breakTop3} />
-        <SourceLine
-          source={`${JOLPICA} 컨스트럭터 순위, 예선 평균 지수는 마른 예선의 팀 최고 랩 기준 이 사이트 계산`}
-          asof={asofQualiIndex()}
-        />
-        <p class="hm-cap">계보별 컨스트럭터 타이틀<span>{history.constructor_first_season}-{last}</span></p>
-        <ol class="hm-rank hm-rank-nr" aria-label="계보별 컨스트럭터 타이틀">
-          {
-            lineageTitles.map((l, i) => (
-              <li class:list={{ top: i === 0 }}>
-                <span class="nm">
-                  <a href={routes.team(l.lineage_id)}>{l.name_ko}</a>
-                  <small>마지막 {l.title_seasons.at(-1)}</small>
-                </span>
-                <Fragment set:html={bar(l.titles, maxLineageTitles)} />
-                <span class="v">{l.titles}회</span>
-              </li>
-            ))
-          }
-        </ol>
-        <SourceLine
-          source={`${JOLPICA} 컨스트럭터 최종 순위, 이 사이트의 계보 자료. 브래클리 계보에는 Tyrrell 1971과 Brawn 2009가 들어 있다`}
-          asof={asofJolpica()}
-        />
+        <SourceLine source={`${JOLPICA} 컨스트럭터 순위, 예선 평균 지수는 마른 예선의 팀 최고 랩 기준 이 사이트 계산`} asof={asofQualiIndex()} />
       </div>
-      <Figure
-        pair
-        id="f-cons"
-        title="컨스트럭터 누적 점수"
-        scope={`${last} · 라운드별 누적 · 강조 ${hlTeams.length}팀`}
-        sub="색은 최종 순위 순서이고 팀 색이 아니다."
-        legend={[
-          ...hlTeams.map((c, k) => ({ type: 'line' as const, color: ['s1', 's2', 's3'][k], label: esc(c.label) })),
-          { type: 'line' as const, color: 'ctx', label: '나머지 팀' },
-        ]}
-        chart="pointsRace"
-        data={teamPoints}
-        opts={{ rounds, highlight: hlTeams.map((c) => c.id), unit: '점' }}
-        source={`${JOLPICA} 컨스트럭터 순위(라운드별)`}
-        asof={asofJolpica()}
-        twin={{
-          caption: `${last} 컨스트럭터 라운드별 누적 점수`,
-          columns: [
-            { label: '순위', num: true, render: (r) => String(r.pos) },
-            { label: '팀', cls: 'stick', render: (r) => `<span lang="en">${esc(r.label)}</span>` },
-            ...Array.from({ length: rounds.length }, (_, i): Column => ({ label: String(i + 1), num: true, render: (r) => ptsCell(r.pts[i]) })),
-          ],
-          rows: teamPoints,
-        }}
-      />
+      <div>
+        <h3 class="sub-title"><span>팀 계보별 컨스트럭터 타이틀</span><span class="sec-meta">{history.constructor_first_season}-{last}</span></h3>
+        <DataTable caption="계보별 컨스트럭터 타이틀" columns={lineageCols} rows={lineageTitles} />
+        <SourceLine source={`${JOLPICA} 컨스트럭터 최종 순위, 이 사이트의 계보 자료. 브래클리 계보에는 Tyrrell 1971과 Brawn 2009가 들어 있다`} asof={asofJolpica()} />
+      </div>
     </div>
-    <p class="hm-more hm-split">
-      <a href={routes.teams()}>팀 계보 목록</a>
-      {c1.lineage_id ? <a href={routes.team(c1.lineage_id)}>{c1.name_ko ?? c1.name} 팀 쪽</a> : null}
-    </p>
+    <Figure
+      id="f-cons"
+      title="컨스트럭터 누적 점수"
+      scope={`${last} · 라운드별 누적 · 강조 ${hlTeams.length}팀`}
+      legend={[
+        ...hlTeams.map((c, k) => ({ type: 'line' as const, color: ['s1', 's2', 's3'][k], label: esc(c.label) })),
+        { type: 'line' as const, color: 'ctx', label: '나머지 팀' },
+      ]}
+      chart="pointsRace"
+      data={teamPoints}
+      opts={{ rounds, highlight: hlTeams.map((c) => c.id), unit: '점' }}
+      source={`${JOLPICA} 컨스트럭터 순위(라운드별)`}
+      asof={asofJolpica()}
+      twin={{
+        caption: `${last} 컨스트럭터 라운드별 누적 점수`,
+        columns: [
+          { label: '순위', num: true, render: (r) => String(r.pos) },
+          { label: '팀', cls: 'stick', render: (r) => `<span lang="en">${esc(r.label)}</span>` },
+          ...Array.from({ length: rounds.length }, (_, i): Column => ({ label: String(i + 1), num: true, render: (r) => ptsCell(r.pts[i]) })),
+        ],
+        rows: teamPoints,
+      }}
+    />
   </Section>
 
   <div class="hm-briefs">
-    <Section id="upgrades" title="업그레이드" read={upRead}>
-      <dl class="hm-figs">
-        <div><dt>업그레이드 항목</dt><dd>{n0(counts.upgradeItems)}<small>건</small></dd></div>
-        <div><dt>FIA 문서</dt><dd>{n0(counts.upgradeDocs)}<small>건</small></dd></div>
-      </dl>
-      <p class="hm-small">
-        {perSeason.map((p, i) => <Fragment>{i > 0 && ' · '}<span class="nw">{p.season} <b>{n0(p.n)}건</b></span></Fragment>)}
-      </p>
-      <div class="share hm-share">
-        <div class="seg-bar" role="img" aria-label={`변경 사유 비율: ${catOrder.map((c) => `${labels.reason_categories[c]} ${catCounts[c]}건`).join(', ')}`}>
-          {catOrder.filter((c) => catCounts[c] > 0).map((c) => <span class="seg-part" data-cat={c} style={`flex-grow:${catCounts[c]}`} />)}
-        </div>
-        <ul class="share-list">
-          {
-            catOrder.map((c) => (
-              <li>
-                <Fragment set:html={glyphHtml(c)} />
-                <span class="share-name">{labels.reason_categories[c]}</span>
-                <b class="share-n">{n0(catCounts[c])}건</b>
-                <span class="share-p">{shareText(catCounts[c])}</span>
-              </li>
-            ))
-          }
-        </ul>
+    <Section id="upgrades" title="업그레이드" meta={`<a href="${routes.upgrades()}">${n0(counts.upgradeItems)}건 보기</a>`}>
+      <div class="tbl-wrap" role="region" tabindex="0" aria-label="시즌별 업그레이드 항목">
+        <table class="dt">
+          <caption class="sr-only">시즌별 업그레이드 항목과 문서</caption>
+          <thead><tr><th scope="col">시즌</th><th scope="col" class="num">문서</th><th scope="col" class="num">항목</th></tr></thead>
+          <tbody>
+            {perSeason.map((x) => <tr><td>{x.season}</td><td class="num">{n0(x.docs)}</td><td class="num">{n0(x.n)}</td></tr>)}
+          </tbody>
+        </table>
       </div>
-      {
-        mostActive && (
-          <p class="hm-small">
-            항목이 가장 많은 계보({upgradeSeasons[0]}-{upgradeSeasons.at(-1)}): <a href={routes.team(mostActive.lineage_id)}>{mostActive.name_ko}</a> <b>{n0(mostActive.n)}건</b>
-            {mostActive.tied > 1 && <Fragment>, 같은 수 {mostActive.tied}개 계보</Fragment>}
-            {mostActiveLatest && (
-              <Fragment>
-                <br />
-                {last} 시즌만: <a href={routes.team(mostActiveLatest.lineage_id)}>{mostActiveLatest.name_ko}</a> <b>{n0(mostActiveLatest.n)}건</b>
-              </Fragment>
-            )}
-          </p>
-        )
-      }
-      <p class="hm-small" set:html={`최신 대회: ${upgradesRead(h)}`} />
+      <ul class="share-list">
+        {
+          catOrder.map((c) => (
+            <li>
+              <Fragment set:html={glyphHtml(c)} />
+              <span class="share-name">{labels.reason_categories[c]}</span>
+              <b class="share-n">{n0(catCounts[c])}건</b>
+              <span class="share-p">{shareText(catCounts[c])}</span>
+            </li>
+          ))
+        }
+      </ul>
       <SourceLine source={`${FIA_CP} 문서 ${n0(counts.upgradeDocs)}건, 이 사이트 추출`} asof={asofFia()} />
-      <p class="hm-more"><a href={routes.upgrades()}>업그레이드 탐색기에서 {n0(counts.upgradeItems)}건 보기</a></p>
     </Section>
 
     {
       E && (
-        <Section id="engines" title="엔진" read={engineRead}>
-          <dl class="hm-figs">
-            <div>
-              <dt>{E.season} PU 공급사</dt>
-              <dd>
-                {E.suppliers.length}
-                <small>곳</small>
-              </dd>
-            </div>
-            <div>
-              <dt>ICE 허용 초과 드라이버</dt>
-              <dd>
-                {E.iceOver}
-                <small>명</small>
-                <span class="hm-figs-sub">{E.drivers}명 가운데, 허용 {E.iceAllowed ?? '미상'}개</span>
-              </dd>
-            </div>
+        <Section id="engines" title={`엔진 ${E.season}`} meta={`<a href="${routes.engines()}">PU 사용 현황</a>`}>
+          <div class="tbl-wrap" role="region" tabindex="0" aria-label={`${E.season} PU 공급사`}>
+            <table class="dt">
+              <caption class="sr-only">{E.season} PU 공급사별 팀</caption>
+              <thead><tr><th scope="col">PU 공급사</th><th scope="col">팀</th></tr></thead>
+              <tbody>
+                {E.suppliers.map((x) => (
+                  <tr>
+                    <td lang="en">{x.name}</td>
+                    <td lang="en">{x.teams.map((t) => t.team).join(', ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <dl class="stat-row">
+            <div><dt>ICE 허용</dt><dd>{E.iceAllowed ?? '미상'}개</dd></div>
+            <div><dt>허용 초과</dt><dd>{E.iceOver}/{E.drivers}명</dd></div>
+            <div><dt>새 ICE</dt><dd>{n0(E.iceEvents)}건</dd></div>
           </dl>
-          <p class="hm-cap">공급사별 팀 수</p>
-          <ol class="hm-rank hm-rank-nr hm-wrap" aria-label={`${E.season} PU 공급사별 팀 수`}>
-            {E.suppliers.map((p, i) => (
-              <li class:list={{ top: i === 0 }}>
-                <span class="nm">
-                  <span lang="en">{p.name}</span>
-                  <small lang="en">{p.teams.map((t) => t.team).join(', ')}</small>
-                </span>
-                <Fragment set:html={bar(p.teams.length, supMax)} />
-                <span class="v">{p.teams.length}팀</span>
-              </li>
-            ))}
-          </ol>
-          <p class="hm-small">
-            새 ICE 투입 <b>{n0(E.iceEvents)}건</b>(시즌 첫 ICE 제외). FIA 누적 문서를 읽은 라운드는 {E.rounds}개 가운데 {E.parsed}개다.
-          </p>
           <SourceLine source={`${F1DB} 엔진 제조사, FIA PU 구성요소 문서 ${n0(E.docs)}건(이 사이트 추출)`} asof={engineAsof} />
-          <p class="hm-more">
-            <a href={routes.engines()}>{E.season} PU 구성요소 사용 현황 보기</a>
-          </p>
         </Section>
       )
     }
 
     {
       RS && (
-        <Section id="regulations" title="규정" read={regRead}>
-          <dl class="hm-figs">
-            {RS.latest.map((l) => (
-              <div>
-                <dt>{SECTION_KO[l.section]} 바뀐 조항</dt>
-                <dd>
-                  {l.cmp ? n0(changed(l.cmp)) : '미상'}
-                  <small>개</small>
-                  {l.cmp && (
-                    <span class="hm-figs-sub">
-                      추가 {n0(l.cmp.added)} · 삭제 {n0(l.cmp.removed)} · 수정 {n0(l.cmp.modified)}
-                    </span>
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p class="hm-cap">{RS.year}년 마지막 판</p>
-          <ul class="hm-issues">
-            {RS.latest.map((l) => (
-              <li>
-                <b>{SECTION_KO[l.section]}</b>
-                {l.doc ? (
-                  <Fragment>
-                    <span>{issueName(l.doc.issue, l.doc.published_at?.slice(0, 10) ?? l.doc.version)}</span>
-                    <span class="muted">판 {l.issues}개 가운데</span>
-                    {l.doc.status === 'needs_review' && <Fragment set:html={badgeHtml('review', '검수 대기')} />}
-                    <Fragment set:html={extHtml(l.doc.url, 'PDF')} />
-                  </Fragment>
-                ) : (
-                  <span>문서 확인 안 됨</span>
-                )}
-              </li>
-            ))}
-          </ul>
-          {RS.latest.some((l) => l.cmp?.review) && (
-            <p class="hm-small">
-              {RS.latest
-                .filter((l) => l.cmp?.review)
-                .map(
-                  (l) =>
-                    `${SECTION_KO[l.section]} 비교는 검수 대기인 판을 건너뛰고 ${issueName(l.cmp!.to_issue, l.cmp!.to_version)}까지 읽었다.`,
-                )
-                .join(' ')}
-            </p>
-          )}
+        <Section id="regulations" title={`규정 ${RS.year}`} meta={`<a href="${routes.regulations()}">규정 아카이브</a>`}>
+          <div class="tbl-wrap" role="region" tabindex="0" aria-label={`${RS.year} 규정 마지막 판`}>
+            <table class="dt">
+              <caption class="sr-only">{RS.year} 규정 마지막 판과 앞 해와 비교한 바뀐 조항</caption>
+              <thead>
+                <tr><th scope="col">규정</th><th scope="col">마지막 판</th><th scope="col" class="num">바뀐 조항</th></tr>
+              </thead>
+              <tbody>
+                {RS.latest.map((l) => (
+                  <tr>
+                    <td><a href={`${yearHref(RS.year)}#cmp-${l.section}`}>{SECTION_KO[l.section]}</a></td>
+                    <td>
+                      {l.doc ? (
+                        <Fragment>
+                          {issueName(l.doc.issue, l.doc.published_at?.slice(0, 10) ?? l.doc.version)}{' '}
+                          {l.doc.status === 'needs_review' && <Fragment set:html={badgeHtml('review', '검수 대기')} />}
+                          <Fragment set:html={extHtml(l.doc.url, 'PDF')} />
+                        </Fragment>
+                      ) : (
+                        '문서 확인 안 됨'
+                      )}
+                    </td>
+                    <td class="num">{l.cmp ? n0(changed(l.cmp)) : '미상'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 추출(조항 번호, 제목, 변경 유형)" asof={RS.asOf ? `${nw(RS.asOf)} 확인` : '확인일 기록 부재'} />
-          <p class="hm-more hm-split">
-            <a href={routes.regulations()}>규정 아카이브</a>
-            <a href={yearHref(RS.year)}>{RS.year}년 규정과 조항 비교</a>
-          </p>
         </Section>
       )
     }
   </div>
 </BaseLayout>
-
-<script>
-  import { seasonCardHtml, type CardRow } from '../components/home/season-card.ts';
-
-  // 연도별 시즌 고르기. 스크립트가 없으면 고르기가 숨고 최신 시즌 칸과 시즌 링크 목록이 보인다.
-  const src = document.getElementById('hm-seasons');
-  const card = document.getElementById('hm-card');
-  const sel = document.getElementById('hm-year') as HTMLSelectElement | null;
-  const prev = document.getElementById('hm-prev') as HTMLButtonElement | null;
-  const next = document.getElementById('hm-next') as HTMLButtonElement | null;
-  const kindBtns = [...document.querySelectorAll<HTMLButtonElement>('#hm-kind [data-kind]')];
-  const kindScope = document.getElementById('hm-kind-scope');
-  if (src && card && sel && prev && next) {
-    const { first, cards } = JSON.parse(src.textContent || '{}') as { first: number; cards: CardRow[] };
-    const byYear = new Map(cards.map((c) => [c.s, c]));
-    const minY = cards[0].s;
-    const maxY = cards[cards.length - 1].s;
-    let year = Number(sel.value) || maxY;
-    let kind = 'd';
-    let redraw: ((d: unknown, o: Record<string, unknown>) => void) | null = null;
-    const show = (y: number, from?: 'chart') => {
-      const c = byYear.get(y);
-      if (!c) return;
-      year = y;
-      card.innerHTML = seasonCardHtml(c, first);
-      sel.value = String(y);
-      prev.setAttribute('aria-disabled', String(y <= minY));
-      next.setAttribute('aria-disabled', String(y >= maxY));
-      if (redraw) redraw(null, { selected: y });
-      if (from === 'chart') card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    };
-    sel.addEventListener('change', () => show(Number(sel.value)));
-    prev.addEventListener('click', () => year > minY && show(year - 1));
-    next.addEventListener('click', () => year < maxY && show(year + 1));
-    kindBtns.forEach((btn) =>
-      btn.addEventListener('click', () => {
-        kind = btn.dataset.kind || 'd';
-        kindBtns.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
-        if (kindScope) kindScope.textContent = kind === 'c' ? '컨스트럭터 순위' : '드라이버 순위';
-        if (redraw) redraw(null, { kind });
-      }),
-    );
-    import('../lib/charts/mount.ts')
-      .then((m) => m.ready)
-      .then((handles) => {
-        const hd = handles.get('f-margins');
-        if (!hd) return;
-        redraw = (d, o) => hd.redraw(d ?? undefined, o);
-        hd.redraw(undefined, { selected: year, kind, onSelect: (y: number) => show(y, 'chart') });
-      })
-      .catch(() => {
-        /* 차트가 없어도 고르기는 움직인다 */
-      });
-  }
-</script>

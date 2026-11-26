@@ -1,11 +1,10 @@
 ---
 // 팀 페이스 추이 절: 팀별 작은 다중(paceMultiples). 연도별 규칙(DESIGN.md "시즌"):
-//  2023-2025 퀄리파잉과 레이스 전환 / 1996-2022 퀄리파잉만 + 레이스 빈 상태 (2003-2005는 참고용, 1996-2022는 미분류 안내 상자)
-//  1995년 이전 빈 상태 "퀄리파잉 지수는 1996년부터 계산한다."
+//  2023-2025 퀄리파잉과 레이스 전환 / 1950-2022 퀄리파잉만 + 레이스 빈 상태 (2003-2005는 참고용, 1950-2022는 미분류를 각주로)
+//  퀄리파잉 지수가 없는 시즌의 빈 상태 EMPTY.quali
 // 스크립트가 없으면 두 묶음(#pm-q, #pm-r)이 모두 보이고, 스크립트가 있으면 전환 단추로 하나씩 보인다.
 import EmptyState from '../EmptyState.astro';
 import Figure from '../Figure.astro';
-import Notice from '../Notice.astro';
 import Section from '../Section.astro';
 import Seg from '../Seg.astro';
 import type { Column } from '../DataTable.astro';
@@ -16,16 +15,12 @@ import { esc, keepNames } from '../../lib/typeset.ts';
 import { badgeHtml } from '../../lib/markup.ts';
 import {
   EMPTY,
-  QUALI_FROM,
   RACE_FROM,
-  WET_FROM,
+  RACE_OPENF1_FROM,
   num,
   qualiFlagCell,
   qualiNotice,
-  qualiRead,
   qualiSource,
-  qualiSub,
-  raceRead,
   raceSource,
   seasonFlags,
 } from './season-text.ts';
@@ -40,8 +35,16 @@ const teams = multipleTeams(s);
 const qRows = x.hasQ ? qualiRounds(s) : [];
 const rRows = x.hasR ? raceRounds(s) : [];
 const qSrc = qualiSource(s);
-const rSrc = raceSource();
+const rSrc = raceSource(year);
 const notice = x.hasQ ? qualiNotice(s) : null;
+const qNote = [x.wetJudged ? '팀별 평균은 마른 예선만으로 계산한다.' : '팀별 평균은 모든 예선의 평균이다.', notice?.text ?? '']
+  .filter(Boolean)
+  .join(' ');
+const rNote =
+  '0은 그 대회의 필드 중앙값이다. 최고 기록 대비인 퀄리파잉 지수와는 기준점이 달라 서로 비교할 수 없다.' +
+  (year < RACE_OPENF1_FROM
+    ? ' 이 시즌은 타이어와 레이스 컨트롤 자료가 없어 랩 시간과 피트스톱으로 클린 랩을 판정했고, 우천은 서킷 지역의 강수량으로 판정했다.'
+    : '');
 
 const qLegend: LegendItem[] = [
   { type: 'line', color: 's1', label: '그 팀' },
@@ -87,24 +90,17 @@ const kindItems = [
   !x.hasQ ? (
     <Section id="pace" title="팀 페이스 추이">
       <EmptyState title={EMPTY.quali} class="pm-empty">
-        그 이전 시즌은 결과와 순위만 싣는다. 레이스 지수는 {RACE_FROM}년부터 계산한다.
+        레이스 지수는 {RACE_FROM}년부터 계산한다.
       </EmptyState>
     </Section>
   ) : (
-    <Section id="pace" title="팀 페이스 추이" meta={x.hasR ? undefined : `<span>퀄리파잉 지수만 (레이스 지수는 ${RACE_FROM}년부터)</span>`}>
-      {x.hasR && <Seg slot="meta" label="지수 고르기" attr="kind" items={kindItems} id="pm-kind" />}
+    <Section id="pace" title="팀 페이스 추이" meta={x.hasR ? undefined : '<span>퀄리파잉 지수만</span>'}>
+      {x.hasR && <Seg slot="meta" label="지수 선택" attr="kind" items={kindItems} id="pm-kind" />}
       <div id="pm-q">
-        <p class="read" set:html={keepNames(qualiRead(s))} />
-        {notice && (
-          <Notice badges={notice.badges} class="pm-notice">
-            <Fragment set:html={notice.text} />
-          </Notice>
-        )}
         <Figure
           id="f-pm"
           title="팀별 퀄리파잉 지수"
-          scope={`${year} · 라운드별 · ${teams.length}개 팀 · 같은 세로축 · 위가 빠르다`}
-          sub={qualiSub(s)}
+          scope={`${year} · 라운드별 · ${teams.length}개 팀`}
           legend={qLegend}
           chart="paceMultiples"
           data={qRows}
@@ -113,30 +109,15 @@ const kindItems = [
           asof={qSrc.asof}
           wide
           twin={{ caption: `${year} 팀별 라운드별 퀄리파잉 지수 (%)`, columns: qColumns, rows: qRows }}
-          notes={[
-            {
-              head: '세로축',
-              body:
-                '작은 차트는 모두 같은 세로축이라 칸끼리 높이를 그대로 비교할 수 있다. ' +
-                (x.wetJudged
-                  ? '칸 제목의 평균은 마른 예선만의 평균이다.'
-                  : '칸 제목의 평균은 모든 예선의 평균이다(우천 여부 미분류).'),
-            },
-            {
-              head: '표시 규칙',
-              body: `2003-2005 시즌은 참고용(빈 고리로만 찍고 선으로 잇지 않는다), ${WET_FROM - 1}년 이전 시즌은 우천 여부 미분류다. 대회마다 표 보기의 표시 칸과 캘린더에 같은 배지가 있다.`,
-            },
-          ]}
+          notes={[{ body: qNote }]}
         />
       </div>
       {x.hasR ? (
         <div id="pm-r">
-          <p class="read" set:html={keepNames(raceRead(s))} />
           <Figure
             id="f-rm"
             title="팀별 레이스 지수와 95% 구간"
-            scope={`${year} · 라운드별 · ${teams.length}개 팀 · 같은 세로축 · 위가 빠르다`}
-            sub="점이 그 대회의 레이스 지수, 세로 막대가 95% 구간이다. 0은 그 대회의 필드 중앙값이다."
+            scope={`${year} · 라운드별 · ${teams.length}개 팀`}
             legend={[
               { type: 'dot', color: 's1', label: '레이스 지수' },
               { type: 'line', color: 's1', label: '95% 구간' },
@@ -149,18 +130,12 @@ const kindItems = [
             asof={rSrc.asof}
             wide
             twin={{ caption: `${year} 팀별 라운드별 레이스 지수와 95% 구간 (%)`, columns: rColumns, rows: rRows }}
-            notes={[
-              {
-                head: '주의',
-                caution: true,
-                body: `퀄리파잉 지수와 기준점이 달라(최고 대비, 중앙 대비) 두 차트의 값을 서로 비교하지 않는다. 레이스 지수는 ${RACE_FROM}년부터 있다.`,
-              },
-            ]}
+            notes={[{ body: rNote, caution: true }]}
           />
         </div>
       ) : (
         <EmptyState title={EMPTY.race} class="pm-empty">
-          OpenF1 랩 자료가 {RACE_FROM}년부터 있어서다. 이 시즌은 퀄리파잉 지수만 싣는다.
+          연료 보정의 근거인 경주 연료 상한이 {RACE_FROM}년 규정부터 있기 때문이다.
         </EmptyState>
       )}
     </Section>
@@ -170,8 +145,5 @@ const kindItems = [
 <style>
   :global(.pm-empty) {
     margin-top: var(--sp-5);
-  }
-  :global(.pm-notice) {
-    margin-top: var(--sp-4);
   }
 </style>

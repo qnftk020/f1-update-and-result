@@ -90,7 +90,7 @@ export function puTeamSteps(rows, { width, rounds, element = "ICE", yMax, allowe
         return { value, label: d.full, key: k >= 0 ? { type: "line", color: colorOf(k) } : null };
       }),
       note: miss.has(r)
-        ? "이 라운드의 누적 문서를 받지 않았거나 검수 대기다."
+        ? "이 라운드의 누적 문서는 수집하지 않았거나 검수 대기다."
         : unk.has(r)
           ? "선언 문서가 없어 대회 시작 전 누적 값이다."
           : allowed != null && lines.some((d) => d.s[i] != null && d.s[i] > allowed)
@@ -147,7 +147,7 @@ export function newIceMatrix(rows, { width, rounds, missing = [], allowed = null
     let note = null;
     if (c.fresh > 0) note = `이 라운드에 ${c.fresh}번째 ICE를 투입했다.${c.over && allowed != null ? ` 허용 ${allowed}개를 넘었다.` : ""}`;
     else if (c.fresh) note = "이 라운드에 새 ICE를 투입했다. 문서끼리 값이 어긋나 순번은 미확정이다.";
-    else if (miss.has(c.round)) note = "이 라운드의 누적 문서를 받지 않았거나 검수 대기다.";
+    else if (miss.has(c.round)) note = "이 라운드의 누적 문서는 수집하지 않았거나 검수 대기다.";
     return {
       px: xs.apply(c.round), py: ys.apply(c.key) + rowH / 2,
       head: `${c.name}${c.team ? ` (${c.team})` : ""} · ${c.round}라운드${name}`,

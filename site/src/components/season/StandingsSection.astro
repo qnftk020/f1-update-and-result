@@ -1,6 +1,6 @@
 ---
 // 순위 추이 절: 드라이버 누적 점수(강조 칩 최대 3명) + 컨스트럭터 누적 점수(1958년부터, 그 전은 빈 상태).
-// 칩과 범례 글자는 페이지 스크립트(seasons/[year].astro)가 잇는다.
+// 칩과 범례 글자는 페이지 스크립트(seasons/[year].astro)가 연결한다.
 import EmptyState from '../EmptyState.astro';
 import Figure from '../Figure.astro';
 import Section from '../Section.astro';
@@ -11,7 +11,7 @@ import type { Season } from '../../lib/types.ts';
 import { esc, keepNames } from '../../lib/typeset.ts';
 import { driverLink } from '../../lib/driver-links.ts';
 import { constructorById, constructorLink } from '../../lib/constructors-data.ts';
-import { EMPTY, constructorLeadRead, driverLeadRead, pointsCell, posCell, shortName } from './season-text.ts';
+import { EMPTY, pointsCell, posCell, shortName } from './season-text.ts';
 
 interface Props {
   season: Season;
@@ -42,7 +42,7 @@ function ptsColumns(nameKey: string): Column[] {
   ];
 }
 
-const sprintNote = s.facts.sprints.length ? '(스프린트 포함)' : '';
+const sprintNote = s.facts.sprints.length ? '스프린트 점수 포함.' : '';
 const keys = ['s1', 's2', 's3'];
 const driverLegend = [
   ...hlDrivers.map((id, k) => ({
@@ -57,13 +57,12 @@ const consLegend = [
   { type: 'line' as const, color: 'ctx', label: '나머지 팀' },
 ];
 const emptyNote = s.drivers.some((d) => d.points.some((p) => p == null))
-  ? ' 빈 칸은 그 라운드까지 순위표에 오르지 않은 경우다.'
+  ? '빈 칸은 그 라운드까지 순위표에 오르지 않은 경우다.'
   : '';
-const unranked = s.drivers.filter((d) => d.position == null).length;
-const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명은 "순위 미부여"로 적었다.` : '';
+const driverNote = [sprintNote, emptyNote].filter(Boolean).join(' ');
 ---
 
-<Section id="standings" title="순위 추이" read={driverLeadRead(s)}>
+<Section id="standings" title="순위 추이">
   <div class="chips-row" role="group" aria-label="강조할 드라이버 (최대 3명)" id="hl-drivers" data-js-only>
     {
       chipDrivers.map((d, i) => (
@@ -77,7 +76,6 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
     id="f-drivers"
     title="드라이버 누적 점수"
     scope={`${year} · 라운드별 누적 · 강조 ${hlDrivers.length}명`}
-    sub={`라운드가 끝난 뒤의 누적 점수다${sprintNote}.`}
     legend={driverLegend}
     chart="pointsRace"
     data={drivers}
@@ -90,15 +88,11 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
       rows: s.drivers,
       rowClass: (r) => (r.position === 3 && s.drivers.length > 3 ? 'break' : ''),
     }}
-    notes={[
-      { head: '색', body: '색은 강조한 순서이고 팀 색이 아니다.' },
-      { head: '전체 값', body: `${s.drivers.length}명 모두의 라운드별 점수는 표 보기에 있다.${emptyNote}${unrankedNote}` },
-    ]}
+    notes={driverNote ? [{ body: driverNote }] : []}
   />
   {
     cons.length > 0 ? (
       <Fragment>
-        <p class="read con-read" set:html={keepNames(constructorLeadRead(s))} />
         <Figure
           id="f-constructors"
           title="컨스트럭터 누적 점수"
@@ -119,18 +113,10 @@ const unrankedNote = unranked ? ` 최종 순위를 받지 못한 ${unranked}명�
             rows: cons.map((c) => ({ ...c, position: c.pos })),
             rowClass: (r) => (r.position === 3 && cons.length > 3 ? 'break' : ''),
           }}
-          notes={[
-            {
-              head: '색',
-              body: `색은 최종 상위 ${hlCons.length}팀에만 쓰고 팀 색이 아니다.`,
-            },
-          ]}
         />
       </Fragment>
     ) : (
-      <EmptyState title={EMPTY.constructors} class="con-empty">
-        {year}년에는 컨스트럭터 순위가 없어 드라이버 순위만 싣는다.
-      </EmptyState>
+      <EmptyState title={EMPTY.constructors} class="con-empty" />
     )
   }
   {

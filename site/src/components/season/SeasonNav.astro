@@ -24,7 +24,7 @@ for (let dec = Math.floor(last / 10) * 10; dec >= Math.floor(first / 10) * 10; d
 
 <div class="chips-row season-nav">
   {year > first && <a class="btn" href={routes.season(year - 1)}>{year - 1} 시즌</a>}
-  <LinkPick summary="다른 시즌 고르기" navLabel="시즌 목록" groups={groups} />
+  <LinkPick summary="시즌 선택" navLabel="시즌 목록" groups={groups} />
   {
     year < last ? (
       <a class="btn" href={routes.season(year + 1)}>{year + 1} 시즌</a>

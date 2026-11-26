@@ -127,17 +127,7 @@ export function buildTeam(team: Team) {
   // ---------------------------------------------------------------- 머리
   const lastRows = bySeason.get(last) ?? [];
   const row25 = lastRows.find((r) => r.constructor_id === team.constructor.id) ?? mainRow(lastRows, 'standing');
-  let lead = '';
-  if (row25) {
-    lead = `${Ce} 팀은 ${last} 시즌을 컨스트럭터 순위 ${b(`${row25.position ?? '미부여'}${row25.position ? '위' : ''}`)}${aside(`${formatPoints(row25.points)}점`)}로 마쳤다.`;
-    if (row25.quali_index_mean != null) {
-      lead +=
-        ` 마른 예선 ${row25.quali_rounds}개 대회에서 팀 최고 랩은 세션 최고 랩보다 평균 ${b(pct(row25.quali_index_mean))} 느렸고, ` +
-        (row25.quali_rank === 1
-          ? `이 평균은 ${row25.quali_teams}개 팀 가운데 가장 작다.`
-          : `이 평균은 ${row25.quali_teams}개 팀 가운데 ${row25.quali_rank}번째다.`);
-    }
-  }
+
   const baseCity = team.base.split(',')[0].trim();
   const latin = `${baseCity} · ${C}`;
   const facts: [string, string][] = [
@@ -151,20 +141,10 @@ export function buildTeam(team: Team) {
     ],
   ];
 
-  // ---------------------------------------------------------------- 범위 막대
-  const nameCount = eras.length > 1 ? `이름 ${eras.length}개 구간` : `컨스트럭터 이름 ${team.segments.length}개 구간`;
-  const scopeOn = hasSwitch
-    ? `보는 범위: <b>${esc(short)} 계보 전체 ${first}-${lastTo}</b>, ${nameCount}.`
-    : `보는 범위: <b>${Ce} ${first}-${lastTo}</b>. 계보 전체가 한 컨스트럭터라 계보 보기 전환을 두지 않는다.`;
   const paceYears = Object.keys(team.upgrades.timeline).map(Number).sort((a, c) => a - c);
   const py0 = paceYears[0];
   const pyN = paceYears[paceYears.length - 1];
   const paceNames = [...new Set(team.seasons.filter((r) => r.season >= py0).map((r) => r.team_name))];
-  const scopeOff =
-    `보는 범위: <b>현재 컨스트럭터 ${Ce} ${rangeText(curFrom, lastTo)}</b>. ` +
-    (curFrom <= py0
-      ? `업그레이드와 시즌 안의 페이스는 원래 ${Ce} 시기다.`
-      : `업그레이드와 시즌 안의 페이스(${py0}-${pyN})는 이 전환과 관계없이 앞 이름(${listNames(paceNames.filter((n) => n !== C))}) 시기를 함께 싣는다.`);
 
   // ---------------------------------------------------------------- 계보
   const changes = eras.length - 1;
@@ -184,12 +164,7 @@ export function buildTeam(team: Team) {
     linRead += `컨스트럭터 챔피언은 ${totLin.titles.length}번이고 마지막은 ${totLin.titles[totLin.titles.length - 1]}년이다.`;
   }
   const segNotes = [...new Set(team.segments.map((s) => s.note).filter((n): n is string => Boolean(n)))];
-  const linNotes: { head: string; body: string; caution?: boolean }[] = [
-    {
-      head: '계보 띠',
-      body: `칸 너비는 시즌 수에 비례한다. 파란 윗줄이 ${last} 컨스트럭터다.`,
-    },
-  ];
+  const linNotes: { head: string; body: string; caution?: boolean }[] = [];
   if (segNotes.length) {
     linNotes.push({ head: '주의', body: segNotes.map((n) => `${esc(n)}.`).join(' '), caution: true });
   }
@@ -224,24 +199,24 @@ export function buildTeam(team: Team) {
   const docYears = paceYears.map((y) => ({ y, n: docs.filter((d) => d.season === y).length, rounds: (tl[String(y)] ?? []).length }));
   const partial = docYears.filter((d) => d.n > 0 && d.n < d.rounds * 0.5);
   const missingLate = upgrades.missing_events.filter((m) => !partial.some((p) => p.y === m.season));
-  let scopeNote = 'FIA가 공개한 문서만 싣는다. ';
+  let scopeNote = 'FIA 공개 문서만 수록한다. ';
   scopeNote += partial.map((p) => `${p.y}년은 ${p.n}개 대회 문서만 있고`).join(', ');
   if (missingLate.length) {
-    scopeNote += `${partial.length ? ' ' : ''}${missingLate.map((m) => `${m.season}년 ${m.round}라운드 ${esc(m.event_short_ko)}`).join(', ')} 문서는 찾지 못했다. `;
+    scopeNote += `${partial.length ? ', ' : ''}${missingLate.map((m) => `${m.season}년 ${m.round}라운드 ${esc(m.event_short_ko)}`).join(', ')} 문서는 찾지 못했다.`;
   } else if (partial.length) {
-    scopeNote += ' 나머지 대회는 문서가 있다. ';
+    scopeNote += ' 나머지 대회는 문서가 있다.';
   }
-  scopeNote += '회색 띠가 공개 문서가 없는 대회, 바닥의 짧은 선이 변경 0건이다.';
+  scopeNote = scopeNote.trim();
   const reviewDocs = docs.filter((d) => d.review && d.season >= py0);
   const reviewNote = reviewDocs.length
     ? reviewDocs
         .map((d) => {
           const who2 = d.teams.filter((t) => t.status === 'needs_review').map((t) => en(esc(t.team)));
           const mine = d.teams.find((t) => t.lineage_id === team.lineage_id);
-          const mineText = mine?.status === 'needs_review' ? ' 이 팀 쪽이 그 대상이라 이 대회의 항목 수를 0으로 세지 않고 비워 둔다.' : '';
-          return `${d.season}년 ${d.round}라운드 ${esc(d.event_short_ko)} 문서는 ${who2.join(', ') || '일부 팀'} 쪽 표가 그림으로만 들어 있어 문서 전체를 검수 대기로 둔다.${mineText}`;
+          const mineText = mine?.status === 'needs_review' ? ' 이 팀이 대상이라 이 대회의 항목 수는 0이 아니라 빈칸이다.' : '';
+          return `${d.season}년 ${d.round}라운드 ${esc(d.event_short_ko)} 문서는 ${who2.join(', ') || '일부 팀'}의 표가 이미지로만 들어 있어 문서 전체가 검수 대기다.${mineText}`;
         })
-        .join(' ') + ' 읽지 못한 칸을 추측으로 채우지 않는다.'
+        .join(' ')
     : '';
 
   // 대회 고르기: 신고가 있는 대회, 최근 먼저. 처음 고른 대회는 마지막 시즌의 마지막 신고 대회.
@@ -273,7 +248,7 @@ export function buildTeam(team: Team) {
     qn: r.quali_rounds,
     qwet: r.quali_wet_rounds,
   }));
-  const qFirst = trendRows.length ? trendRows[0].season : Math.max(1996, first);
+  const qFirst = trendRows.length ? trendRows[0].season : Math.max(1950, first);
   const qCur = Math.max(qFirst, curFrom);
   const solid = trendRows.filter((r) => !r.quali_reference);
   const refRows = trendRows.filter((r) => r.quali_reference);
@@ -311,11 +286,11 @@ export function buildTeam(team: Team) {
       on: `${qFirst}-${lastTo} · ${hasSwitch ? `${short} 계보 전체` : C}${qFirst > first ? ` (예선 지수는 ${qFirst}년부터)` : ''}`,
       off: `${rangeText(qCur, lastTo)} · ${C} 시기만`,
     },
-    meta: { on: `범위: ${short} 계보 전체`, off: `범위: ${C} 시기 (${rangeText(curFrom, lastTo)})` },
+    meta: { on: `${short} 계보 전체`, off: `${C} 시기 (${rangeText(curFrom, lastTo)})` },
   };
   if (!hasSwitch) {
     linScope.steps.on = `${first}-${lastTo} · ${C}`;
-    linScope.meta.on = `범위: ${C} ${first}-${lastTo}`;
+    linScope.meta.on = `${C} ${first}-${lastTo}`;
   }
 
   // ---------------------------------------------------------------- 시즌별 기록
@@ -350,11 +325,8 @@ export function buildTeam(team: Team) {
     hasSwitch,
     eras,
     chartEras,
-    lead,
     latin,
     facts,
-    scopeOn,
-    scopeOff,
     totLin,
     totCur,
     linRead,

@@ -29,6 +29,9 @@ export const routes = {
   engines: () => url('/engines/'),
   regulations: () => url('/regulations/'),
   about: () => url('/about/'),
+  search: () => url('/search/'),
+  /** 전역 검색 색인(빌드 때 만든다, pages/data/search.json.ts) */
+  searchIndex: () => url('/data/search.json'),
 };
 
 /** 데이터와 방법론 하위 쪽 */
@@ -39,18 +42,18 @@ export const aboutRoutes = {
   license: () => url('/about/license/'),
 };
 
-export type NavKey = 'home' | 'seasons' | 'drivers' | 'teams' | 'upgrades' | 'engines' | 'regulations' | 'about';
+export type NavKey = 'home' | 'seasons' | 'drivers' | 'constructors' | 'teams' | 'upgrades' | 'engines' | 'regulations' | 'about' | 'search';
 
-/** 주 메뉴 여덟 칸 (2026-11-11에 드라이버를 더했다). */
+/** 주 메뉴 여덟 칸(2026-11-26). 홈은 사이트 이름 링크가 맡고, 컨스트럭터 목록을 메뉴에 올렸다. */
 export const NAV: { key: NavKey; label: string; href: string }[] = [
-  { key: 'home', label: '홈', href: routes.home() },
   { key: 'seasons', label: '시즌', href: routes.seasons() },
   { key: 'drivers', label: '드라이버', href: routes.drivers() },
-  { key: 'teams', label: '팀', href: routes.teams() },
-  { key: 'upgrades', label: '업그레이드 탐색기', href: routes.upgrades() },
+  { key: 'constructors', label: '컨스트럭터', href: routes.constructors() },
+  { key: 'teams', label: '팀 계보', href: routes.teams() },
+  { key: 'upgrades', label: '업그레이드', href: routes.upgrades() },
   { key: 'engines', label: '엔진', href: routes.engines() },
-  { key: 'regulations', label: '규정 아카이브', href: routes.regulations() },
-  { key: 'about', label: '데이터와 방법론', href: routes.about() },
+  { key: 'regulations', label: '규정', href: routes.regulations() },
+  { key: 'about', label: '방법론', href: routes.about() },
 ];
 
 /** 업그레이드 탐색기 조건 링크: upgradesWith({ team: 'enstone', season: 2025 }) -> '/…/upgrades/#team=enstone&season=2025' */

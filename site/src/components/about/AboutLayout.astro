@@ -14,7 +14,7 @@ interface Props {
   title: string;
   description: string;
   /** 리드(HTML) */
-  lead: string;
+  lead?: string;
   /** 이 쪽의 절: 본문 Section의 id와 제목 */
   toc: { id: string; title: string }[];
 }
@@ -29,7 +29,7 @@ const SUB: { key: AboutKey; label: string; href: string }[] = [
 ---
 
 <BaseLayout title={title} description={description} current="about">
-  <PageHead title={title} lead={lead}>
+  <PageHead title={title}>
     <nav class="chips-row about-sub" aria-label="데이터와 방법론">
       {
         SUB.map((s) => (
@@ -41,13 +41,13 @@ const SUB: { key: AboutKey; label: string; href: string }[] = [
     </nav>
   </PageHead>
   <div class="about-grid">
-    <nav class="about-toc" aria-label="이 쪽의 절">
-      <p class="about-toc-head">이 쪽의 절</p>
+    <nav class="about-toc" aria-label="이 페이지의 항목">
+      <p class="about-toc-head">이 페이지의 항목</p>
       <ul>{toc.map((t) => <li><a href={`#${t.id}`}>{t.title}</a></li>)}</ul>
     </nav>
     <details class="pick about-pick">
-      <summary>이 쪽의 절</summary>
-      <nav aria-label="이 쪽의 절 (접는 목록)">
+      <summary>이 페이지의 항목</summary>
+      <nav aria-label="이 페이지의 항목 (접는 목록)">
         <ul class="about-pick-list">{toc.map((t) => <li><a href={`#${t.id}`}>{t.title}</a></li>)}</ul>
       </nav>
     </details>

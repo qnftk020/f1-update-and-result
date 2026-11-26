@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import pageSources from './scripts/page-sources.mjs';
 import pretendardPreload from './scripts/pretendard-preload.mjs';
 
 /**
@@ -27,5 +28,5 @@ export default defineConfig({
   // 개발 서버 화면 아래의 도구 막대가 머리 없는 스크린숏을 가리지 않게 끈다.
   devToolbar: { enabled: false },
   vite: { plugins: [pretendardOptional()] },
-  integrations: [pretendardPreload()],
+  integrations: [pageSources(), pretendardPreload()],
 });

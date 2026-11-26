@@ -99,7 +99,7 @@ export function raceIntervals(input, { width, label = "레이스 페이스 지�
   const xs = svg.scale("x");
   const stops = data.map((d) => {
     if (d.v == null) {
-      return { py: ys.apply(d.team) + rowH / 2, px: xs.apply(0), head: d.team, rows: [{ value: "미상", label: "레이스 지수" }], note: "클린 랩이 8개 미만이라 지수를 내지 않았다." };
+      return { py: ys.apply(d.team) + rowH / 2, px: xs.apply(0), head: d.team, rows: [{ value: "미상", label: "레이스 지수" }], note: "클린 랩이 8개 미만이라 지수를 계산하지 않았다." };
     }
     const crosses = d.lo <= 0 && d.hi >= 0;
     return {
@@ -110,7 +110,7 @@ export function raceIntervals(input, { width, label = "레이스 페이스 지�
         { value: `${num(d.lo, 2, { sign: true })} ~ ${num(d.hi, 2, { sign: true })}`, label: "95% 구간", key: { type: "line", color: C.s1 } },
         { value: `${d.laps}랩`, label: "클린 랩" },
       ],
-      note: crosses ? "구간이 0에 걸쳐 필드 중앙값과 구별되지 않는다." : d.hi < 0 ? "구간 전체가 필드 중앙값보다 빠른 쪽이다." : "구간 전체가 필드 중앙값보다 느린 쪽이다.",
+      note: crosses ? "구간이 0에 걸쳐 필드 중앙값과 구별되지 않는다." : d.hi < 0 ? "구간 전체가 필드 중앙값보다 빠르다." : "구간 전체가 필드 중앙값보다 느리다.",
     };
   });
   const w = frameOf(svg);
@@ -258,7 +258,7 @@ export function upgradeUnits(data, { width, onSelect, selected, label = "업그�
       return {
         px: xs.apply(d.round) + xs.bandwidth / 2, py: 30, top: 0, bottom: h - 26,
         head: `${s} ${d.round}라운드 ${d.short}`, rows: lines,
-        note: d.doc_review ? "검수 대기 문서다. 다른 팀의 쪽을 자동으로 읽지 못해 문서 전체를 검수 대기로 둔다." : d.status === "nodoc" ? "FIA가 공개한 문서가 없는 대회다." : d.n ? "Enter나 클릭으로 아래 목록을 이 대회로 바꾼다." : null,
+        note: d.doc_review ? "검수 대기 문서다. 다른 팀 페이지를 자동으로 판독하지 못해 문서 전체를 검수 대기로 분류한다." : d.status === "nodoc" ? "FIA가 공개한 문서가 없는 대회다." : d.n ? "Enter 또는 클릭하면 아래 목록이 이 대회로 바뀐다." : null,
         season: s, round: d.round,
       };
     });
@@ -283,7 +283,7 @@ function railMarks(rail, step) {
   const r = Math.max(2.6, Math.min(4.2, step * 0.42));
   const marks = [Plot.dot(rail, { x: "round", frameAnchor: "bottom", dy: 36, symbol: "triangle", r, fill: C.s2 })];
   if (!tight) marks.push(Plot.text(rail, { x: "round", frameAnchor: "bottom", dy: 50, text: "n", fill: C.ink2, fontSize: 11 }));
-  return { marks, note: tight ? "라운드 간격이 좁아 신고 항목 수는 툴팁과 표 보기에 둔다." : null };
+  return { marks, note: tight ? "라운드 간격이 좁아 신고 항목 수는 툴팁과 표에 표시한다." : null };
 }
 
 /* ------------------------------------------------------------------ 팀 대 필드 퀄리파잉 추이 (강조형) */
@@ -371,11 +371,11 @@ export function paceTrend(rounds, { width, cid, team, rail = [], label }) {
     return {
       px: xs.apply(d.round), py: t == null ? H / 2 : ys.apply(t), top: mt, bottom: H - mb,
       head: `${d.round}라운드 ${d.short} (${d.date})`, rows,
-      note: d.wet === "wet" ? "우천 예선이라 평균과 순위 계산에서 뺐다." : null,
+      note: d.wet === "wet" ? "우천 예선이라 평균과 순위 계산에서 제외했다." : null,
     };
   });
   const notes = [];
-  if (offWet.length) notes.push(el("p", "axis-note", `우천 예선 값 ${offWet.length}개는 축 범위를 넘어 그리지 않았다. 값은 표에 있다.`));
+  if (offWet.length) notes.push(el("p", "axis-note", `축 범위를 벗어난 우천 예선 값 ${offWet.length}개는 표에만 표시한다.`));
   if (railM.note) notes.push(el("p", "axis-note", railM.note));
   const w = frameOf(svg, notes);
   readout(w, svg, stops, { axis: "x", label: label || `${team} 퀄리파잉 지수와 필드` });
@@ -456,14 +456,14 @@ export function raceTrend(rounds, { width, cid, team, rail = [], label }) {
         ];
     if (railBy.get(d.round)) rows.push({ value: `${railBy.get(d.round)}건`, label: "업그레이드 신고", key: { type: "tri" } });
     let note = null;
-    if (d.wet) note = "우천 결승이라 기본 분석에서 뺐다.";
-    else if (d.v == null) note = "클린 랩이 8개 미만이라 지수를 내지 않았다.";
+    if (d.wet) note = "우천 결승이라 기본 분석에서 제외했다.";
+    else if (d.v == null) note = "클린 랩이 8개 미만이라 지수를 계산하지 않았다.";
     else if (d.lo <= 0 && d.hi >= 0) note = "구간이 0에 걸쳐 필드 중앙값과 구별되지 않는다.";
     return { px: xs.apply(d.round), py: d.v == null ? ys.apply(0) : ys.apply(d.v), top: mt, bottom: H - mb, head: `${d.round}라운드 ${d.short} (${d.date})`, rows, note };
   });
   const clipped = have.some((d) => d.wet && (d.lo < lo - pad || d.hi > hi + pad));
   const notes = [];
-  if (clipped) notes.push(el("p", "axis-note", "우천 결승의 구간은 축 범위에서 잘라 그렸다. 값은 표에 있다."));
+  if (clipped) notes.push(el("p", "axis-note", "우천 결승의 구간은 축 범위까지만 표시한다. 전체 값은 표 참조."));
   if (railM.note) notes.push(el("p", "axis-note", railM.note));
   const w = frameOf(svg, notes);
   readout(w, svg, stops, { axis: "x", label: label || `${team} 레이스 지수와 95% 구간` });
@@ -574,7 +574,7 @@ export function seasonTrend(seasons, { width, eras, from, to, teamLabel, label =
   const xs = svg.scale("x");
   const ys = svg.scale("y");
   const segs = [];
-  if (from <= 2022) segs.push({ from: Math.max(from, 1996), to: Math.min(2022, to), text: narrow ? "우천 미분류" : `우천 여부 미분류 (${Math.max(from, 1996)}-${Math.min(2022, to)})`, pad: 6 });
+  if (from <= 2022) segs.push({ from, to: Math.min(2022, to), text: narrow ? "우천 미분류" : `우천 여부 미분류 (${from}-${Math.min(2022, to)})`, pad: 6 });
   if (to >= 2023) segs.push({ from: Math.max(2023, from), to, text: narrow ? "우천 제외" : "우천 예선 제외", pad: 6 });
   const stops = data.map((d) => ({
     px: xs.apply(d.season), py: ys.apply(d.q), top: mt, bottom: H - mb,
@@ -582,9 +582,9 @@ export function seasonTrend(seasons, { width, eras, from, to, teamLabel, label =
     rows: [
       { value: `${num(d.q, 3)}%`, label: "시즌 평균", key: { type: d.ref ? "ring" : "line", color: C.s1 } },
       ...(d.field ? [{ value: `${num(d.field.med, 3)}%`, label: "필드 중앙값", key: { type: "line", color: C.ctx } }, { value: `${num(d.field.q1, 3)} ~ ${num(d.field.q3, 3)}`, label: "가운데 절반", key: { type: "band", color: C.band } }] : []),
-      { value: `${d.qn}개`, label: "평균에 넣은 예선" },
+      { value: `${d.qn}개`, label: "평균에 포함한 예선" },
     ],
-    note: d.ref ? "참고용 예선 형식(원랩, 합산)이라 선에 잇지 않는다." : d.season <= 2022 ? "우천 여부 미분류 시즌이다." : d.qwet ? `우천 예선 ${d.qwet}개를 뺐다.` : null,
+    note: d.ref ? "참고용 예선 형식(원랩, 합산)이라 선으로 연결하지 않는다." : d.season <= 2022 ? "우천 여부 미분류 시즌이다." : d.qwet ? `우천 예선 ${d.qwet}개를 제외했다.` : null,
   }));
   const w = frameOf(svg, [bracketStrip(xs, segs, ml)]);
   readout(w, svg, stops, { axis: "x", label });
@@ -720,7 +720,7 @@ export function pointsRace(series, { width, rounds, highlight = [], unit = "점"
     const lead = series.reduce((a, b) => ((b.pts[i] ?? -1) > (a.pts[i] ?? -1) ? b : a));
     const rows = hi.map((s) => ({ value: `${int(s.pts[i])}${unit}`, label: s.label, key: { type: "line", color: s.color } }));
     if (!highlight.includes(lead.id)) rows.push({ value: `${int(lead.pts[i])}${unit}`, label: `${lead.label} (선두)` });
-    return { px: xs.apply(r), py: ys.apply(hi[0] ? hi[0].pts[i] : lead.pts[i]), top: mt, bottom: H - mb, head: rounds ? `${r}라운드 ${rounds[i].short} 종료` : `${r}라운드 종료`, rows, note: "전체 값은 표에 있다." };
+    return { px: xs.apply(r), py: ys.apply(hi[0] ? hi[0].pts[i] : lead.pts[i]), top: mt, bottom: H - mb, head: rounds ? `${r}라운드 ${rounds[i].short} 종료` : `${r}라운드 종료`, rows, note: "전체 값은 표 참조." };
   });
   const w = frameOf(svg);
   readout(w, svg, stops, { axis: "x", label });
@@ -805,8 +805,8 @@ export function paceMultiples(rounds, { width, teams, kind = "quali", label }) {
         rows.push({ value: `${num(d.x[0], 2, { sign: true })}%`, label: t.team, key: { type: "dot", color: C.s1 } });
         rows.push({ value: `${num(d.x[1], 2, { sign: true })} ~ ${num(d.x[2], 2, { sign: true })}`, label: "95% 구간" });
       } else rows.push({ value: "미상", label: t.team });
-      const note = d.wet ? (kind === "quali" ? "우천 예선, 평균에서 뺐다." : "우천 결승, 기본 분석에서 뺐다.")
-        : [d.ref ? "참고용 예선 형식이라 선에 잇지 않는다." : null, d.unc ? "우천 여부 미분류 예선이다." : null].filter(Boolean).join(" ") || null;
+      const note = d.wet ? (kind === "quali" ? "우천 예선, 평균에서 제외." : "우천 결승, 기본 분석에서 제외.")
+        : [d.ref ? "참고용 예선 형식이라 선으로 연결하지 않는다." : null, d.unc ? "우천 여부 미분류 예선이다." : null].filter(Boolean).join(" ") || null;
       return { px: xs.apply(d.round), py: 20, top: mt, bottom: H + mt - 8 - 22, head: `${d.round}라운드 ${d.short}`, rows, note };
     });
     const cell = el("div", "mini");
@@ -827,7 +827,7 @@ export function paceMultiples(rounds, { width, teams, kind = "quali", label }) {
   }
   if (!off) return grid;
   const outer = el("div");
-  outer.append(grid, el("p", "axis-note", `우천 ${kind === "quali" ? "예선" : "결승"} 값 ${off}개는 공통 세로축 범위를 넘어 그리지 않았다. 표에 있다.`));
+  outer.append(grid, el("p", "axis-note", `공통 세로축 범위를 벗어난 우천 ${kind === "quali" ? "예선" : "결승"} 값 ${off}개는 표에만 표시한다.`));
   return outer;
 }
 
@@ -864,8 +864,8 @@ export function reasonShare(counts, { label = "변경 사유 비율" } = {}) {
  * groups: [{key, label, cats:{...}, total, sub}]
  * orient "h": 많은 순 가로 막대(팀, 부품 영역). "v": 시간 순 세로 막대(대회).
  */
-export function groupedReasons(groups, { width, orient = "h", label = "묶음별 항목 수", onSelect }) {
-  if (!groups.length) return el("p", "fig-fallback", "조건에 맞는 항목이 0건이라 그릴 막대가 없다.");
+export function groupedReasons(groups, { width, orient = "h", label = "그룹별 항목 수", onSelect }) {
+  if (!groups.length) return el("p", "fig-fallback", "조건에 맞는 항목이 없다.");
   const narrow = width < 560;
   const flat = [];
   for (const g of groups) {
@@ -952,7 +952,7 @@ const puSeries = (d, element) => (d.by ? d.by[element] : d[element.toLowerCase()
 /**
  * PU 구성요소 누적 사용 개수 (계단선).
  * rows: [{label, by: {ICE: [라운드별 누적 | null], TC: [...], ...}}] (이전 형식 {label, ice: [...]}도 받는다)
- * opts.rounds: 그 시즌 라운드 수(데이터에서 받는다. 2020년 17, 2021-2023년 22, 2024-2025년 24). 없으면 가장 긴 줄의 길이.
+ * opts.rounds: 그 시즌 라운드 수(데이터에서 받는다. 2019년 21, 2020년 17, 2021-2023년 22, 2024-2025년 24). 없으면 가장 긴 줄의 길이.
  * opts.element: PU_ELEMENTS 가운데 하나. 값이 모두 null인 드라이버(한 번도 출전하지 않은 사람)는 그리지 않고 툴팁에만 "미출전"으로 남긴다.
  * 색: 드라이버 셋까지 슬롯 1~3. 넷째부터는 맥락 회색 1.5px 선 + 직접 라벨(엔진 페이지의 팀 칸은 드라이버가 셋을 넘는 일이 드물다).
  */

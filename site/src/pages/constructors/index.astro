@@ -3,6 +3,7 @@
 // 절: 타이틀과 우승 순위, 컨스트럭터 찾기(거르기 표). 표는 빌드 때 모든 컨스트럭터를 싣고, 스크립트가 있으면
 // 거르기와 정렬이 붙는다. 계보(/teams/)는 2025 그리드 10개 조직의 흐름이고, 이 목록은 Jolpica ID 단위다.
 import Figure from '../../components/Figure.astro';
+import Note from '../../components/Note.astro';
 import ComparePanel from '../../components/compare/ComparePanel.astro';
 import PageHead from '../../components/PageHead.astro';
 import Section from '../../components/Section.astro';
@@ -83,17 +84,15 @@ const cellCls = (c: Column<ConstructorSummary>) => [c.num ? 'num' : '', c.cls ??
 const listBody = constructors
   .map((c, i) => {
     const tds = listCols.map((col) => `<td${cellCls(col) ? ` class="${cellCls(col)}"` : ''}>${col.render ? col.render(c, i) : ''}</td>`).join('');
-    const pick = `<td class="pick" data-js-only><label><input type="checkbox" class="cmp-box" value="${esc(c.id)}" aria-label="${esc(c.name)} 비교에 넣기" /></label></td>`;
+    const pick = `<td class="pick" data-js-only><label><input type="checkbox" class="cmp-box" value="${esc(c.id)}" aria-label="${esc(c.name)} 비교에 추가" /></label></td>`;
     return `<tr data-i="${i}" data-id="${esc(c.id)}" data-f="${c.first_season}" data-l="${c.last_season}" data-g="${c.in_2025 ? 1 : 0}" data-t="${c.titles}" data-w="${c.wins}" data-p="${c.podiums}" data-e="${c.entries}" data-q="${esc(fold([c.name, c.id.replace(/_/g, ' '), ...c.names, c.nationality_ko ?? '', c.nationality ?? ''].join(' ')))}">${pick}${tds}</tr>`;
   })
   .join('');
 ---
 
-<BaseLayout title="컨스트럭터" description={`${first}-${last} F1 결승에 나선 컨스트럭터 ${constructors.length}곳의 통산 기록과 시즌별 상세`} current="teams">
+<BaseLayout title="컨스트럭터" description={`${first}-${last} F1 결승에 출전한 컨스트럭터 ${constructors.length}곳의 통산 기록과 시즌별 상세`} current="constructors">
   <PageHead
-    kicker={[`<a href="${routes.teams()}">팀</a>`]}
     title="컨스트럭터"
-    lead={lead}
     facts={[
       ['컨스트럭터', `${constructors.length}곳`],
       ['컨스트럭터 챔피언', `${champs.length}곳`],
@@ -101,19 +100,16 @@ const listBody = constructors
       [`${last} 그리드`, `${grid.length}곳`],
     ]}
   >
-    <p class="lin-note">
-      이 목록은 Jolpica의 컨스트럭터 구분을 따른다. 이름이 바뀌어도 이어진 2025 그리드 10개 조직의 흐름은 <a href={routes.teams()}>팀(계보)</a>에서 본다. 1950-1960년대에는 섀시와 엔진 조합이 따로 한 컨스트럭터로 잡힌다(<span lang="en">Cooper-Climax</span> 등).
-    </p>
+    <p class="lin-note">팀 계보: <a href={routes.teams()}>{last} 그리드 {teams.length}개 계보</a></p>
   </PageHead>
 
-  <Section id="records" title="타이틀과 우승 순위" read={`컨스트럭터 챔피언 ${champs.length}곳과 통산 우승 20위와 같은 수까지 ${winList.length}곳이다.`}>
+  <Section id="records" title="타이틀과 우승 순위">
     <div class="pair">
       <Figure
         pair
         id="f-titles"
         title="통산 컨스트럭터 타이틀"
         scope={`1958-${last} · ${champs.length}곳`}
-        sub="시즌 마지막 라운드 컨스트럭터 순위 1위 횟수다. 같은 수는 첫 타이틀이 이른 순이다."
         legend={barLegend}
         chart="rankBars"
         data={titleData}
@@ -127,7 +123,6 @@ const listBody = constructors
         id="f-wins"
         title="통산 결승 우승"
         scope={`${first}-${last} · 상위 ${winList.length}곳`}
-        sub="결승 1위가 나온 대회 수다. 스프린트는 넣지 않는다."
         legend={barLegend}
         chart="rankBars"
         data={winData}
@@ -137,23 +132,25 @@ const listBody = constructors
         twin={{ caption: '통산 결승 우승 상위 컨스트럭터', columns: winCols, rows: winData }}
       />
     </div>
+    <div class="notes" role="note" aria-label="타이틀과 우승 순위 주">
+      <Note body="타이틀은 시즌 최종 컨스트럭터 순위 1위 횟수다. 우승은 결승 1위 횟수이고 스프린트는 제외한다." />
+    </div>
   </Section>
 
   <ComparePanel kind="c" def={cmpDefault} last={last} />
 
   <Section
     id="list"
-    title="컨스트럭터 찾기"
-    read={`${constructors.length}곳 전부의 통산 기록이다. 기본 정렬은 타이틀, 우승, 포디움이 많은 순이다.`}
+    title="컨스트럭터 검색"
     meta={`<a href="#compare">컨스트럭터 비교</a>`}
   >
-    <form class="filters ctr-filters" id="ctr-filters" role="search" aria-label="컨스트럭터 거르기" data-js-only>
+    <form class="filters ctr-filters" id="ctr-filters" role="search" aria-label="컨스트럭터 필터" data-js-only>
       <div class="field">
         <label for="cf-q">이름 또는 국적</label>
         <input type="search" id="cf-q" placeholder="예: Lotus, 영국" autocomplete="off" />
       </div>
       <div class="field">
-        <label for="cf-dec">달린 연대</label>
+        <label for="cf-dec">활동 연대</label>
         <select id="cf-dec">
           <option value="">전체 연대</option>
           {decades.map((x) => <option value={String(x)}>{x}년대</option>)}
@@ -193,7 +190,7 @@ const listBody = constructors
       </table>
     </div>
     <SourceLine source={`${JOLPICA} 결승 결과와 컨스트럭터 순위, 계보 연결은 이 사이트의 계보 자료`} asof={ASOF} />
-    <p class="tbl-note">출전은 결승 결과 행이 있는 대회 수이고, 포디움은 완주로 분류된 3위 이내 결과 수(차 기준)다. 타이틀은 컨스트럭터 챔피언 횟수다.</p>
+    <p class="tbl-note">출전은 결승 결과가 있는 대회 수, 포디움은 3위 이내 완주 결과 수(차 기준)다. 1950-1960년대에는 섀시와 엔진 조합이 각각 별도 컨스트럭터로 집계된다(<span lang="en">Cooper-Climax</span> 등).</p>
   </Section>
 
   <script>
@@ -279,14 +276,14 @@ const listBody = constructors
   .chk {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    min-height: 36px;
+    gap: 6px;
+    min-height: 28px;
     font-size: var(--fs-small);
     cursor: pointer;
   }
   .chk input {
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
     accent-color: var(--accent);
   }
   .ctr-list {

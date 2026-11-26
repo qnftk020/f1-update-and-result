@@ -68,9 +68,9 @@ const read =
   `${en(esc(fastest.constructor.name))} 팀이 ${b(pct(fastest.last!.quali_index_mean))}로 가장 작다.`;
 ---
 
-<BaseLayout title="팀" description={`${last} 그리드 ${teams.length}개 팀의 계보, 순위, 예선 지수, 업그레이드 항목 수`} current="teams">
-  <PageHead title="팀" lead={lead} />
-  <Section id="list" title="계보 목록" read={read} meta={`${last} 컨스트럭터 순위 순`}>
+<BaseLayout title="팀 계보" description={`${last} 그리드 ${teams.length}개 팀의 계보, 순위, 예선 지수, 업그레이드 항목 수`} current="teams">
+  <PageHead title="팀 계보" />
+  <Section id="list" title="계보 목록" meta={`${last} 컨스트럭터 순위 순`}>
     <div class="fig-row wide">
       <div class="fig">
         <DataTable class="team-list" caption={`${last} 그리드 ${teams.length}개 계보`} columns={cols} rows={rows} />
@@ -80,22 +80,18 @@ const read =
         />
         <p class="ctr-link">
           <a class="btn" href={routes.constructors()}>역대 컨스트럭터 {constructors.length}곳 보기</a>
-          <span>2025 그리드 밖의 팀과 시즌별 상세(대회별 두 차의 결과, 시즌 중 순위)는 컨스트럭터 쪽에 있다.</span>
         </p>
       </div>
-      <aside class="notes" aria-label="계보 목록 주석">
-        <div class="note">
-          <p class="note-h">계보</p>
-          <p>
-            계보는 참가 명칭과 컨스트럭터 이름이 바뀌어도 같은 공장과 조직이 이어진 흐름이다. 이름 수는 계보 안에서 쓴 컨스트럭터 이름의 개수다. 연결
-            근거는 팀 페이지의 "구간별 표와 연결 근거 보기"에 있다.
-          </p>
-        </div>
-        <div class="note caution">
-          <p class="note-h">주의</p>
-          <p>막대는 예선 평균 지수의 크기다. 길수록 느리다. 순위 열과 방향이 반대다.</p>
-        </div>
-      </aside>
+      <div class="notes" role="note" aria-label="계보 목록 각주">
+        <p class="note">
+          <span class="note-h">계보</span>
+          <span>계보는 이름이 바뀌어도 같은 공장과 조직이 이어진 흐름이다. 이름 열은 계보 안에서 사용한 컨스트럭터 이름 수다.</span>
+        </p>
+        <p class="note">
+          <span class="note-h">예선 지수</span>
+          <span>예선 지수는 마른 예선에서 팀 최고 랩이 세션 최고 랩보다 느린 정도(%)의 시즌 평균이다. 작을수록 빠르다.</span>
+        </p>
+      </div>
     </div>
   </Section>
 

@@ -6,6 +6,7 @@ import type { Column } from './DataTable.astro';
 import DataTable from './DataTable.astro';
 import type { LegendItem } from './Legend.astro';
 import Legend from './Legend.astro';
+import { citeKeys } from '../lib/sources.ts';
 
 interface Props {
   id: string;
@@ -69,7 +70,5 @@ const embed = auto && data !== undefined && !dataRef;
     </div>
   </div>
   <Fragment set:html={belowHtml} />
-  <figcaption class="src">
-    <span><b>출처</b> <Fragment set:html={source} /></span><span><b>기준일</b> <Fragment set:html={asof} /></span>
-  </figcaption>
+  <template data-cite={citeKeys(source, asof).join(' ')}></template>
 </figure>

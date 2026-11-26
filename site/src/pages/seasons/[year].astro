@@ -5,7 +5,7 @@ import CalendarTable from '../../components/season/CalendarTable.astro';
 import PaceSection from '../../components/season/PaceSection.astro';
 import SeasonNav from '../../components/season/SeasonNav.astro';
 import StandingsSection from '../../components/season/StandingsSection.astro';
-import { calendarRead, factsList, leadHtml } from '../../components/season/season-text.ts';
+import { factsList } from '../../components/season/season-text.ts';
 import PageHead from '../../components/PageHead.astro';
 import Section from '../../components/Section.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -26,11 +26,11 @@ const kicker = [`<a href="${routes.seasons()}">시즌</a>`];
   description={`${year} 시즌 캘린더와 우승자, 드라이버와 컨스트럭터 순위 추이, 팀별 페이스 지수`}
   current="seasons"
 >
-  <PageHead kicker={kicker} title={`${year} 시즌`} lead={leadHtml(season)} facts={factsList(season)}>
+  <PageHead kicker={kicker} title={`${year} 시즌`} facts={factsList(season)}>
     <SeasonNav year={year} />
   </PageHead>
 
-  <Section id="calendar" title="캘린더와 우승자" read={calendarRead(season)} meta={`${season.facts.races}개 대회`}>
+  <Section id="calendar" title="캘린더와 우승자" meta={`${season.facts.races}개 대회`}>
     <CalendarTable season={season} />
   </Section>
 

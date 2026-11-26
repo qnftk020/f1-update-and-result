@@ -1,7 +1,8 @@
 ---
-// 사이트 머리말: 남색 띠, 사이트 이름 + "비공식 팬 프로젝트" 꼬리표, 일곱 메뉴, 테마 세 칸 전환.
-// 960px 아래에서는 "메뉴" 단추가 메뉴와 테마를 함께 접는다(스크립트가 없으면 메뉴를 펼쳐 두고 단추와 테마를 숨긴다).
-// 아래 상태 줄은 검수 대기 문서가 있을 때만 그 목록으로 나온다. 최신 대회는 홈, 데이터 기준일은 꼬리말에 있다.
+// 사이트 머리(DESIGN.md "사이트 머리"): 흰 바탕과 아래 헤어라인, 사이트 이름(홈 링크), 주 메뉴 여덟 칸, 전역 검색 칸, 테마 글자 탭.
+// 1020px 아래에서는 "메뉴" 단추가 메뉴와 테마를 접고, 검색 칸은 둘째 줄 전체 폭으로 내려간다.
+// 스크립트가 없으면 메뉴를 펼쳐 두고 검색 칸 대신 메뉴의 "검색" 페이지 링크로 간다.
+// 아래 상태 줄은 검수 대기 문서가 있을 때만 그 목록으로 나온다.
 import { status } from '../lib/data.ts';
 import { badgeHtml } from '../lib/markup.ts';
 import { NAV, type NavKey, routes } from '../lib/paths.ts';
@@ -17,11 +18,31 @@ const review = status.reviewDocuments;
   <div class="site-top">
     <div class="wrap site-bar">
       <a class="brand" href={routes.home()}><span class="brand-name">F1 업그레이드와 성능 추이</span><span class="brand-tag">비공식 팬 프로젝트</span></a>
+      <div class="search-box" role="search">
+        <label class="sr-only" for="gs-q">드라이버, 팀, 시즌, 대회 검색</label>
+        <input
+          id="gs-q"
+          type="search"
+          placeholder="검색: 드라이버, 팀, 연도, 대회"
+          autocomplete="off"
+          spellcheck="false"
+          role="combobox"
+          aria-expanded="false"
+          aria-controls="gs-list"
+          aria-autocomplete="list"
+          data-index={routes.searchIndex()}
+          data-page={routes.search()}
+        />
+        <kbd class="search-key" aria-hidden="true">/</kbd>
+        <div class="search-pop" id="gs-list" role="listbox" aria-label="검색 결과" hidden></div>
+        <p class="sr-only" id="gs-status" aria-live="polite"></p>
+      </div>
       <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-menu">메뉴</button>
       <div class="site-menu" id="site-menu">
         <nav class="nav" aria-label="주 메뉴">
           <ul>
             {NAV.map((n) => <li><a href={n.href} aria-current={n.key === current ? 'page' : undefined}>{n.label}</a></li>)}
+            <noscript><li><a href={routes.search()}>검색</a></li></noscript>
           </ul>
         </nav>
         <div class="theme" role="group" aria-label="화면 테마">
@@ -43,3 +64,9 @@ const review = status.reviewDocuments;
     )
   }
 </header>
+
+<script>
+  import { initSearch } from '../components/search/search-client.ts';
+
+  initSearch();
+</script>

@@ -118,18 +118,18 @@ export function start(): void {
             .map((id) => {
               const name = nameById.get(id) ?? id;
               const href = kind === 'd' ? routes.driver(id) : routes.constructorPage(id);
-              return `<li>${keyHtml(state.slots.get(id) ?? 0)}<a href="${href}" lang="en">${esc(name)}</a><button type="button" data-remove="${esc(id)}" aria-label="${esc(name)} 빼기">×</button></li>`;
+              return `<li>${keyHtml(state.slots.get(id) ?? 0)}<a href="${href}" lang="en">${esc(name)}</a><button type="button" data-remove="${esc(id)}" aria-label="${esc(name)} 비교에서 제외">×</button></li>`;
             })
             .join('')
-        : `<li class="empty-chip">아직 고른 ${N.pick}가 없다</li>`;
+        : `<li class="empty-chip">선택한 ${N.pick}가 없다</li>`;
     }
     if (line) {
       const names = ids.map((id) => nameById.get(id) ?? id).join(', ');
       line.textContent = !ids.length
-        ? `비교에 고른 ${N.pick}가 없다.`
+        ? `비교할 ${N.pick}를 선택하지 않았다.`
         : ids.length >= MAX_PICK
-          ? `비교에 고른 ${N.pick} ${ids.length}/${MAX_PICK}: ${names}. 최대 ${MAX_PICK}${N.unit}까지다.`
-          : `비교에 고른 ${N.pick} ${ids.length}/${MAX_PICK}: ${names}.`;
+          ? `비교 ${ids.length}/${MAX_PICK}: ${names}. 최대 ${MAX_PICK}${N.unit}까지 선택할 수 있다.`
+          : `비교 ${ids.length}/${MAX_PICK}: ${names}.`;
     }
   };
 
@@ -178,8 +178,8 @@ export function start(): void {
     ],
   };
   const NOTE: Record<Kind, string> = {
-    d: '출전은 결승 결과가 있는 대회 수, 출발은 그 가운데 출발하지 않은 대회를 뺀 수다. 우승, 포디움, 타이틀에는 1950-1960년 챔피언십에 들어 있던 인디애나폴리스 500이 포함된다. 최고 순위 아래 숫자는 그 순위를 한 시즌 수다. 통산 점수는 점수 체계가 시대마다 달라 싣지 않는다.',
-    c: '목록은 Jolpica의 컨스트럭터 구분을 따른다(이름이 바뀌어 이어진 조직의 흐름은 팀 계보 쪽에 있다). 출전 대회는 결승 결과가 있는 대회 수, 출전 차량은 결과 행 수, 포디움은 3위 이내로 분류된 차의 수다. 컨스트럭터 챔피언십은 1958년부터다. 1950-1960년대에는 섀시와 엔진 조합이 따로 한 컨스트럭터로 잡힌다(Cooper-Climax 등). 통산 점수는 점수 체계가 시대마다 달라 싣지 않는다.',
+    d: '출발은 출발하지 못한 대회를 제외한 출전 수다. 우승, 포디움, 타이틀에는 1950-1960년 인디애나폴리스 500이 포함된다. 최고 순위 아래 숫자는 그 순위를 기록한 시즌 수다.',
+    c: 'Jolpica의 컨스트럭터 구분을 따르며 팀 계보는 반영하지 않는다. 포디움은 3위 이내 차량 수다. 컨스트럭터 챔피언십은 1958년부터다. 1950-1960년대에는 섀시와 엔진 조합마다 별도 컨스트럭터로 집계된다(Cooper-Climax 등).',
   };
 
   const emptyHtml = (text: string) => `<p class="empty-line">${text}</p>`;
@@ -188,7 +188,7 @@ export function start(): void {
     if (!totals) return;
     if (totalsNote) totalsNote.textContent = NOTE[kind];
     if (!files.length) {
-      totals.innerHTML = emptyHtml(`고른 ${NOUN[kind].pick}가 없다.`);
+      totals.innerHTML = emptyHtml(`선택한 ${NOUN[kind].pick}가 없다.`);
       return;
     }
     const slot = (f: CompareFile) => state.slots.get(f.id) ?? 0;
@@ -217,7 +217,7 @@ export function start(): void {
     });
     totals.innerHTML =
       `<div class="tbl-wrap" role="region" tabindex="0" aria-label="통산 기록 비교"><table class="dt">` +
-      `<caption class="sr-only">고른 ${NOUN[kind].pick}의 통산 기록</caption>` +
+      `<caption class="sr-only">선택한 ${NOUN[kind].pick}의 통산 기록</caption>` +
       `<thead><tr><th scope="col" class="stick">항목</th>${head}</tr></thead><tbody>${[...info, ...body].join('')}</tbody></table></div>`;
   };
 
@@ -315,7 +315,7 @@ export function start(): void {
   const renderH2h = (files: CompareFile[], kind: Kind, short: string[]) => {
     if (!h2h) return;
     if (files.length < 2) {
-      h2h.innerHTML = emptyHtml(`맞대결은 고른 ${NOUN[kind].pick}가 둘 이상일 때 센다.`);
+      h2h.innerHTML = emptyHtml(`맞대결은 ${NOUN[kind].pick}를 둘 이상 선택하면 표시된다.`);
       return;
     }
     const slotOf = (i: number) => state.slots.get(files[i].id) ?? 0;
@@ -335,17 +335,17 @@ export function start(): void {
         const b = files[j];
         const h = headToHead(a.r, b.r);
         const race = !h.both
-          ? '<p class="h2h-none">함께 나선 결승이 없다.</p>'
-          : `${h.counted ? score(i, h.a, j, h.b) : ''}<p class="h2h-sub">함께 나선 결승 ${n0(h.both)}번(<span class="nw">${span(h.first ?? 0, h.last ?? 0)}</span>), 앞뒤를 가린 대회 ${n0(h.counted)}번</p>`;
+          ? '<p class="h2h-none">함께 출전한 결승이 없다.</p>'
+          : `${h.counted ? score(i, h.a, j, h.b) : ''}<p class="h2h-sub">함께 출전한 결승 ${n0(h.both)}번(<span class="nw">${span(h.first ?? 0, h.last ?? 0)}</span>), 판정한 대회 ${n0(h.counted)}번</p>`;
         let mate = '';
         if (kind === 'd') {
           const m = a.m?.find((x) => x[0] === b.id);
           mate = m
             ? `<div class="h2h-part"><p class="h2h-head">팀 동료였던 시즌 <span class="nw">${yearsText(m[7])}</span> <span lang="en">${esc(m[8])}</span></p>` +
-              `<p class="h2h-sub">결승</p>${m[3] ? score(i, m[4], j, m[3] - m[4]) : ''}<p class="h2h-sub">앞뒤를 가린 대회 ${n0(m[3])}번</p>` +
+              `<p class="h2h-sub">결승</p>${m[3] ? score(i, m[4], j, m[3] - m[4]) : ''}<p class="h2h-sub">판정한 대회 ${n0(m[3])}번</p>` +
               (m[5]
                 ? `<p class="h2h-sub">예선</p>${score(i, m[6], j, m[5] - m[6])}<p class="h2h-sub">비교한 대회 ${n0(m[5])}번</p>`
-                : '<p class="h2h-sub">예선: 이 시기 예선 기록이 없다(1994년부터).</p>') +
+                : '<p class="h2h-sub">예선: 비교할 기록이 없다(1994년부터 집계).</p>') +
               '</div>'
             : '<div class="h2h-part"><p class="h2h-sub">팀 동료였던 적이 없다.</p></div>';
         }
@@ -372,7 +372,7 @@ export function start(): void {
       files = await Promise.all(state.picks.map((id) => load(kind, id)));
     } catch (err) {
       if (window.console) console.warn(err);
-      if (line) line.textContent = '자료를 받지 못했다. 잠시 뒤 다시 고르거나 쪽을 새로 불러온다.';
+      if (line) line.textContent = '비교 자료를 불러오지 못했다.';
       return;
     }
     if (my !== ticket) return;

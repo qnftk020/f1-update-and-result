@@ -1,18 +1,19 @@
 ---
-// 규정 아카이브 연도 쪽: 문서 목록(등급, 배지, 원문 링크), 주요 변경 요약(출처 링크), 2018년 이후 조항 비교.
+// 규정 아카이브 연도 쪽: 문서 목록(등급, 배지, 원문 링크), 주요 변경 요약(출처 링크), 2008년 이후 조항 비교.
 // 조항 비교는 조항 번호, 제목(영어 원문), 변경 유형, 쪽만 싣는다. 규정 본문은 싣지 않는다.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import DataTable, { type Column } from '../../components/DataTable.astro';
 import EmptyState from '../../components/EmptyState.astro';
 import Expand from '../../components/Expand.astro';
 import LinkPick from '../../components/LinkPick.astro';
-import Notice from '../../components/Notice.astro';
+import Note from '../../components/Note.astro';
 import PageHead from '../../components/PageHead.astro';
 import Section from '../../components/Section.astro';
 import SourceLine from '../../components/SourceLine.astro';
 import RegStyle from '../../components/regulations/RegStyle.astro';
 import {
   CHANGE_KO,
+  CLAUSE_FROM,
   FACT_KO,
   GRADE_RANGE,
   SECTIONS,
@@ -50,7 +51,7 @@ const gradeText = {
   A:
     year >= 2018
       ? '등급 A 시기다. fia.com 규정 아카이브의 텍스트 PDF이고, 연도와 규정마다 한 판을 조항 단위로 나눴다.'
-      : '등급 A 시기다. argent.fia.com 구 서버와 fia.com의 텍스트 PDF 링크다. 조항 단위 비교는 2018년 이후 문서만 한다.',
+      : '등급 A 시기다. argent.fia.com 구 서버와 fia.com의 텍스트 PDF이고, 영어 판을 조항 단위로 나눴다. 부록, 변경 요약, 두 언어 판은 링크만 둔다.',
   B: '등급 B 시기다. 제3자 미러와 웹 아카이브 사본이라 FIA 원본과 동일성을 검증하지 않았다. 조항은 나누지 않고 링크와 요약만 싣는다.',
   C: '등급 C 시기다. historicdb.fia.com 스캔본과 웹 아카이브 사본의 링크와 주요 변경 요약만 싣는다. OCR 결과는 사실 근거로 쓰지 않는다.',
 }[g];
@@ -95,7 +96,7 @@ const titleSpan = (title: string, language: string | null) => {
 };
 const titleHtml = (d: RegDocument) => {
   const t = d.title ? titleSpan(d.title, d.language) : `${SECTION_KO[d.section]}${d.issue ? ` Issue ${esc(d.issue)}` : ''}`;
-  const meta = [d.host ? `<span lang="en">${esc(d.host)}</span>` : '', d.language ? `언어 ${esc(d.language)}` : '', d.variant ? esc(d.variant) : '', d.pages ? `${d.pages}쪽` : '']
+  const meta = [d.host ? `<span lang="en">${esc(d.host)}</span>` : '', d.language ? `언어 ${esc(d.language)}` : '', d.variant ? esc(d.variant) : '', d.pages ? `${d.pages}페이지` : '']
     .filter(Boolean)
     .join(' · ');
   const badge = docBadge(d);
@@ -139,8 +140,8 @@ const changeCols: Column<RegChange>[] = [
   { label: '조항', render: clauseHtml, cls: 'pos' },
   { label: '제목 (원문)', render: titleOf },
   { label: '변경', render: changeHtml },
-  { label: '앞 쪽', render: (c) => (c.page_from == null ? '' : `${c.page_from}`), num: true, cls: 'hide-xs' },
-  { label: '뒤 쪽', render: (c) => (c.page_to == null ? '' : `${c.page_to}`), num: true, cls: 'hide-xs' },
+  { label: '앞 판 페이지', render: (c) => (c.page_from == null ? '' : `${c.page_from}`), num: true, cls: 'hide-xs' },
+  { label: '뒤 판 페이지', render: (c) => (c.page_to == null ? '' : `${c.page_to}`), num: true, cls: 'hide-xs' },
 ];
 const ver = (issue: string | null, v: string, u: string | null) => {
   const t = issue ? `Issue ${esc(issue)} (${nw(esc(v))})` : nw(esc(v));
@@ -152,10 +153,10 @@ const cmpLine = (c: RegComparison) =>
   '. ' +
   `앞 판 ${c.from_season} ${ver(c.from_issue, c.from_version, c.from_url)}, 뒤 판 ${c.to_season} ${ver(c.to_issue, c.to_version, c.to_url)}. 그대로인 조항은 ${n0(c.unchanged)}개다.`;
 const noCmpText = (sec: Sec) => {
-  if (year === 2018) return '2017년 이전 문서는 조항 단위로 나누지 않아 2018년 문서는 비교할 앞 해 판이 없다.';
+  if (year === CLAUSE_FROM) return `${CLAUSE_FROM - 1}년 이전 문서는 조항 단위로 나누지 않아 ${CLAUSE_FROM}년 문서는 비교할 앞 해 판이 없다.`;
   const review = docs.find((d) => d.section === sec && d.status === 'needs_review');
   if (review)
-    return `${year} ${SECTION_KO[sec]} ${issueName(review.issue, review.version)}은 검수 대기라 비교에 넣지 않았다. ${(review.review_reasons ?? []).join(' ')}`;
+    return `${year} ${SECTION_KO[sec]} ${issueName(review.issue, review.version)}은 검수 대기라 비교에서 제외했다. ${(review.review_reasons ?? []).join(' ')}`;
   return '이 연도와 규정의 비교 자료는 아직 없다.';
 };
 const issueCols: Column<RegComparison>[] = [
@@ -172,12 +173,12 @@ const yearFacts: RegFact[] = (R.facts?.[String(year)] ?? [])
   .slice()
   .sort((a, b) => b.section.localeCompare(a.section) || b.kind.localeCompare(a.kind));
 const stateKo = (status: string | null | undefined) =>
-  status === 'needs_review' ? '검수 대기' : status === 'listed' ? '받지 않음' : status === 'parsed' ? '조항 추출' : esc(status ?? '상태 기록 없음');
+  status === 'needs_review' ? '검수 대기' : status === 'listed' ? '미수집' : status === 'parsed' ? '조항 추출' : esc(status ?? '상태 기록 없음');
 const factIssueHtml = (f: RegFact) => {
   const name = f.issue ? `Issue ${esc(f.issue)}` : nw(esc(f.version_key ?? ''));
   const head = f.url ? `<a href="${esc(f.url)}" rel="noopener">${name}</a>` : name;
   const date = f.issue && f.version_key ? `<span class="sub-line nw">${esc(f.version_key)}</span>` : '';
-  // 시즌 마지막 판이 아닌 판에서 읽은 값: 배지를 달고, 까닭은 표 위 안내 상자에 적는다.
+  // 시즌 마지막 판이 아닌 판의 값: 배지를 달고, 까닭은 표 아래 각주에 적는다.
   const mark = f.is_final_issue === false ? `<span class="sub-line">${badgeHtml('review', '검수 대기')}</span>` : '';
   return `${head}${date}${mark}`;
 };
@@ -188,8 +189,8 @@ const factCols: Column<RegFact>[] = [
     cls: 'who',
   },
   { label: '값', render: (f) => nw(esc(f.value)), num: true },
-  { label: '조항', render: (f) => `<span class="nw">${esc(f.clause_no ?? '')}</span><span class="sub-line nw">${SECTION_KO[f.section]}${f.page ? ` ${f.page}쪽` : ''}</span>` },
-  { label: '읽은 판', render: factIssueHtml },
+  { label: '조항', render: (f) => `<span class="nw">${esc(f.clause_no ?? '')}</span><span class="sub-line nw">${SECTION_KO[f.section]}${f.page ? ` ${f.page}페이지` : ''}</span>` },
+  { label: '기준 판', render: factIssueHtml },
 ];
 const nonFinal = yearFacts.filter((f) => f.is_final_issue === false);
 const nonFinalNote = (() => {
@@ -199,39 +200,21 @@ const nonFinalNote = (() => {
   const finName = fin ? issueName(fin.issue, fin.version) : '마지막 판';
   const reasons = fin?.review_reasons?.length ? ` ${fin.review_reasons.join(' ')}` : '';
   return (
-    `${year} ${SECTION_KO[f.section]}에서 읽은 수치 ${nonFinal.length}개는 시즌 마지막 판이 아닌 ${issueName(f.issue, f.version_key)}에서 읽었다. ` +
-    `마지막 판 ${finName}은 ${stateKo(fin?.status)}라 읽지 않았다.${reasons}`
+    `${year} ${SECTION_KO[f.section]} 수치 ${nonFinal.length}개는 시즌 마지막 판이 아닌 ${issueName(f.issue, f.version_key)} 기준이다. ` +
+    `마지막 판 ${finName}(${stateKo(fin?.status)})은 반영하지 않았다.${reasons}`
   );
 })();
 const pick = decadeGroups(R.years.map((y) => y.year), year);
 const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
 ---
 
-<BaseLayout title={`규정 아카이브 ${year}`} description={`${year}년 F1 기술 규정과 스포팅 규정 문서 목록, 등급, 원문 링크${year >= 2018 ? ', 앞 해와의 조항 비교' : ''}.`} current="regulations">
+<BaseLayout title={`규정 아카이브 ${year}`} description={`${year}년 F1 기술 규정과 스포팅 규정 문서 목록, 등급, 원문 링크${year >= CLAUSE_FROM ? ', 앞 해와의 조항 비교' : ''}.`} current="regulations">
   <RegStyle />
-  <PageHead kicker={[`<a href="${routes.regulations()}">규정 아카이브</a>`]} title={`${year} 규정 문서`} lead={lead} facts={facts}>
+  <PageHead kicker={[`<a href="${routes.regulations()}">규정 아카이브</a>`]} title={`${year} 규정 문서`} facts={facts}>
     <div class="reg-block">
-      <LinkPick summary="다른 연도 고르기" navLabel="규정 아카이브 연도" groups={pick} />
+      <LinkPick summary="연도 선택" navLabel="규정 아카이브 연도" groups={pick} />
     </div>
   </PageHead>
-
-  {
-    g !== 'A' && (
-      <div class="reg-block">
-        <Notice badges={g === 'B' ? [['unverified', '원본 미검증']] : [['scan', '스캔본']]}>
-          {g === 'B' ? (
-            <Fragment>
-              <b>등급 B.</b> FIA 원본과 동일성을 검증하지 않았다. 조항은 나누지 않는다.
-            </Fragment>
-          ) : (
-            <Fragment>
-              <b>등급 C.</b> 스캔본이다. OCR 결과는 사실 근거로 쓰지 않는다. 원문 링크와 주요 변경 요약만 싣는다.
-            </Fragment>
-          )}
-        </Notice>
-      </div>
-    )
-  }
 
   <Section id="docs" title="문서 목록" meta={`${docs.length}건`}>
     {
@@ -239,12 +222,17 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
         <Fragment>
           <DataTable caption={`${year} 규정 문서 목록`} columns={docCols} rows={docRows} rowClass={docBreak} />
           <SourceLine
-            source={year >= 2018 ? 'fia.com 규정 아카이브 목록, 이 사이트 추출' : year >= 2008 ? 'argent.fia.com, fia.com (Wayback Machine 목록에서 찾은 주소), 이 사이트 정리' : 'historicdb.fia.com, Wayback Machine, 제3자 미러, 이 사이트 정리'}
+            source={year >= 2018 ? 'fia.com 규정 아카이브 목록, 이 사이트 추출' : year >= 2008 ? 'argent.fia.com, fia.com (Wayback Machine 목록에서 찾은 주소), 이 사이트 추출' : 'historicdb.fia.com, Wayback Machine, 제3자 미러, 이 사이트 정리'}
             asof={asof}
           />
+          {g !== 'A' && (
+            <div class="notes" role="note" aria-label="문서 목록 주석">
+              <Note body={g === 'B' ? '등급 B 문서는 FIA 원본과 동일성을 검증하지 않았다.' : '등급 C 문서의 OCR 결과는 사실 근거로 사용하지 않는다.'} />
+            </div>
+          )}
         </Fragment>
       ) : (
-        <EmptyState title="이 연도의 문서를 찾지 못했다.">목록과 아카이브에서 확인한 범위 안의 결과다. 문서가 없다고 단정하지 않는다.</EmptyState>
+        <EmptyState title="이 연도의 문서를 찾지 못했다.">목록과 아카이브에서 찾지 못했을 뿐 문서가 없다는 뜻은 아니다.</EmptyState>
       )
     }
     {
@@ -278,9 +266,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
           <SourceLine source="이 사이트 정리(항목마다 근거 링크). 인용문은 싣지 않는다" asof={R.summaries_verified_on ? `${nw(R.summaries_verified_on)} 확인` : asof} />
         </Fragment>
       ) : (
-        <EmptyState title="이 연도의 주요 변경 요약은 아직 정리하지 않았다.">
-          {year >= 2018 ? '아래 조항 비교에서 앞 해와 달라진 조항을 볼 수 있다.' : '원문 링크는 위 문서 목록에 있다.'}
-        </EmptyState>
+        <EmptyState title="이 연도의 주요 변경 요약은 아직 정리하지 않았다." />
       )
     }
   </Section>
@@ -289,26 +275,25 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
     yearFacts.length > 0 && (
       <Section
         id="facts"
-        title="규정에서 읽은 수치"
+        title="규정 수치"
         meta={`${yearFacts.length}개`}
-        read="PU 구성요소 할당 수와 연료 조항의 수치를 시즌의 마지막으로 읽은 판에서 읽었다. 값, 조항 번호, 쪽, 읽은 판만 싣고 조항 본문은 싣지 않는다."
       >
-        {nonFinal.length > 0 && (
-          <div class="reg-block">
-            <Notice badges={[['review', '검수 대기']]}>{nonFinalNote}</Notice>
-          </div>
-        )}
         <div class="reg-block">
-          <DataTable caption={`${year} 규정에서 읽은 수치`} columns={factCols} rows={yearFacts} />
-          <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 추출(값과 조항 번호)" asof={asof} />
+          <DataTable caption={`${year} 규정 수치`} columns={factCols} rows={yearFacts} />
+          <SourceLine source={`${year >= 2018 ? 'fia.com 규정 아카이브' : 'argent.fia.com, fia.com'} 텍스트 PDF, 이 사이트 추출(값과 조항 번호)`} asof={asof} />
+          {nonFinal.length > 0 && (
+            <div class="notes" role="note" aria-label="규정 수치 주석">
+              <Note body={esc(nonFinalNote)} />
+            </div>
+          )}
         </div>
       </Section>
     )
   }
 
   {
-    year >= 2018 && (
-      <Section id="compare" title="조항 비교" meta={`${year - 1} → ${year}`} read="앞 해의 마지막으로 읽은 판과 이 해의 마지막으로 읽은 판을 조항 단위로 비교했다. 조항은 먼저 같은 번호로 맞추고, 번호가 바뀐 조항은 같은 글이나 낱말 유사도 0.8 이상인 글로 찾아 짝짓는다. 수정은 짝지은 조항의 번호, 소제목, 글, 그림 가운데 하나라도 달라진 것이고, 추가와 삭제는 짝이 없는 조항이다. 조항 번호와 제목, 변경 유형, 쪽만 싣고 본문은 싣지 않는다.">
+    year >= CLAUSE_FROM && (
+      <Section id="compare" title="조항 비교" meta={`${year - 1} → ${year}`}>
         {SECTIONS.map((sec) => {
           const c = cmpOf(sec);
           const nx = nextOf(sec);
@@ -321,13 +306,6 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
               {c ? (
                 <Fragment>
                   <p class="cmp-line" set:html={cmpLine(c)} />
-                  {c.review && (
-                    <div class="reg-block">
-                      <Notice badges={[['review', '검수 대기']]}>
-                        <Fragment set:html={skippedHtml(c, esc)} />
-                      </Notice>
-                    </div>
-                  )}
                   {c.changes.length ? (
                     <div class="reg-block">
                       <DataTable
@@ -340,6 +318,11 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
                   ) : (
                     <EmptyState title="두 판 사이에 바뀐 조항이 0개다." />
                   )}
+                  {c.review && (
+                    <div class="notes" role="note" aria-label="조항 비교 주석">
+                      <Note body={skippedHtml(c, esc)} />
+                    </div>
+                  )}
                   <SourceLine source="fia.com 규정 아카이브 텍스트 PDF, 이 사이트 추출(조항 번호, 제목, 변경 유형)" asof={asof} />
                 </Fragment>
               ) : (
@@ -349,7 +332,7 @@ const SUMMARY_KIND = { technical: '기술', sporting: '스포팅' };
               )}
               {nx && (
                 <p class="axis-note">
-                  다음 해와의 비교는 <a href={`${routes.regulations()}${nx.to_season}/#cmp-${sec}`}>{nx.to_season} 쪽</a>에 있다.
+                  다음 해 비교 <a href={`${routes.regulations()}${nx.to_season}/#cmp-${sec}`}>{`${year} → ${nx.to_season}`}</a>
                 </p>
               )}
               {issuesOf(sec).length > 0 && (

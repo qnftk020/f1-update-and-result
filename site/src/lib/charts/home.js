@@ -78,7 +78,7 @@ export function seasonMargins(data, { width, kind = "d", selected, onSelect, lab
         { value: `${formatPoints(p1)}점`, label: `1위 ${name1}` },
         { value: `${formatPoints(p2)}점`, label: `2위 ${name2}` },
       ],
-      note: onSelect ? "누르면 이 시즌을 고른다." : undefined,
+      note: onSelect ? "누르면 이 시즌을 선택한다." : undefined,
       season: r.s,
     };
   });

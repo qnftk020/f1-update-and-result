@@ -42,7 +42,8 @@ export interface Round {
     /** 지수가 있는 팀 수 */
     teams: number;
   } | null;
-  race: { wet: boolean; laps: number | null } | null;
+  /** method: openf1(2023-) 또는 jolpica(2014-2022, 랩 시간과 피트스톱만으로 클린 랩을 가린 계열) */
+  race: { wet: boolean; unclassified: boolean; method: 'openf1' | 'jolpica'; laps: number | null } | null;
 }
 
 export interface Quartiles {
@@ -115,6 +116,9 @@ export interface SeasonFacts {
   quali_reference_formats: string[];
   race_index_rounds: number;
   race_wet: number[];
+  /** 강수 자료로 우천 여부를 가르지 못한 결승(Jolpica 계열). 지수를 내지 않는다 */
+  race_unclassified: number[];
+  race_method: 'openf1' | 'jolpica' | null;
   driver_lead: LeadChange | null;
   constructor_lead: LeadChange | null;
 }

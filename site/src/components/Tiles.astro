@@ -1,27 +1,38 @@
 ---
-// 수치 타일 줄(dl.tiles, 4칸 -> 900px 아래 2칸 -> 340px 아래 1칸). 한 화면에 한 줄만 둔다.
+// 요약 표(DESIGN.md "요약 표"): 개체 쪽 머리의 한 줄 수치. 큰 숫자 타일 대신 머리 칸과 값 칸의 표로 둔다.
 // items: [{ label: '우승 기록', value: '1:26:07.469', who: 'Max Verstappen', team: 'Red Bull' }]
-// 값은 비례 숫자다. who와 team은 글자 그대로 넣는다(라틴 이름).
+// who와 team은 값 아래 작은 줄이다(라틴 이름은 글자 그대로).
 interface Props {
   items: { label: string; value: string; who?: string; team?: string }[];
+  caption?: string;
 }
-const { items } = Astro.props;
+const { items, caption = '요약' } = Astro.props;
 ---
 
-<dl class="tiles">
-  {
-    items.map((t) => (
-      <div class="tile">
-        <dt>{t.label}</dt>
-        <dd>
-          <span class="val">{t.value}</span>
-          {t.who && (
-            <span class="who">
-              {t.who} {t.team && <span>{t.team}</span>}
-            </span>
-          )}
-        </dd>
-      </div>
-    ))
-  }
-</dl>
+<div class="stat-table">
+  <div class="tbl-wrap">
+    <table class="dt">
+      <caption class="sr-only">{caption}</caption>
+      <thead>
+        <tr>{items.map((t) => <th scope="col">{t.label}</th>)}</tr>
+      </thead>
+      <tbody>
+        <tr>
+          {
+            items.map((t) => (
+              <td>
+                {t.value}
+                {t.who && (
+                  <span class="who">
+                    {t.who}
+                    {t.team && ` · ${t.team}`}
+                  </span>
+                )}
+              </td>
+            ))
+          }
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

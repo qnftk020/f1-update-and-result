@@ -247,7 +247,7 @@ export function ledSeries(): BarSeries {
         [pctText(share(s)), '비율'],
       ],
       note: s.excluded.length
-        ? `시즌 뒤 순위에서 제외된 ${s.excluded.map((e) => e.name).join(', ')}의 그 시점 점수를 넣어 센 값이다.`
+        ? `시즌 뒤 순위에서 제외된 ${s.excluded.map((e) => e.name).join(', ')}의 그 시점 점수를 포함해 집계했다.`
         : s.d1.led === 1
           ? '마지막 라운드가 끝난 뒤에 처음 선두가 되었다.'
           : s.d1.led === s.rounds
@@ -355,7 +355,7 @@ export function heatRows(order: string[]): HeatRow[] {
       if (adj?.kind === 'excluded') note = `컨스트럭터 순위 제외: ${adj.name}.`;
       else if (adj?.kind === 'deducted') note = `감점: ${adj.name} (${adj.pos}위).`;
       else if (best.pos == null) note = 'Jolpica 컨스트럭터 순위표에 순위가 없다.';
-      if (xs.length > 1) note = [`이 시즌 이름 ${xs.length}개 가운데 가장 높은 순위를 칸에 썼다.`, note].filter(Boolean).join(' ');
+      if (xs.length > 1) note = [`이 시즌 이름 ${xs.length}개 가운데 가장 높은 순위를 표시했다.`, note].filter(Boolean).join(' ');
       return {
         s,
         pos: best.pos,

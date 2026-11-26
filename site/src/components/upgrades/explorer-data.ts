@@ -168,7 +168,7 @@ const CLAMP = 260;
  */
 export function itemHtml(i: UpgradeItem, page: number | undefined, index: number, groupOut = false): string {
   const long = (i.description || '').length > CLAMP;
-  const where = `<p class=w><b>${esc(i.team)}</b> <span>항목 ${esc(i.no)}${page ? ` · ${page}쪽` : ''}</span></p>`;
+  const where = `<p class=w><b>${esc(i.team)}</b> <span>항목 ${esc(i.no)}${page ? ` · ${page}페이지` : ''}</span></p>`;
   const comp =
     `<div class=c><b lang=en>${esc(i.component)}</b><small>${esc(AREA[i.area] ?? i.area)}</small>` +
     `<p><span><span class=rk data-cat=${i.category}></span>${esc(CAT[i.category as Cat])}</span><span lang=en>${esc(i.reason)}</span></p>` +

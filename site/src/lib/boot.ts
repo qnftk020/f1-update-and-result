@@ -60,7 +60,7 @@ export function boot(): void {
       v.hidden = false;
       const p = document.createElement('p');
       p.className = 'fig-fallback';
-      p.textContent = '차트를 불러오지 못해 표로 보여 준다.';
+      p.textContent = '차트를 불러오지 못해 표만 표시한다.';
       v.appendChild(p);
     });
     document.querySelectorAll<HTMLElement>('figure.fig .twin').forEach((t) => {

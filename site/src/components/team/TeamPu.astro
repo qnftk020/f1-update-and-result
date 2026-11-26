@@ -185,26 +185,25 @@ if (ok && iceVals.length) {
         : '');
   if (iceAllow != null) read += ` 시즌 허용 개수는 ${iceAllow}개이고, 이를 넘긴 드라이버는 ${iceOver}명이다.`;
 }
-const missingText = missing.length ? `${missing.join(', ')}라운드는 문서가 없거나 일부만 읽어 값을 비워 둔다. ` : '';
+const missingText = missing.length ? `${missing.join(', ')}라운드는 문서가 없거나 일부만 판독되어 빈칸이다. ` : '';
 // 허용 개수의 출처: 규정 조항이면 읽은 판, 시즌 마지막 판이 아니면 마지막 판의 상태를 적는다.
 const alloc = season?.allocation?.ICE ?? els.map((e) => season?.allocation?.[e]).find(Boolean) ?? null;
 const allocSource = (() => {
   if (!alloc || alloc.allowed == null) return '';
-  if (alloc.basis !== 'regulation') return `허용 개수는 FIA 선언 문서의 배정 문장에서 읽었다.${alloc.url ? ` ${extHtml(alloc.url, 'FIA 원문 PDF (첫 문서)')}` : ''}`;
+  if (alloc.basis !== 'regulation') return `허용 개수는 FIA 선언 문서의 배정 문장을 따른다.${alloc.url ? ` ${extHtml(alloc.url, 'FIA 원문 PDF (첫 문서)')}` : ''}`;
   const name = alloc.issue ? nw(`Issue ${esc(alloc.issue)}${alloc.version_key ? ` (${esc(alloc.version_key)})` : ''}`) : nw(esc(alloc.version_key ?? ''));
-  const from = `허용 개수는 ${yr} 스포팅 규정 ${name} ${esc(alloc.clause_no ?? '')}조${alloc.page ? `(${alloc.page}쪽)` : ''}에서 읽었다.${alloc.url ? ` ${extHtml(alloc.url)}` : ''}`;
+  const from = `허용 개수는 ${yr} 스포팅 규정 ${name} ${esc(alloc.clause_no ?? '')}조${alloc.page ? `(${alloc.page}쪽)` : ''}를 따른다.${alloc.url ? ` ${extHtml(alloc.url)}` : ''}`;
   if (alloc.is_final_issue !== false) return from;
   const fin = alloc.final_issue;
   const finName = fin?.issue ? nw(`Issue ${esc(fin.issue)}${fin.version ? ` (${esc(fin.version)})` : ''}`) : '마지막 판';
-  const state = fin?.status === 'needs_review' ? '검수 대기라 읽지 않았다' : '아직 받지 않았다';
-  return `${badgeHtml('review', '검수 대기')} ${from} 시즌 마지막 판이 아니다. 마지막 판 ${finName}은 ${state}.`;
+  const state = fin?.status === 'needs_review' ? '검수 대기다' : '아직 수집하지 않았다';
+  return `${badgeHtml('review', '검수 대기')} ${from} 시즌 마지막 판이 아니며, 마지막 판 ${finName}은 ${state}.`;
 })();
 ---
 
 {
   ok ? (
     <Fragment>
-      {read && <p class="read" id="pu-read" set:html={keepNames(read)} />}
       <div class="pair">
         <div>
           <h3 class="sub-title">
@@ -214,8 +213,8 @@ const allocSource = (() => {
           {
             anyExceed && (
               <p class="pu-key">
-                <Fragment set:html={iconSvg('exceed', 'ic xmark')} /> 표시와 굵은 값은 시즌 허용 개수를 넘긴 구성요소다(허용 초과).
-                {hasAllow && <Fragment> 허용 개수는 {els.map((e, i) => (allowRow[i] != null ? `${e} ${allowRow[i]}개` : null)).filter(Boolean).join(', ')}다.</Fragment>}
+                <Fragment set:html={iconSvg('exceed', 'ic xmark')} /> 허용 초과.
+                {hasAllow && <Fragment> 시즌 허용 개수는 {els.map((e, i) => (allowRow[i] != null ? `${e} ${allowRow[i]}개` : null)).filter(Boolean).join(', ')}다.</Fragment>}
               </p>
             )
           }
@@ -227,14 +226,13 @@ const allocSource = (() => {
         </div>
         <div>
           <div class="pu-seg">
-            <Seg label="PU 구성요소 고르기" attr="pu-el" cols4 items={els.map((e) => ({ value: e, label: e, pressed: e === 'ICE' }))} />
+            <Seg label="PU 구성요소 선택" attr="pu-el" cols4 items={els.map((e) => ({ value: e, label: e, pressed: e === 'ICE' }))} />
           </div>
           <Figure
             pair
             id="f-pu"
             title={`<span class="pu-el">ICE</span> 누적 사용 개수`}
             scope={`${yr} · 1~${nR}라운드 · <span lang="en">${esc(entry!.team)}</span>`}
-            sub={`드라이버별로 새 구성요소를 투입한 라운드에서 계단이 오른다. 위로 갈수록 많이 썼다.${hasAllow ? ' 가로선은 시즌 허용 개수다.' : ''}`}
             legend={legend}
             chart="puTeamSteps"
             data={rows}
@@ -264,24 +262,24 @@ const allocSource = (() => {
         </div>
       </div>
       <div class="fig-row wide">
-        <aside class="notes" aria-label="PU 구성요소 사용 현황 주석">
+        <div class="notes" role="note" aria-label="PU 구성요소 사용 현황 주석">
           <Note
             head="자료 범위"
-            body={`${yr}년 문서를 읽은 라운드는 ${season!.parsed_rounds.length}개다. ${missingText}툴팁에서 누적 문서가 없는 라운드는 "문서 미수집", 문서에 이 팀 드라이버 값이 없는 라운드는 "미출전"으로 적는다. 문서는 대회 전 상태를 적으므로 문서의 라운드가 결승 출전 라운드와 하나씩 어긋날 수 있다. 결승 출전 라운드는 Jolpica 결승 결과에서 센다.`}
+            body={`${yr}년 문서는 ${season!.parsed_rounds.length}개 라운드를 반영했다. ${missingText}문서는 대회 전 상태라 결승 출전 라운드와 한 라운드씩 어긋날 수 있다.`}
           />
           {allocSource && <Note head="허용 개수" body={allocSource} />}
           <Note
             head="주의"
             caution
-            body="누적 개수는 시즌 동안 쓴 구성요소의 수다. 허용 개수를 넘긴 구성요소는 그리드 페널티 대상이지만 이 표는 페널티 적용 여부를 담지 않는다."
+            body="허용 개수를 넘긴 구성요소는 그리드 페널티 대상이지만 페널티 적용 여부는 반영하지 않는다."
           />
-        </aside>
+        </div>
       </div>
       <p class="more-link"><a class="btn" href={routes.engines()}>엔진 페이지에서 다른 시즌과 팀의 PU 사용 현황 보기</a></p>
     </Fragment>
   ) : (
     <Notice>
-      <b>PU 구성요소 자료가 없다.</b> 표본 값이나 추정 값은 싣지 않는다.
+      <b>PU 구성요소 자료가 없다.</b>
     </Notice>
   )
 }

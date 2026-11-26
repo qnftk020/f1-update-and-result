@@ -42,12 +42,15 @@ const columns: Column<Round>[] = [
   },
   { label: '폴', cls: 'hide-sm', render: poleHtml },
   { label: '우승', render: winnersHtml },
-  { label: '표시', cls: 'hide-xs', render: (r) => `<span class="badges">${badgeList(roundBadges(r))}</span>` },
 ];
+// 표시할 배지가 한 대회에도 없으면 표시 칸을 두지 않는다
+if (season.rounds.some((r) => roundBadges(r).length > 0)) {
+  columns.push({ label: '표시', cls: 'hide-xs', render: (r) => `<span class="badges">${badgeList(roundBadges(r))}</span>` });
+}
 ---
 
 <div class="cal-block">
-  <DataTable caption={`${season.season} 시즌 캘린더와 우승자`} columns={columns} rows={season.rounds} />
+  <DataTable caption={`${season.season} 시즌 캘린더와 우승자`} columns={columns} rows={season.rounds} rowId={(r) => `r${r.round}`} />
   <SourceLine source={source} asof={asof} />
 </div>
 

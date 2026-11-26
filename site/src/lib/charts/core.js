@@ -99,7 +99,7 @@ export function tableTwin({ caption, columns, rows, rowClass }) {
 
 /* ------------------------------------------------------------------ 그리기와 틀 */
 
-export const STYLE = { fontFamily: "inherit", fontSize: "12px", color: C.ink3, background: "transparent", overflow: "visible" };
+export const STYLE = { fontFamily: "inherit", fontSize: "11.5px", color: C.ink3, background: "transparent", overflow: "visible" };
 
 export function plot(o) {
   const node = Plot.plot({ style: STYLE, ...o });
@@ -156,7 +156,7 @@ export function mount(slot, fn, data, opts = {}) {
 /** 그림 하나의 실패 처리: 차트 자리에 안내를 적고, 그 그림의 표 보기를 보이게 하고, 전환 단추와 범례를 숨긴다. */
 export function figureFallback(slot, err) {
   const fig = slot.closest("figure.fig");
-  slot.replaceChildren(el("p", "fig-fallback", "차트를 불러오지 못해 표로 보여 준다."));
+  slot.replaceChildren(el("p", "fig-fallback", "차트를 불러오지 못해 표만 표시한다."));
   if (fig) {
     fig.classList.add("no-plot");
     const twin = fig.querySelector(".twin");

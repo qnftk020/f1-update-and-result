@@ -33,10 +33,10 @@ export interface LeadInput {
  * (부품 영역과 범주 이름은 labels.json의 고정 한국어 이름이다).
  */
 export function leadHtml(s: LeadInput): string {
-  if (!s.n || !s.area || !s.cat) return '고른 조건에 맞는 항목은 0건이다.';
+  if (!s.n || !s.area || !s.cat) return '선택한 조건에 맞는 항목은 0건이다.';
   const first = s.filtered
-    ? `고른 조건에 맞는 항목은 ${n0(s.total)}건 가운데 <b>${n0(s.n)}건</b>이고 문서 ${n0(s.docs)}건에 걸쳐 있다. `
-    : `${s.years}년 FIA 문서 ${n0(s.allDocs)}건에서 읽은 업그레이드 항목은 <b>${n0(s.total)}건</b>이다. `;
+    ? `선택한 조건에 맞는 항목은 ${n0(s.total)}건 가운데 <b>${n0(s.n)}건</b>이고 문서 ${n0(s.docs)}건에 걸쳐 있다. `
+    : `${s.years}년 FIA 문서 ${n0(s.allDocs)}건의 업그레이드 항목은 <b>${n0(s.total)}건</b>이다. `;
   const [al, an] = s.area;
   const [cl, cn] = s.cat;
   const share = Math.round((cn / s.n) * 100);

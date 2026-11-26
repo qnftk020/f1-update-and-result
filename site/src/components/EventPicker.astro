@@ -8,7 +8,7 @@ interface Props {
   label?: string;
   options: { value: string; label: string; selected?: boolean }[];
 }
-const { id = 'ev', label = '신고가 있는 대회 고르기', options } = Astro.props;
+const { id = 'ev', label = '신고가 있는 대회 선택', options } = Astro.props;
 ---
 
 <div class="ev-picker" data-js-only>

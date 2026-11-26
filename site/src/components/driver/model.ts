@@ -138,25 +138,6 @@ export function buildDriver(d: DriverFile) {
   const ranked = rows.filter((r) => r.pos != null);
 
   // ---------------------------------------------------------------- 머리
-  const firstLast = d.first_season === d.last_season ? `${d.first_season}년 한 시즌` : `${d.first_season}년부터 ${d.last_season}년까지 ${d.seasons}개 시즌`;
-  let lead = `${b(nameHtml)}${aside(esc(d.nationality_ko))}의 결승 기록은 ${firstLast}, 출전 ${b(`${n0(d.entries)}회`)}다.`;
-  if (d.titles) {
-    lead += ` 드라이버 챔피언 ${b(`${d.titles}번`)}${aside(nw(yearsText(d.title_seasons)))}, 우승 ${d.wins}번, 포디움 ${d.podiums}번을 기록했다.`;
-  } else if (d.wins) {
-    lead += ` 우승 ${b(`${d.wins}번`)}, 포디움 ${d.podiums}번을 기록했고, 가장 높은 최종 순위는 ${d.best}위다.`;
-  } else if (d.podiums) {
-    lead += ` 포디움은 ${b(`${d.podiums}번`)}이고, 가장 높은 최종 순위는 ${d.best}위다.`;
-  } else if (d.best != null) {
-    lead += ` 가장 높은 최종 순위는 ${b(`${d.best}위`)}다.`;
-  } else {
-    lead += ' 드라이버 순위는 한 번도 부여되지 않았다.';
-  }
-  if (d.indy_only) lead += ' 결승 기록은 모두 챔피언십에 포함된 인디애나폴리스 500이다.';
-  else if (last) {
-    const lt = en(esc(teamNames(last)));
-    const fin = last.excluded ? '실격 처리되어 순위가 없다' : last.pos ? `드라이버 순위 ${last.pos}위${aside(`${pts(last.pts)}점`)}로 마쳤다` : '드라이버 순위를 받지 못했다';
-    lead += ` ${d.in_2025 ? '2025 시즌' : rows.length > 1 ? `마지막 시즌인 ${last.s}년` : `${last.s}년`}에는 ${lt} 팀에서 ${fin}.`;
-  }
   const teamList = d.teams.map((t) => `<span lang="en" class="nw">${esc(t.name)}</span>`).join(', ');
   const facts: [string, string][] = [
     ['국적', esc(d.nationality_ko)],
@@ -165,6 +146,9 @@ export function buildDriver(d: DriverFile) {
     ['팀', teamList || '미상'],
   ];
   if (d.code) facts.push(['약어', `<span class="mono">${esc(d.code)}</span>`]);
+  if (d.indy_only) facts.push(['비고', '결승 기록은 모두 챔피언십에 포함된 인디애나폴리스 500이다']);
+  const ex = rows.filter((r) => r.excluded);
+  if (ex.length) facts.push(['실격 시즌', `${ex.map((r) => r.s).join(', ')} (점수 ${pts(ex[0].pts)}점은 남는다)`]);
 
   const tiles = [
     {
@@ -177,53 +161,9 @@ export function buildDriver(d: DriverFile) {
     { label: '출발', value: `${n0(d.starts)}회`, who: d.entries !== d.starts ? `출전 ${n0(d.entries)}회` : `${d.seasons}개 시즌` },
   ];
 
-  // ---------------------------------------------------------------- 절 문장
-  const n1 = ranked.filter((r) => r.pos === 1).length;
-  const n3 = ranked.filter((r) => (r.pos as number) <= 3).length;
-  const n10 = ranked.filter((r) => (r.pos as number) <= 10).length;
-  const ex = rows.filter((r) => r.excluded);
-  let stRead = ranked.length
-    ? `순위를 받은 ${ranked.length}개 시즌 가운데 1위는 ${b(`${n1}번`)}, 3위 안은 ${n3}번, 10위 안은 ${n10}번이다.`
-    : '드라이버 순위를 받은 시즌이 0개다.';
-  if (rows.length > ranked.length) {
-    const unr = rows.length - ranked.length - ex.length;
-    if (unr > 0) stRead += ` 순위가 부여되지 않은 시즌은 ${unr}개다.`;
-  }
-  if (ex.length) stRead += ` ${ex.map((r) => r.s).join(', ')}년은 시즌 결과에서 실격 처리되어 순위가 없다${aside(`점수 ${pts(ex[0].pts)}점은 남아 있다`)}.`;
-
-  const shareRows = chartRows.filter((r) => r.share != null && !r.ex && !r.champ);
-  const bestShare = shareRows.reduce<(typeof chartRows)[number] | null>((a, r) => (!a || (r.share as number) > (a.share as number) ? r : a), null);
-  let shareRead = '';
-  if (d.titles) shareRead = `챔피언 시즌 ${d.titles}개는 100%다. `;
-  if (bestShare && (bestShare.share as number) > 0) {
-    shareRead += `${d.titles ? '그 밖에서' : ''} 1위 점수 대비 비율이 가장 높은 시즌은 ${b(`${bestShare.s}년 ${num(bestShare.share, 1)}%`)}${aside(`${pts(bestShare.pts)}점, 1위 ${pts(bestShare.cp)}점`)}다.`.trim();
-  } else if (!d.titles) {
-    shareRead = '순위표 점수가 0점보다 큰 시즌이 0개다.';
-  }
-
-  const winSeasons = rows.filter((r) => r.wins > 0);
-  const podSeasons = rows.filter((r) => r.podiums > 0);
-  const topW = rows.reduce((a, r) => (r.wins > a.wins ? r : a), rows[0]);
-  const topP = rows.reduce((a, r) => (r.podiums > a.podiums ? r : a), rows[0]);
-  const winRead = d.wins
-    ? `우승은 ${winSeasons.length}개 시즌에서 나왔다. 한 시즌 최다 우승은 ${b(`${topW.s}년 ${topW.wins}번`)}${aside(`${topW.entries}개 대회 출전`)}이고, 포디움이 가장 많은 시즌은 ${topP.s}년${aside(`${topP.podiums}번`)}이다.`
-    : `포디움은 ${podSeasons.length}개 시즌에서 ${b(`${d.podiums}번`)}이다. 가장 많은 시즌은 ${topP.s}년${aside(`${topP.podiums}번`)}이다.`;
-
-  let mateRead = '';
-  if (tot.rc) mateRead = `결승에서 팀 동료와 순서를 비교한 ${n0(tot.rc)}번 가운데 ${b(`${n0(tot.ra)}번`)} 앞섰다${aside(pc(tot.ra, tot.rc))}. 한 대회에 동료가 여럿이면 동료마다 한 번씩 센다.`;
-  if (tot.qc) mateRead += ` 예선은 비교한 ${n0(tot.qc)}번 가운데 ${b(`${n0(tot.qa)}번`)} 앞섰다${aside(pc(tot.qa, tot.qc))}.`;
-  else if (tot.rc) mateRead += ' 예선은 두 드라이버 모두 Jolpica 예선 기록이 있는 대회가 0개라 비교하지 않는다.';
-  mateRead = mateRead.trim();
-
-  const teamsRead =
-    stints.length === 1
-      ? `결승 기록은 모두 ${en(esc(stints[0].names.join(', ')))} 팀이다.`
-      : `거친 팀은 ${teamRows.length}개${stints.length > teamRows.length ? `, 같은 팀으로 돌아간 경우를 나누면 ${stints.length}개 구간` : ''}이다. 가장 오래 달린 팀은 ${en(esc([...teamRows].sort((a, z) => z.seasons.length - a.seasons.length || z.e - a.e)[0].name))}${aside(`${[...teamRows].sort((a, z) => z.seasons.length - a.seasons.length || z.e - a.e)[0].seasons.length}개 시즌`)}다.`;
-
   return {
     rows,
     last,
-    lead,
     facts,
     tiles,
     stints,
@@ -234,7 +174,6 @@ export function buildDriver(d: DriverFile) {
     chartRows,
     ranked,
     titleSet,
-    reads: { st: stRead, share: shareRead, win: winRead, mate: mateRead, teams: teamsRead },
   };
 }
 

@@ -22,14 +22,6 @@ const order = [...teams].sort((a, c) => (a.last?.position ?? 99) - (c.last?.posi
 const rows = heatRows(order);
 const heatData = { from: cFrom, to: last, rows };
 
-// 이름이 가장 많이 바뀐 두 계보의 컨스트럭터 이름(처음 나온 순서)
-const namesOf = (l: HistLineage) => [...new Set(l.seasons.map((x) => x.name))];
-const multiName = [...history.lineages]
-  .sort((a, c) => namesOf(c).length - namesOf(a).length)
-  .slice(0, 2)
-  .map((l) => `${esc(lineageShortKo(l.name_ko))} (<span lang="en">${esc(namesOf(l).join(', '))}</span>)`)
-  .join(', ');
-
 /* ---------------------------------------------------------------- 순위 추이 문장 */
 
 const run = longestTitleRun();
@@ -126,13 +118,12 @@ const twCols: Column<HistLineage>[] = [
 ];
 ---
 
-<Section id="history" title="계보별 시즌 최종 순위 추이" read={heatRead} meta={`${cFrom}-${last} · 컨스트럭터 순위`}>
+<Section id="history" title="계보별 시즌 최종 순위 추이" meta={`${cFrom}-${last} · 컨스트럭터 순위`}>
   <Figure
     id="f-heat"
     wide
     title="계보별 시즌 최종 컨스트럭터 순위"
-    scope={`${cFrom}-${last} · 계보 ${rows.length}개 · 행 순서는 ${last} 순위`}
-    sub="칸 하나가 한 계보의 한 시즌이고, 빈 자리는 그 계보가 출전하지 않은 시즌이다."
+    scope={`${cFrom}-${last} · 계보 ${rows.length}개`}
     legend={legend}
     chart="lineageHeat"
     data={heatData}
@@ -140,27 +131,18 @@ const twCols: Column<HistLineage>[] = [
     asof={asof}
     twin={{ caption: '시즌별 계보 최종 컨스트럭터 순위', columns: heatCols, rows: years }}
     notes={[
-      {
-        head: '한 칸의 값',
-        body: '한 시즌에 컨스트럭터 이름이 둘 이상인 계보(1966-1970 워킹, 2006 실버스톤)는 가장 높은 순위를 칸에 썼다. 순위 없음은 출전했지만 Jolpica 순위표에 순위가 없는 시즌이다(2007 McLaren 제외 처분 포함).',
-      },
-      {
-        head: '주의',
-        caution: true,
-        body: `계보는 이 사이트가 정한 조직 흐름이다. 이름이 여럿인 계보의 예: ${multiName}. 연결 근거는 각 팀 페이지에 있다.`,
-      },
+      { body: '한 시즌에 컨스트럭터 이름이 둘 이상인 계보(1966-1970 워킹, 2006 실버스톤)는 가장 높은 순위를 표시한다. 2007년 McLaren의 순위 제외 처분도 순위 없음으로 표시한다.' },
     ]}
   />
 </Section>
 
-<Section id="titles-wins" title="계보별 컨스트럭터 타이틀과 우승" read={twRead} meta={`${cFrom}-${last} 타이틀 · 첫 시즌부터 우승`}>
+<Section id="titles-wins" title="계보별 컨스트럭터 타이틀과 우승" meta={`${cFrom}-${last} 타이틀 · 첫 시즌부터 우승`}>
   <div class="pair">
     <Figure
       pair
       id="f-ltitle-bars"
       title="컨스트럭터 타이틀"
       scope={`${cFrom}-${last}`}
-      sub="계보별 컨스트럭터 순위 1위 횟수다."
       chart="lineageBars"
       data={titleBars}
       source={SRC}
@@ -172,7 +154,6 @@ const twCols: Column<HistLineage>[] = [
       id="f-lwin-bars"
       title="결승 우승"
       scope={`계보 첫 시즌부터 ${last}`}
-      sub="계보에 속한 팀이 결승에서 우승한 횟수다. 1958년 이전 시즌도 센다(마라넬로 1950년부터)."
       chart="lineageBars"
       data={winBars}
       source={SRC}

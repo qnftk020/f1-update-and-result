@@ -90,17 +90,8 @@ export function headToHead(a: RaceKey[], b: RaceKey[]): HeadToHead {
   return out;
 }
 
-/** 검색용 글자: 소문자, 발음 구별 기호 제거(Räikkönen -> raikkonen), 공백 하나로. */
-export function fold(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/ø/gi, 'o')
-    .replace(/ß/g, 'ss')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+/** 검색용 글자 맞추기는 lib/search.ts에 있다(전역 검색과 같은 규칙). */
+export { fold } from './search.ts';
 
 /**
  * 주소의 고른 목록(?cmp=senna,prost)을 읽는다. 알 수 없는 ID와 중복은 버리고 MAX_PICK개까지만 둔다.

@@ -1,77 +1,66 @@
-/* F1 업그레이드와 성능 추이: 디자인 토큰. 2026-11-11에 Alpine의 블루와 핑크를 바탕으로 색을 바꿨다.
-   2026-11-22부터 블루·핑크는 데이터(차트 계열), 눌린 단추와 고른 칩, 현재 메뉴에만 쓴다. 괘선과 큰 수치는 잉크다.
+/* F1 업그레이드와 성능 추이: 디자인 토큰. 기준 문서는 site/DESIGN.md다.
+   2026-11-26 참고 연감형으로 다시 잡았다: 흰 종이, 잉크와 회색, 작은 글자 단계, 0-2px 모서리.
+   블루·핑크·올리브(s1-s3)는 차트 계열과 선택 상태(현재 메뉴, 눌린 단추, 고른 항목)에만 쓴다. 장식에는 쓰지 않는다.
    밝은 값은 :root, 어두운 값은 두 경로(시스템 설정, data-theme="dark")에 같은 값으로 둔다.
    data-theme="light"는 시스템이 어두워도 밝은 값을 지킨다.
-   대비(WCAG): 밝은 면 #f6f7fb 위 ink 16.9, ink-2 9.1, ink-3 6.0, control 4.2, s1 5.2, s2 3.7, s3 4.1.
-   어두운 면 #0c1528 위 ink 16.1, ink-2 11.1, ink-3 7.3, control 5.1, s1 4.7, s2 5.1, s3 5.1.
-   accent 위 흰 글자: 밝게 5.6, 어둡게 5.7. 범주 1~3은 dataviz 검증기(색각 이상 ΔE, 밝기 띠, 대비)를 두 모드 모두 통과했다. */
+   대비(WCAG, 2026-11-26 계산): 흰 바탕 위 ink 18.5, ink-2 10.0, ink-3 5.8(paper-2 위 5.3), control 4.3, s1 5.6, s2 4.0, s3 4.1.
+   어두운 바탕 #111418 위 ink 15.9, ink-2 11.0, ink-3 6.8(paper-2 위 6.2), control 4.9, s1 4.8, s2 5.1, s3 5.8, accent 6.1.
+   범주 1~3은 dataviz 검증기(색각 이상 ΔE, 밝기 띠, 대비)를 두 모드 모두 통과한 값(2026-11-11)을 그대로 쓴다. */
 
 :root {
   color-scheme: light;
 
   /* 면 */
-  --paper: #f6f7fb;          /* 페이지와 차트 바탕 */
-  --paper-2: #eceff6;        /* 필터 줄, 안내 상자, 표 머리 hover, 범위 막대 */
-  --paper-3: #dde2ec;        /* 우천 구간 띠, 공개 문서가 없는 대회 띠 */
+  --paper: #ffffff;          /* 페이지와 차트 바탕 */
+  --paper-2: #f3f4f6;        /* 표 머리 띠, 정보 상자, 안내 줄, 입력 hover */
+  --paper-3: #e4e7eb;        /* 우천 구간 띠, 공개 문서가 없는 대회 띠 */
 
   /* 잉크 (글자) */
-  --ink: #0c1430;            /* 본문, 제목, 굵은 괘선 */
-  --ink-2: #3a4360;          /* 보조 글, 범례, 주석 */
-  --ink-3: #555e77;          /* 축 눈금, 캡션, 출처 줄 */
+  --ink: #111418;            /* 본문, 제목, 1px 괘선 */
+  --ink-2: #3d434c;          /* 보조 글, 범례, 각주 */
+  --ink-3: #5f6670;          /* 축 눈금, 출처 줄, 표 머리 */
 
   /* 선 */
-  --rule: var(--ink);        /* 4px 머리 괘선, 2px 절 괘선, 1px 표 머리 */
-  --hair: #d3d8e4;           /* 행 구분, 칸 구분 (장식선) */
-  --grid: #e2e6ef;           /* 차트 격자 */
-  --axis: #9aa1b4;           /* 차트 기준선 */
-  --control: #6f778d;        /* 단추, 선택 상자, 입력의 테두리 (3:1 이상) */
+  --rule: var(--ink);        /* 절 머리, 표 머리 아래 1px */
+  --hair: #dde0e5;           /* 행 구분, 칸 구분 */
+  --grid: #eceef1;           /* 차트 격자 */
+  --axis: #9aa0a8;           /* 차트 기준선 */
+  --control: #737a84;        /* 단추, 선택 상자, 입력의 테두리 (3:1 이상) */
   --focus: #1f63d0;          /* 키보드 초점 고리 */
 
-  /* 데이터: 범주 1~3은 Alpine의 블루, 핑크와 셋째 올리브다. dataviz 검증기로 색각 이상 분리(ΔE 11 이상)와 대비 3:1을 확인했다 */
+  /* 데이터 계열 */
   --s1: #1f63d0;             /* 블루. 주인공 계열, 단일 계열, 변경 사유 성능 */
   --s2: #e0408f;             /* 핑크. 변경 사유 서킷 대응, 강조 둘째 */
-  --s3: #5f8a1e;             /* 올리브. 변경 사유 신뢰성, 강조 셋째 (상태 노랑과 겹치지 않게 금색을 피했다) */
-  --s1-wash: rgba(31, 99, 208, 0.09);  /* 강조 행 바탕 */
-  --ctx: #858b9c;            /* 맥락: 필드 중앙값 선, 다른 계열, 변경 사유 기타 */
-  --band: rgba(12, 20, 48, 0.08); /* 필드 가운데 절반 띠 */
+  --s3: #5f8a1e;             /* 올리브. 변경 사유 신뢰성, 강조 셋째 */
+  --s1-wash: rgba(31, 99, 208, 0.08);  /* 고른 행 바탕 */
+  --ctx: #878d96;            /* 맥락: 필드 중앙값 선, 다른 계열, 변경 사유 기타 */
+  --band: rgba(17, 20, 24, 0.07); /* 필드 가운데 절반 띠 */
   --on-fill: #ffffff;
 
-  /* 상태 색 (Alpine의 블루와 핑크를 빌린 사이트 색. 로고나 엠블럼은 쓰지 않는다) */
-  --accent: #1f63d0;         /* 눌린 단추, 켠 스위치의 채움. 흰 글자 대비 5.6:1 */
+  /* 선택 상태 */
+  --accent: #1f63d0;         /* 눌린 단추 밑줄, 현재 메뉴, 고른 칸 테두리 */
   --on-accent: #ffffff;
   --link-line: var(--ink);   /* 링크 hover 밑줄 */
-  --hdr-bg: #0b1a3d;         /* 머리 띠와 꼬리말의 남색 */
-  --hdr-ink: #ffffff;
-  --hdr-ink-2: #b8c2dc;
-  --hdr-line: #2c3c66;
-  --hdr-accent: #ff7ab8;     /* 남색 위의 핑크 (현재 메뉴 밑줄, 초점) */
 
   /* 상태 (아이콘과 글자와 함께만) */
   --warn: #fab219;           /* 검수 대기 세모 */
-  --warn-ink: #0c1430;       /* 세모 윤곽과 느낌표 */
-  --danger: #c62d1f;         /* PU 허용 초과 원 (dataviz 상태 critical, 허용 개수 자료가 생긴 뒤에만, 아이콘과 글자와 함께) */
+  --warn-ink: #111418;       /* 세모 윤곽과 느낌표 */
+  --danger: #c62d1f;         /* PU 허용 초과 원 */
 
-  /* 글자 */
-  /* 웹 글꼴을 내려받지 않는다. 설치된 Pretendard가 있으면 쓰고, 없으면 운영체제의 한글 글꼴로 물러난다. */
-  /* Pretendard 동적 서브셋에 없는 라틴 악센트 글자와 −는 바로 뒤의 보조 글꼴(F1 Latin Supplement, Pretendard에서 뽑음)로 그린다.
-     그 뒤는 Pretendard 권장 대체 순서: 글꼴이 늦게 와 대체로 그리는 쪽은 Inter와 비슷한 시스템 라틴 글꼴(SF Pro, Segoe UI, Roboto)로,
-     한글은 운영체제 한글 글꼴로 그린다 */
+  /* 글자. Pretendard(동적 서브셋, BaseLayout에서 불러온다) 뒤에 라틴 악센트 보조 글꼴과 시스템 글꼴 */
   --font-sans: "Pretendard Variable", "Pretendard", "F1 Latin Supplement", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --fs-display: clamp(1.75rem, 1.2rem + 1.6vw, 2.375rem); /* 28 ~ 38px, 페이지 제목 */
-  --fs-lead: clamp(1.125rem, 1rem + 0.45vw, 1.3125rem);   /* 18 ~ 21px, 페이지 리드 */
-  --fs-h2: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);        /* 20 ~ 24px, 절 제목 */
-  --fs-figure: clamp(1.5rem, 1.2rem + 0.9vw, 2rem);       /* 24 ~ 32px, 수치 타일 값 */
-  --fs-read: 1.0625rem;      /* 17px, 절 첫 문장 */
-  --fs-body: 1rem;           /* 16px */
-  --fs-h3: 1rem;             /* 16px, 차트 제목 */
-  --fs-table: 0.875rem;      /* 14px */
-  --fs-small: 0.8125rem;     /* 13px, 주석, 출처 줄, 범례 */
-  --fs-micro: 0.75rem;       /* 12px, 축, 배지, 라벨 머리 */
-  --lh-tight: 1.2;
+  --fs-title: 1.5rem;        /* 24px, 쪽 제목 */
+  --fs-h2: 1.0625rem;        /* 17px, 절 제목 */
+  --fs-h3: 0.875rem;         /* 14px, 소제목, 그림 제목 */
+  --fs-body: 0.9375rem;      /* 15px, 본문 */
+  --fs-table: 0.84375rem;    /* 13.5px, 표 */
+  --fs-small: 0.78125rem;    /* 12.5px, 각주, 출처 줄, 범례, 정보 상자 */
+  --fs-micro: 0.71875rem;    /* 11.5px, 축, 배지, 표 머리 */
+  --lh-tight: 1.25;
   --lh-head: 1.35;
-  --lh-body: 1.7;
-  --lh-read: 1.62;
+  --lh-body: 1.55;
+  --lh-table: 1.4;
 
   /* 간격 (4px 단위) */
   --sp-1: 4px;
@@ -81,84 +70,78 @@
   --sp-5: 24px;
   --sp-6: 32px;
   --sp-7: 48px;
-  --sp-8: 64px;
-  --section-gap: clamp(40px, 3vw + 24px, 64px);
-  --gutter: clamp(16px, 3vw, 40px);
+  --section-gap: var(--sp-6);
+  --gutter: clamp(16px, 2.5vw, 32px);
 
   /* 폭 */
-  --page-max: 1200px;
-  --main-max: 780px;
-  --notes-w: 280px;
-  --measure: 40rem;
-  --lead-measure: 34rem;
+  --page-max: 1160px;
+  --measure: 40rem;          /* 문단만. 표와 그림은 본문 열 전체를 쓴다 */
+  --info-w: 300px;           /* 정보 상자 */
 
   /* 모서리와 선 굵기 */
   --radius-0: 0;
-  --radius-1: 2px;           /* 배지, 범례 열쇠 */
-  --radius-2: 4px;           /* 단추, 입력, 막대의 데이터 끝 */
-  --rule-section: 2px;
+  --radius-1: 2px;           /* 배지, 단추, 입력 */
+  --radius-2: 2px;
+  --rule-section: 1px;
   --rule-figure: 1px;
+  --row-h: 28px;             /* 표 행 최소 높이 */
 
-  --shadow-tip: 0 4px 16px rgba(12, 20, 48, 0.16);
-  --motion: 150ms;
+  --shadow-tip: 0 2px 10px rgba(17, 20, 24, 0.14);
+  --motion: 120ms;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --paper: #0c1528;
-    --paper-2: #121d36;
-    --paper-3: #1b2844;
-    --ink: #eef1f8;
-    --ink-2: #c4cadb;
-    --ink-3: #9ba4bb;
-    --hair: #26324d;
-    --grid: #1a2540;
-    --axis: #56627f;
-    --control: #7c87a3;
+    --paper: #111418;
+    --paper-2: #1a1e24;
+    --paper-3: #262b33;
+    --ink: #eceef1;
+    --ink-2: #c3c8cf;
+    --ink-3: #979ea8;
+    --hair: #2c3139;
+    --grid: #20242b;
+    --axis: #5d646e;
+    --control: #7d848e;
     --focus: #7fb0f5;
     --s1: #3a80e6;
     --s2: #e2509a;
     --s3: #7f9a26;
     --s1-wash: rgba(58, 128, 230, 0.16);
-    --ctx: #8790a6;
-    --band: rgba(238, 241, 248, 0.09);
+    --ctx: #8a919b;
+    --band: rgba(236, 238, 241, 0.09);
     --on-fill: #ffffff;
     --warn: #fab219;
-    --warn-ink: #0c1430;
+    --warn-ink: #111418;
     --danger: #e5483a;
-    --shadow-tip: 0 4px 18px rgba(0, 0, 0, 0.55);
-    --accent: #2563c4;
-    --hdr-bg: #070f22;
-    --hdr-line: #22305a;
+    --shadow-tip: 0 2px 12px rgba(0, 0, 0, 0.6);
+    --accent: #5a95ec;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #0c1528;
-  --paper-2: #121d36;
-  --paper-3: #1b2844;
-  --ink: #eef1f8;
-  --ink-2: #c4cadb;
-  --ink-3: #9ba4bb;
-  --hair: #26324d;
-  --grid: #1a2540;
-  --axis: #56627f;
-  --control: #7c87a3;
+  --paper: #111418;
+  --paper-2: #1a1e24;
+  --paper-3: #262b33;
+  --ink: #eceef1;
+  --ink-2: #c3c8cf;
+  --ink-3: #979ea8;
+  --hair: #2c3139;
+  --grid: #20242b;
+  --axis: #5d646e;
+  --control: #7d848e;
   --focus: #7fb0f5;
   --s1: #3a80e6;
   --s2: #e2509a;
   --s3: #7f9a26;
   --s1-wash: rgba(58, 128, 230, 0.16);
-  --ctx: #8790a6;
-  --band: rgba(238, 241, 248, 0.09);
+  --ctx: #8a919b;
+  --band: rgba(236, 238, 241, 0.09);
   --on-fill: #ffffff;
   --warn: #fab219;
-  --warn-ink: #0c1430;
+  --warn-ink: #111418;
   --danger: #e5483a;
-  --shadow-tip: 0 4px 18px rgba(0, 0, 0, 0.55);
-  --accent: #2563c4;
-  --hdr-bg: #070f22;
-  --hdr-line: #22305a;
+  --shadow-tip: 0 2px 12px rgba(0, 0, 0, 0.6);
+  --accent: #5a95ec;
 }

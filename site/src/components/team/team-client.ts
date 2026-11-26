@@ -40,8 +40,6 @@ interface PageData {
     qFirst: number;
     qCur: number;
     C: string;
-    scopeOn: string;
-    scopeOff: string;
     longOn: string;
     longOff: string;
     steps: { on: string; off: string };
@@ -82,7 +80,7 @@ export function initTeamPage(): void {
     .catch((err) => window.chartFallback(err));
 }
 
-/* ---------------------------------------------------------------- 업그레이드: 단위 차트와 대회 고르기 */
+/* ---------------------------------------------------------------- 업그레이드: 단위 차트와 대회 선택 */
 function initUpgrades(D: PageData): void {
   const slot = $('#f-units .viz');
   if (!slot) return;
@@ -161,7 +159,7 @@ function initPace(D: PageData, handles: Map<string, { redraw: (d?: unknown, o?: 
     if (rRead) rRead.innerHTML = p.r;
     const qs = $('#tq-scope');
     const rs = $('#tr-scope');
-    if (qs) qs.textContent = `${yr} · 라운드별 · 위가 빠르다`;
+    if (qs) qs.textContent = `${yr} · 라운드별`;
     if (rs) rs.textContent = `${yr} · 결승 클린 랩 · 95% 구간`;
     const src = $('#tq-src');
     if (src) src.innerHTML = p.src; // 빌드 때 만든 출처 줄
@@ -183,8 +181,6 @@ function initLineage(D: PageData, handles: Map<string, { redraw: (d?: unknown, o
   sw.addEventListener('click', () => {
     lineage = sw.getAttribute('aria-checked') !== 'true';
     sw.setAttribute('aria-checked', String(lineage));
-    const scope = $('#scope-text');
-    if (scope) scope.innerHTML = lineage ? L.scopeOn : L.scopeOff;
     steps?.redraw(null, { from: lineage ? L.first : L.curFrom });
     trend?.redraw(null, { from: lineage ? L.qFirst : L.qCur, teamLabel: lineage ? '계보' : L.C });
     const long = $('#long-read');

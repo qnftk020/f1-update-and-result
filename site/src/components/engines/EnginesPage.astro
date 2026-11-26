@@ -10,7 +10,6 @@ import Figure from '../Figure.astro';
 import JsonData from '../JsonData.astro';
 import LinkPick from '../LinkPick.astro';
 import Note from '../Note.astro';
-import Notice from '../Notice.astro';
 import PageHead from '../PageHead.astro';
 import Section from '../Section.astro';
 import Seg from '../Seg.astro';
@@ -59,7 +58,7 @@ if (hasData) {
 }
 const facts: [string, string][] = [
   ['라운드', `${n}개`],
-  ['누적 문서를 읽은 라운드', `${s.parsed_rounds.length}개`],
+  ['누적 문서 반영 라운드', `${s.parsed_rounds.length}개`],
   ['새 ICE 투입', `${n0(s.ice_events.length)}건`],
 ];
 if (hasAlloc) {
@@ -179,59 +178,56 @@ const eventCols: Column[] = [
   { label: '원문', render: (e) => (e.url ? extHtml(e.url) : '') },
 ];
 
-// 허용 개수 근거: 규정 조항이면 읽은 판과 그 판이 시즌 마지막 판인지, 그리고 선언 문서의 배정 문장이 같은 값을 적는지
+// 허용 개수 근거: 규정 조항이면 기준 판과 그 판이 시즌 마지막 판인지, 선언 문서의 배정 문장 값이 다르면 그 값
 const issueText = (issue: string | null, version: string | null) => (issue ? nw(`Issue ${esc(issue)}${version ? ` (${esc(version)})` : ''}`) : version ? nw(esc(version)) : '');
 const statementText = (() => {
   const st = s.allocation_statements ?? {};
   const els = s.elements.filter((el) => (st[el] ?? []).length);
   if (!els.length) return '';
   const agree = els.every((el) => st[el].length === 1 && st[el][0].allowed === allowed(el));
-  if (agree) {
-    const first = Math.min(...els.map((el) => st[el][0].first_round));
-    const docsN = els.map((el) => st[el][0].documents);
-    const range = Math.min(...docsN) === Math.max(...docsN) ? `${Math.min(...docsN)}건` : `${Math.min(...docsN)}-${Math.max(...docsN)}건`;
-    return ` FIA 선언 문서의 배정 문장도 ${els.length}개 구성요소 모두 같은 값을 적는다(${first}라운드 문서부터, 구성요소마다 ${range}). ${extHtml(st[els[0]][0].url ?? '', 'FIA 원문 PDF (첫 선언 문서)')}`;
-  }
+  // 선언 문서의 값이 규정 값과 같으면 확인 문장을 따로 두지 않는다.
+  if (agree) return '';
   const parts = els.map((el) => `${esc(el)} ${st[el].map((x) => `${x.allowed}개(${x.first_round}라운드부터 ${x.documents}건)`).join(', ')}`);
-  return ` FIA 선언 문서의 배정 문장이 적은 값은 ${parts.join('; ')}이다.`;
+  return ` FIA 선언 문서의 배정 문장 값은 ${parts.join('; ')}이다.`;
 })();
 const allocNote = (() => {
   const a = s.allocation[firstEl] ?? Object.values(s.allocation).find(Boolean) ?? null;
-  if (!a) return '이 시즌 허용 개수 자료는 아직 없다. 허용 초과 표시를 하지 않는다.';
+  if (!a) return '이 시즌은 허용 개수 자료가 없어 허용 초과를 표시하지 않는다.';
   if (a.basis === 'regulation') {
-    const from = `${season} 스포팅 규정 ${issueText(a.issue, a.version_key)} ${esc(a.clause_no ?? '')}조${a.page ? `(${a.page}쪽)` : ''}에서 읽은 값이다. ${a.url ? extHtml(a.url) : ''}`;
+    const from = `허용 개수는 ${season} 스포팅 규정 ${issueText(a.issue, a.version_key)} ${esc(a.clause_no ?? '')}조${a.page ? `(${a.page}페이지)` : ''} 기준이다. ${a.url ? extHtml(a.url) : ''}`;
     if (a.is_final_issue === false) {
       const fin = a.final_issue;
       const finName = fin ? issueText(fin.issue, fin.version) : '마지막 판';
-      const state = fin?.status === 'needs_review' ? '검수 대기라 읽지 않았다' : '아직 받지 않았다';
+      const state = fin?.status === 'needs_review' ? '검수 대기라 반영하지 않았다' : '아직 수집하지 않았다';
       const why = fin?.review_reasons?.length ? ` ${esc(fin.review_reasons[0])}` : '';
-      return `${badgeHtml('review', '검수 대기')} ${from} 시즌 마지막 판이 아니다. 마지막 판 ${finName}은 ${state}.${why}${statementText}`;
+      return `${badgeHtml('review', '검수 대기')} ${from} 이 판은 시즌 마지막 판이 아니다. 마지막 판 ${finName}은 ${state}.${why}${statementText}`;
     }
     return `${from}${statementText}`;
   }
-  return `FIA 선언 문서의 배정 문장(${en('one of the four new ... allowed')} 꼴)에서 읽은 값이다. 이 시즌 규정 조항 값은 아직 정리하지 않았다. ${a.url ? extHtml(a.url, 'FIA 원문 PDF (첫 문서)') : ''}`;
+  return `허용 개수는 FIA 선언 문서의 배정 문장(${en('one of the four new ... allowed')}) 기준이다. 규정 조항 값은 아직 정리하지 않았다. ${a.url ? extHtml(a.url, 'FIA 원문 PDF (첫 문서)') : ''}`;
 })();
 
-// 자료 범위 안내
+// 자료 범위 각주(구성요소 표 아래)
 const coverageBits: string[] = [];
 if (s.missing_rounds.length) {
   coverageBits.push(
-    `누적 문서가 없는 라운드는 ${roundList(s.missing_rounds)}라운드다(문서를 받지 않았거나 검수 대기다).` +
-      (s.partial_rounds.length ? ` 이 가운데 ${roundList(s.partial_rounds)}라운드는 선언 문서에 적힌 일부 드라이버 값만 있다.` : ''),
+    `${roundList(s.missing_rounds)}라운드는 누적 문서가 없다` +
+      (s.partial_rounds.length ? `(${roundList(s.partial_rounds)}라운드는 선언 문서의 일부 드라이버 값만 반영).` : '.'),
   );
 }
 if (s.unknown_new_rounds.length) {
-  coverageBits.push(`선언 문서가 없는 ${roundList(s.unknown_new_rounds)}라운드는 대회 시작 전 누적 값을 적었다.`);
+  coverageBits.push(`선언 문서가 없는 ${roundList(s.unknown_new_rounds)}라운드는 대회 시작 전 누적 값이다.`);
 }
 const reviewHtml = s.review_documents
   .map((d) => `${d.round}라운드 ${esc(d.event_short_ko)} ${d.doc_type === 'pu_used' ? '누적' : '선언'} 문서 ${d.url ? extHtml(d.url) : ''}`)
   .join(', ');
+if (s.review_documents.length) coverageBits.push(`검수 대기 문서: ${reviewHtml}.`);
 
 // 문서 범위 표(모든 시즌)
 const coverageCols: Column[] = [
   { label: '시즌', render: (c) => (c.season === season ? `<b>${c.season}</b>` : `<a href="${href(c.season)}">${c.season}</a>`), cls: 'pos' },
   { label: '라운드', render: (c) => `${c.rounds}`, num: true },
-  { label: '누적 문서를 읽은 라운드', render: (c) => `${c.parsed_rounds}`, num: true },
+  { label: '누적 문서 반영 라운드', render: (c) => `${c.parsed_rounds}`, num: true },
   { label: '누적 문서가 없는 라운드', render: (c) => (c.missing_rounds.length ? roundList(c.missing_rounds) : '0개') },
   { label: '선언 문서', render: (c) => `${docCount(c.documents, 'pu_new', 'ok')}`, num: true, cls: 'hide-sm' },
   { label: '검수 대기 문서', render: (c) => `${c.review_documents}`, num: true },
@@ -261,26 +257,32 @@ const clientData = {
   twin: rows.map((d) => ({ name: d.name, team: d.team, by: d.by, brk: breakRow(d) })),
   ice: iceRows,
 };
-const pickGroups = [{ label: '2020년대', links: [...engineYears].reverse().map((y) => ({ href: href(y), text: String(y), current: y === season })) }];
+// 연대별 묶음(2020년대, 2010년대). 최근 해가 앞이다.
+const pickGroups = [...new Set(engineYears.map((y) => Math.floor(y / 10) * 10))]
+  .sort((a, b) => b - a)
+  .map((decade) => ({
+    label: `${decade}년대`,
+    links: engineYears
+      .filter((y) => Math.floor(y / 10) * 10 === decade)
+      .reverse()
+      .map((y) => ({ href: href(y), text: String(y), current: y === season })),
+  }));
 const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
 ---
 
-<BaseLayout title={title} description={`${season} 시즌 PU 공급사와 드라이버별 PU 구성요소 누적 사용 개수, 새 ICE 투입. FIA 문서에서 읽었다.`} current="engines">
-  <PageHead title="PU 공급사와 구성요소 사용 현황" lead={lead} facts={facts}>
+<BaseLayout title={title} description={`${season} 시즌 PU 공급사와 드라이버별 PU 구성요소 누적 사용 개수, 새 ICE 투입. FIA 문서 기준.`} current="engines">
+  <PageHead title={`엔진 ${season}`} kicker={season === E.last_season ? [] : [`<a href="${href(E.last_season)}">엔진</a>`]} facts={facts}>
     <div class="eng-pick">
-      <LinkPick summary="다른 시즌 고르기" navLabel="엔진 시즌" groups={pickGroups} />
+      <LinkPick summary="시즌 선택" navLabel="엔진 시즌" groups={pickGroups} />
     </div>
   </PageHead>
 
-  <Section id="suppliers" title="PU 공급사와 팀" read={`${season} 시즌 PU 공급사는 ${s.suppliers.length}곳이고 ${teamCount}개 팀이 썼다.`}>
+  <Section id="suppliers" title="PU 공급사와 팀">
     <div class="fig-row">
       <div class="fig">
         <DataTable caption={`${season} PU 공급사와 팀`} columns={supplierCols} rows={s.suppliers} />
         <SourceLine source={`${F1DB} 시즌 엔트런트와 엔진 제조사, 이 사이트의 계보 자료`} asof={asofF1db()} />
       </div>
-      <aside class="notes" aria-label="PU 공급사와 팀 주석">
-        <Note head="PU 공급사" body="PU 공급사는 팀과 따로 적는 차원이다. 팀 이름에 공급사 이름이 들어 있지 않아도 이 표의 공급사를 따른다. 공급사 이름은 F1DB의 엔진 제조사 이름이다." />
-      </aside>
     </div>
   </Section>
 
@@ -288,54 +290,41 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
     id="usage"
     title="구성요소 사용 현황"
     meta={lastParsed ? `${season} ${lastParsed}라운드 종료` : `${season} 시즌`}
-    read={hasData
-      ? `표의 값은 FIA 기술 대표가 대회마다 낸 누적 문서(${en('PU elements used per driver up to now')})의 개수에 그 대회 선언 문서의 새 구성요소를 더한 시즌 누적 개수다. 허용 개수를 넘은 값에는 허용 초과 표시를 붙였다.`
-      : undefined}
   >
     {
       hasData ? (
         <Fragment>
-          {(coverageBits.length > 0 || s.review_documents.length > 0) && (
-            <div class="eng-notice">
-              <Notice badges={s.review_documents.length ? [['review', `검수 대기 ${s.review_documents.length}건`]] : []}>
-                <b>자료 범위.</b> <Fragment set:html={coverageBits.join(' ')} />
-                {s.review_documents.length > 0 && <Fragment set:html={` 검수 대기 문서: ${reviewHtml}.`} />}
-              </Notice>
-            </div>
-          )}
           <div class="fig-row">
             <div class="fig">
               {hasAlloc && (
                 <p class="axis-note eng-key">
-                  <Fragment set:html={iconSvg('exceed', 'ic xmark')} /> 표시와 굵은 값은 시즌 허용 개수를 넘은 값이다(허용 초과).
+                  <Fragment set:html={iconSvg('exceed', 'ic xmark')} /> 시즌 허용 개수 초과
                 </p>
               )}
               <DataTable caption={`${season} 드라이버별 PU 구성요소 시즌 누적 사용 개수`} columns={usageCols} rows={rows} rowClass={breakRow} />
               <SourceLine source={PU_SOURCE} asof={asof} />
             </div>
-            <aside class="notes" aria-label="구성요소 사용 현황 주석">
-              <Note head="누적 개수" body="누적 개수는 드라이버가 아니라 팀의 차량 좌석에 붙는다. 대체 드라이버는 원래 드라이버의 개수를 이어받는다. 라운드 열은 누적 문서에 그 드라이버가 나온 라운드 수다." />
-              <Note head="허용 개수" body={allocNote} />
+            <div class="notes" role="note" aria-label="구성요소 사용 현황 주석">
+              {coverageBits.length > 0 && <Note body={coverageBits.join(' ')} />}
               <Note
-                head="주의"
                 caution
-                body={`처분 문서에만 나오는 교체는 더하지 않았다. 앞뒤 누적 문서가 맞지 않는 칸 ${n0(s.inconsistencies)}개는 고치지 않고 원자료(pu_inconsistencies.csv)에 남겼다.`}
+                body="누적 개수는 팀의 차량 좌석 기준이라 대체 드라이버는 원래 드라이버의 개수를 이어받는다. 처분 문서(Infringement)에만 나오는 교체는 포함하지 않는다."
               />
-            </aside>
+              <Note body={allocNote} />
+            </div>
           </div>
 
           <div class="eng-ctrl" data-js-only>
             <span class="lab" id="pu-seg-lab">구성요소</span>
             <div class="eng-seg">
-              <Seg label="PU 구성요소 고르기" attr="el" id="pu-seg" cols4 items={s.elements.map((el, i) => ({ value: el, label: el, pressed: i === 0 }))} />
+              <Seg label="PU 구성요소 선택" attr="el" id="pu-seg" cols4 items={s.elements.map((el, i) => ({ value: el, label: el, pressed: i === 0 }))} />
             </div>
           </div>
           <Figure
             id="f-pu"
             wide
             title={`<span id="pu-el">${esc(firstEl)}</span> 누적 사용 개수`}
-            scope={`${season} · 팀마다 한 칸 · 모든 칸이 같은 세로축`}
-            sub="라운드가 끝났을 때까지 쓴 개수다. 위로 갈수록 많이 썼고, 가로선은 시즌 허용 개수다. 선 끝의 글자는 드라이버 약어다."
+            scope={`${season} · 팀별 · 라운드 종료 시점 누적`}
             legend={[
               { type: 'line', color: 's1', label: '팀 안 첫째 드라이버' },
               { type: 'line', color: 's2', label: '둘째' },
@@ -356,15 +345,10 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
               rows={rows}
               rowClass={breakRow}
             />
-            {s.missing_rounds.length > 0 && (
-              <p slot="below" class="axis-note">
-                누적 문서가 없는 {roundList(s.missing_rounds)}라운드는 선을 끊고 축 위에 빈 점을 찍었다. 표 보기에서는 빈칸이다.
-              </p>
-            )}
           </Figure>
         </Fragment>
       ) : (
-        <EmptyState title={`${season} 시즌 PU 구성요소 문서를 읽지 않았다.`}>
+        <EmptyState title={`${season} 시즌 PU 구성요소 문서는 아직 반영하지 않았다.`}>
           FIA 문서 목록에는 이 시즌 문서가 있다.
         </EmptyState>
       )
@@ -373,12 +357,11 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
 
   {
     hasData && (
-      <Section id="ice" title="새 ICE 투입" read={iceRead}>
+      <Section id="ice" title="새 ICE 투입">
         <Figure
           id="f-ice"
           title="새 ICE 투입"
           scope={`${season} · 드라이버 × 라운드 · FIA 선언 문서 기준`}
-          sub="채운 점은 FIA 선언 문서에 새 ICE가 적힌 라운드다. 작은 점은 누적 문서에 나온 라운드, 오른쪽 숫자는 시즌 누적 개수다. 시즌 첫 ICE에는 점을 찍지 않는다."
           legend={[
             { type: 'dot', color: 's1', label: '새 ICE 투입' },
             { type: 'ring', color: 'ink', label: '허용 개수를 넘은 투입' },
@@ -389,11 +372,9 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
           source={PU_SOURCE}
           asof={asof}
           notes={[
-            { head: '행과 열', body: '행은 드라이버(팀 순서, 팀 경계에 가는 선), 열은 라운드다. 표 보기의 굵은 값이 새 ICE를 투입한 라운드의 누적 개수다.' },
             {
-              head: '주의',
               caution: true,
-              body: '점은 선언 문서에 적힌 투입만 찍었다. 선언 문서가 없거나 검수 대기인 라운드, 처분 문서에만 나오는 교체는 점이 없다. 새 ICE 투입과 성적의 관계는 이 차트로 판단하지 않는다.',
+              body: 'FIA 선언 문서에 있는 투입만 포함한다. 시즌 첫 ICE, 선언 문서가 없거나 검수 대기인 라운드, 처분 문서에만 나오는 교체는 제외한다.',
             },
           ]}
         >
@@ -414,21 +395,21 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
     )
   }
 
-  <Section id="coverage" title="문서 범위" read="읽지 못한 문서의 값은 추측으로 채우지 않는다.">
+  <Section id="coverage" title="문서 범위">
     <div class="fig-row">
       <div class="fig">
         <DataTable caption="시즌별 PU 문서 범위" columns={coverageCols} rows={E.coverage} rowClass={(c) => (c.season === season ? 'hl' : '')} />
         <SourceLine source={`FIA 결정 문서 목록(PU elements), 이 사이트 추출`} asof={asof} />
       </div>
-      <aside class="notes" aria-label="문서 범위 주석">
-        <Note head="문서 종류" body="누적 문서는 대회마다 나오는 PU elements used per driver up to now, 선언 문서는 그 대회에 새로 쓴 구성요소를 적은 문서다. 어긋난 칸은 앞 누적 값에 그 사이 선언된 개수를 더한 값이 다음 누적 값과 다른 칸이다." />
-      </aside>
+      <div class="notes" role="note" aria-label="문서 범위 주석">
+        <Note body="누적 문서는 대회마다 나오는 PU elements used per driver up to now, 선언 문서는 그 대회에 새로 사용한 구성요소를 적은 New PU elements 문서다. 어긋난 칸은 앞 누적 값에 그 사이 선언 개수를 더한 값이 다음 누적 값과 다른 칸이며, 원문 값 그대로 두었다." />
+      </div>
     </div>
   </Section>
 
   <Section id="aduo" title="ADUO 판정">
     <div class="eng-empty">
-      <EmptyState title="2026 시즌 범위에서 추가 예정이다.">FIA의 성능 지수는 비공개라 추정하지 않고 판정 결과만 싣는다.</EmptyState>
+      <EmptyState title="2026 시즌 범위에서 추가 예정이다.">FIA의 성능 지수는 비공개라 추정하지 않고 판정 결과만 수록한다.</EmptyState>
     </div>
   </Section>
 
@@ -437,7 +418,6 @@ const title = season === E.last_season ? '엔진' : `엔진 ${season}`;
 
 <style>
   .eng-pick { margin-top: var(--sp-4); }
-  .eng-notice { margin-top: var(--sp-4); max-width: 60rem; }
   .eng-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-top: var(--sp-6); }
   .eng-ctrl .lab { font-size: var(--fs-micro); font-weight: 600; color: var(--ink-2); }
   .eng-seg { max-width: 100%; overflow-x: auto; padding: 3px; margin: -3px; }
