@@ -144,8 +144,10 @@ h1 .latin { font-weight: 400; color: var(--ink-3); font-size: 0.6em; display: in
 .chip-link { display: inline-flex; align-items: center; min-height: 24px; color: var(--ink-2); }
 .chip-link:hover { color: var(--ink); }
 /* 체코지수 표지: 메뉴 칸, 캘린더 칸 머리, 홈 바로가기 앞의 빨간 네모(글자는 잉크색 그대로) */
-.cz-mark, .chip-link.cz::before, .nav a.nav-cz::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; background: var(--chekoji-red); vertical-align: 0.05em; }
-.nav a.nav-cz[aria-current="page"], .nav a.nav-cz[aria-current="page"]:hover { border-bottom-color: var(--chekoji-red); }
+.cz-mark, .chip-link.cz::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; background: var(--chekoji-red); vertical-align: 0.05em; }
+/* 주 메뉴의 체코지수 칸은 글자까지 빨강(글자용 밝은 빨강, 2026-11-26 사용자 지정) */
+.nav a.nav-cz, .nav a.nav-cz:hover { color: var(--chekoji-red-text); }
+.nav a.nav-cz[aria-current="page"], .nav a.nav-cz[aria-current="page"]:hover { border-bottom-color: var(--chekoji-red-text); }
 button.chip-link { background: transparent; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: var(--fs-small); text-decoration: underline; text-decoration-color: var(--axis); text-underline-offset: 2px; }
 .chip-link[aria-pressed="true"], .chip-link[aria-current="page"] { color: var(--ink); font-weight: 700; text-decoration-color: var(--accent); text-decoration-thickness: 2px; }
 

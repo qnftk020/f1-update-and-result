@@ -90,4 +90,5 @@
   /* 체코지수 페이지 제목 줄 띠(레드불 계열 빨강). 사용자가 지정한 예외로 이 띠에만 쓴다(DESIGN.md). 흰 글자 대비 5.5 */
   --chekoji-red: #cc1e4a;
   --on-chekoji-red: #ffffff;
+  --chekoji-red-text: #f0466b; /* 체코지수 메뉴 글자: 바탕 대비 5.09, 표 머리 띠 대비 4.62 */
 }
