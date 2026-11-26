@@ -1,6 +1,5 @@
 // 모든 페이지의 공통 스크립트(BaseLayout이 번들로 싣는다). 차트 모듈이 없어도 동작한다.
-// 테마 세 칸 전환(자동, 밝게, 어둡게), 좁은 화면 메뉴, 긴 설명 펼치기, 차트 전체 실패 대체.
-// 저장된 테마를 첫 칠 전에 붙이는 일은 BaseLayout <head>의 인라인 스크립트가 맡는다.
+// 좁은 화면 메뉴, 긴 설명 펼치기, 차트 전체 실패 대체. 테마는 어두운 테마 하나라 전환이 없다.
 
 declare global {
   interface Window {
@@ -10,25 +9,6 @@ declare global {
 
 export function boot(): void {
   const d = document.documentElement;
-  const btns = document.querySelectorAll<HTMLButtonElement>('[data-theme-set]');
-  const current = () => d.dataset.theme || 'auto';
-  const paint = () =>
-    btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeSet === current())));
-  btns.forEach((b) =>
-    b.addEventListener('click', () => {
-      const t = b.dataset.themeSet || 'auto';
-      if (t === 'auto') delete d.dataset.theme;
-      else d.dataset.theme = t;
-      try {
-        localStorage.setItem('theme', t);
-      } catch {
-        /* 저장이 막혀도 이번 화면에서는 바뀐다 */
-      }
-      paint();
-    }),
-  );
-  paint();
-
   const menuBtn = document.querySelector<HTMLButtonElement>('.menu-btn');
   const menu = document.getElementById('site-menu');
   if (menuBtn && menu) {

@@ -221,6 +221,7 @@ const exc = areas.exception;
           <li>타이틀 긴장도의 대회 최대 점수는 결승 우승 25점에 스프린트 8점, 2019-2024년 패스티스트 랩 1점을 더한 값이다. 규정 조항과의 대조는 미검증이다.</li>
           <li>이변의 팀 순위는 대회 직전 컨스트럭터 순위표다. 개막전은 앞 시즌 최종 순위를 사용하고, 이름이 바뀐 팀은 계보로 연결한다.</li>
           <li>항목 하나라도 계산하지 못한 결승은 점수를 내지 않는다.</li>
+          {CZ.formula === 'v0.5' && <li>v0.5는 v0.4와 항목과 환산이 같고 비중만 옮긴 판이다. 타이틀 긴장도(10%에서 5%)는 반영 점수 평균이 만점의 9%로 비중만큼 작동하지 않았고, 피트 스톱(5%에서 3%)은 2014-2022년 추정의 정확도가 가장 낮았다. 줄인 7%는 순위 변동(20%에서 24%)과 자리 격차(15%에서 18%)로 옮겼다.</li>}
         </ul>
         {
           CZ.methods.jolpica && (
@@ -239,7 +240,7 @@ const exc = areas.exception;
                       중앙값 {CZ.comparison.abs_diff_median.toFixed(1)}점, 90번째 백분위수 {CZ.comparison.abs_diff_p90.toFixed(1)}점, 최대 {CZ.comparison.abs_diff_max.toFixed(1)}점이다. 상위 10개 가운데 {CZ.comparison.top10_overlap}개가 같다.
                       항목별로는 선두 교체가 {Math.round(CZ.comparison.lead_changes_equal * 100)}%, DNF가 {Math.round(CZ.comparison.dnf_equal * 100)}%, 노면 판정(맑음과 그 밖)이 {Math.round(CZ.comparison.rain_class_equal * 100)}%,
                       세이프티 카 횟수가 {Math.round(CZ.comparison.neutral_runs_equal * 100)}% 같고, 순위 변동의 상관은 {CZ.comparison.position_changes_corr.toFixed(2)}, 피트 스톱의 상관은 {CZ.comparison.pit_stops_corr.toFixed(2)}다.
-                      큰 차이는 세이프티 카 뒤에서 끝난 것을 찾지 못한 결승(2023년 호주, 2025년 캐나다, 17-19점)과 노면 판정이 갈린 2024년 모나코(17점)에서 나온다.
+                      큰 차이는 세이프티 카 뒤에서 끝난 것을 찾지 못한 결승(2023년 호주, 2025년 캐나다, 약 20점)과 노면 판정이 갈린 2024년 모나코(17점)에서 나온다.
                     </li>
                   )
                 }

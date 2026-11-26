@@ -1015,7 +1015,7 @@ def build_regulations() -> dict | None:
 
 SCORE = CURATED_DIR / "score"
 # 화면에 싣는 공식 판. 다른 판은 정제 테이블에만 있다.
-SCORE_FORMULA = "v0.4"
+SCORE_FORMULA = "v0.5"
 SCORE_ITEM_NAMES = {
     "position_changes": "순위 변동",
     "lead_changes": "선두 교체",

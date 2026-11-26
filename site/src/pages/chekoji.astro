@@ -118,7 +118,7 @@ const nameList = unscored.map((r) => `${r.season} ${r.info.name_ko}`).join(', ')
 ---
 
 <BaseLayout title="체코지수" description="2014-2025 그랑프리 결승의 관전 지수(체코지수): 대회별 점수와 항목별 반영 점수" current="chekoji">
-  <PageHead title="체코지수" meta={RS ? `결승 관전 지수 · ${esc(RS.formula)} 초안` : undefined} facts={facts} />
+  <PageHead tone="red" title="체코지수" meta={RS ? `결승 관전 지수 · ${esc(RS.formula)} 초안` : undefined} facts={facts} />
 
   {
     !RS ? (

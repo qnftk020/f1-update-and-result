@@ -2,7 +2,8 @@
 
 DC인사이드 F1 갤러리 글의 제안을 이 저장소의 정제 데이터로 계산한다. 지수 이름과 처음 여섯 항목,
 그 가중치와 환산표는 그 글에서 왔다(data/curated/score/formulas.json의 source_url). 공식은 판마다
-따로 두며, v0.1과 v0.2는 여섯 항목, v0.3은 아홉 항목, v0.4는 열 항목이다.
+따로 두며, v0.1과 v0.2는 여섯 항목, v0.3은 아홉 항목, v0.4와 v0.5는 열 항목이다.
+v0.5는 v0.4와 비중만 다르다.
 
     data/curated/score/race_inputs.parquet   대회별 항목 원값
     data/curated/score/race_score.parquet    공식 판별 항목 반영 점수와 합계
@@ -864,7 +865,7 @@ def build_inputs() -> pd.DataFrame:
     return both.sort_values(["season", "round"]).reset_index(drop=True)
 
 
-def compare_methods(formula_name: str = "v0.4") -> dict:
+def compare_methods(formula_name: str = "v0.5") -> dict:
     """2023-2025년 결승을 Jolpica 계열로도 계산해 OpenF1 계열 점수와 비교한다.
 
     백분위 기준 분포는 OpenF1 계열 그대로 두고(공개한 점수의 기준), 두 계열 모두 점수가 있는

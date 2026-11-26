@@ -19,14 +19,16 @@ interface Props {
   crumbs?: boolean;
   /** 개체 페이지: 요약 표 오른쪽에 정보 표를 둔다 */
   box?: boolean;
+  /** 제목 줄 띠 색. 'red'는 체코지수 페이지만 쓴다(사용자 지정 예외, DESIGN.md) */
+  tone?: 'red';
 }
-const { kicker = [], title, latin, meta, facts, factsTitle, crumbs = true, box = false } = Astro.props;
+const { kicker = [], title, latin, meta, facts, factsTitle, crumbs = true, box = false, tone } = Astro.props;
 const plainTitle = title.replace(/<[^>]+>/g, '');
 const hasSlot = Astro.slots.has('default');
 const hasFacts = Boolean(facts && facts.length > 0);
 ---
 
-<header class="page-head">
+<header class:list={['page-head', { 'head-red': tone === 'red' }]}>
   {
     crumbs && (
       <nav aria-label="위치">

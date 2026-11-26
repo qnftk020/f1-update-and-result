@@ -31,15 +31,11 @@ const favicon = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/favicon.svg`;
   <head>
     <meta charset="utf-8" />
     <script is:inline>
-      // 첫 칠 전에: 스크립트 있음 표시(html.js)와 저장된 테마. 저장이 막혀 있어도 자동 테마로 그린다.
+      // 첫 칠 전에: 스크립트 있음 표시(html.js). 테마는 어두운 테마 하나뿐이다(2026-11-26).
       document.documentElement.classList.add('js');
-      try {
-        var t = localStorage.getItem('theme');
-        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-      } catch (e) {}
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark" />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href={favicon} />

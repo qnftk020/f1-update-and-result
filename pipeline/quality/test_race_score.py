@@ -101,10 +101,11 @@ def test_v0_1_reproduces_the_worked_examples_of_the_proposal(formulas, row, expe
 
 
 def test_weights_sum_to_one_and_items_are_known(formulas):
-    """v0.1과 v0.2는 제안 원문의 여섯 항목이다. v0.3은 세 항목을, v0.4는 이변 항목을 더 넣었다."""
+    """v0.1과 v0.2는 제안 원문의 여섯 항목이다. v0.3은 세 항목을, v0.4는 이변 항목을 더 넣었다.
+    v0.5는 v0.4와 항목이 같고 비중만 다르다."""
     expected = {
         "v0.1": rs.ITEM_IDS[:6], "v0.2": rs.ITEM_IDS[:6], "v0.3": rs.ITEM_IDS[:9],
-        "v0.4": rs.ITEM_IDS,
+        "v0.4": rs.ITEM_IDS, "v0.5": rs.ITEM_IDS,
     }  # fmt: skip
     assert set(formulas) == set(expected)
     for name, formula in formulas.items():
@@ -302,6 +303,7 @@ def test_only_miami_2025_lacks_lap_data(inputs, scores):
         "v0.2": "missing:position_changes,lead_changes",
         "v0.3": "missing:position_changes,lead_changes,dnf",
         "v0.4": "missing:position_changes,lead_changes,dnf",
+        "v0.5": "missing:position_changes,lead_changes,dnf",
     }
 
 
@@ -613,3 +615,25 @@ def test_reference_distribution_stays_2023_2025(all_inputs, inputs, formulas):
         assert a.keys() == b.keys()
         for k in a:
             np.testing.assert_array_equal(a[k], b[k])
+
+
+def test_v0_5_only_moves_weights(formulas, all_scores):
+    """v0.5는 v0.4의 환산을 그대로 두고 비중만 옮긴다.
+
+    타이틀 10->5, 피트 스톱 5->3, 순위 변동 20->24, 자리 격차 15->18.
+    """
+    v4, v5 = formulas["v0.4"], formulas["v0.5"]
+    w4 = {i["id"]: i["weight"] for i in v4["items"]}
+    w5 = {i["id"]: i["weight"] for i in v5["items"]}
+    changed = {k: (w4[k], w5[k]) for k in w4 if w4[k] != w5[k]}
+    assert changed == {
+        "position_changes": (0.2, 0.24), "win_gap": (0.15, 0.18),
+        "pit_stops": (0.05, 0.03), "title": (0.1, 0.05),
+    }  # fmt: skip
+    strip = ("weight", "basis")
+    same = [{k: v for k, v in i.items() if k not in strip} for i in v4["items"]]
+    assert same == [{k: v for k, v in i.items() if k not in strip} for i in v5["items"]]
+    v5s = all_scores[(all_scores["formula"] == "v0.5") & (all_scores["status"] == "ok")]
+    assert len(v5s) == 250 and v5s["score"].between(0, 100).all()
+    for item in v5["items"]:
+        assert v5s[f"pt_{item['id']}"].between(0, item["weight"] * 100 + 1e-9).all(), item["id"]
