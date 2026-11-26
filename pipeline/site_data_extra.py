@@ -30,7 +30,7 @@ regulations.json
     years[]          1982-2025 연도 x (기술, 스포팅) 존재 여부와 등급
     documents{연도}  문서 목록(제목, 판, 게시일, 등급, 상태, 원문 링크)
     summaries{연도}  주요 변경 요약(한국어 요약과 출처 링크. 인용문은 싣지 않는다)
-    comparisons[]    2018년 이후 조항 단위 비교(조항 번호, 제목, 변경 유형, 쪽). 본문은 싣지 않는다.
+    comparisons[]    2008년 이후 조항 단위 비교(조항 번호, 제목, 변경 유형, 쪽). 본문은 싣지 않는다.
                      skipped_versions는 비교가 건너뛴 검수 대기·미수집 판이고, 하나라도 있으면
                      review가 참이다.
     facts{연도}      규정에서 읽은 수치(PU 할당 수, 연료 조항). 값, 조항, 쪽, 판과 그 판이 시즌
@@ -350,17 +350,17 @@ def conflict_ko(conflict: str | None) -> str | None:
         kind, expected, actual = m["kind"], m["expected"], m["actual"]
         if kind == "previously_used":
             out.append(
-                f"선언 문서는 이전 사용 개수를 {actual}개로 적었으나 같은 대회 누적 문서로 센 값은 "
-                f"{expected}개다."
+                f"이전 사용 개수가 선언 문서에는 {actual}개, 같은 대회 누적 문서에는 "
+                f"{expected}개로 나온다."
             )
         elif kind == "statement_ordinal":
             out.append(
-                f"선언 문서의 배정 문장은 {actual}번째라고 적었으나 이전 사용 개수에 1을 더하면 "
+                f"선언 문서의 배정 순번은 {actual}번째이지만 이전 사용 개수에 1을 더하면 "
                 f"{expected}번째다."
             )
         else:
             out.append(f"문서끼리 값이 어긋난다({part}).")
-    out.append("어느 쪽도 고르지 않고 순번을 비워 둔다.")
+    out.append("어느 값도 채택하지 않고 순번을 비워 둔다.")
     return " ".join(out)
 
 
@@ -683,6 +683,36 @@ def review_reasons(problems: str | None) -> list[str]:
 VARIANT_KO = {"marked": "변경 표시본", "clean": "정리본", "appendix": "부록"}
 
 
+def _parsed_document(r, grade: str) -> dict:
+    """documents.csv의 한 판(조항을 나눈 판이나 검수 대기 판)."""
+    url = _str(r.url)
+    status = _str(r.status) or "listed"
+    review = status == "needs_review"
+    problems = _str(getattr(r, "problems", None))
+    return {
+        "section": r.section,
+        "title": None,
+        "language": "en",
+        "issue": _str(r.issue),
+        "version": _str(r.version_date),
+        "version_key": _str(r.version_key),
+        "variant": _str(r.variant),
+        "published_at": _str(r.published_at),
+        "url": url,
+        "host": _host(url),
+        "format": "text",
+        "grade": grade,
+        # ok: 조항 파싱, needs_review: 검수 대기, not_downloaded: 목록만 확인
+        "status": _reg_status(status),
+        # 사람이 원문 번호 오류로 확인한 판의 설명(검수 id 포함)
+        "note_ko": _str(getattr(r, "review_note", None)),
+        "pages": _val(r.pages),
+        "clauses": _val(r.clauses),
+        "problems": split_problems(problems) if review else [],
+        "review_reasons": review_reasons(problems) if review else [],
+    }
+
+
 def _reg_documents(year: int, links, legacy, current) -> list[dict]:
     docs: list[dict] = []
     grade = grade_of(year)
@@ -716,10 +746,22 @@ def _reg_documents(year: int, links, legacy, current) -> list[dict]:
                 }
             )
     elif 2008 <= year <= 2017 and legacy is not None:
+        # 조항을 나눈 판(documents.csv)을 먼저 싣고,
+        # 나누지 않은 판(부록, 변경 요약, 두 언어 판 등)은
+        # 링크로 싣는다. 조항을 나눈 판과 같은 파일(sha256)은 다른 주소라도 다시 싣지 않는다.
+        parsed_sha: set[str] = set()
+        if current is not None:
+            rows = current[(current["season"] == year) & current["section"].isin(REG_SECTIONS)]
+            for r in rows.sort_values(["section", "version_date", "version_key"]).itertuples():
+                docs.append(_parsed_document(r, grade))
+                parsed_sha.add(_str(r.pdf_sha256) or "")
         rows = legacy[(legacy["season"] == year) & (legacy["status"] == "live")]
         rows = rows.drop_duplicates("url").sort_values(["section", "version_date"])
+        parsed_urls = {d["url"] for d in docs}
         for r in rows.itertuples():
             url = _str(r.url)
+            if url in parsed_urls or (_str(r.sha256) or "-") in parsed_sha:
+                continue
             docs.append(
                 {
                     "section": r.section,
@@ -742,38 +784,12 @@ def _reg_documents(year: int, links, legacy, current) -> list[dict]:
                     "review_reasons": [],
                 }
             )
+        docs.sort(key=lambda d: (d["section"], d["version"] or "", d["status"] == "linked"))
     elif year >= 2018 and current is not None:
         rows = current[(current["season"] == year) & current["section"].isin(REG_SECTIONS)]
         rows = rows.sort_values(["section", "version_date", "version_key"])
         for r in rows.itertuples():
-            url = _str(r.url)
-            status = _str(r.status) or "listed"
-            review = status == "needs_review"
-            problems = _str(getattr(r, "problems", None))
-            docs.append(
-                {
-                    "section": r.section,
-                    "title": None,
-                    "language": "en",
-                    "issue": _str(r.issue),
-                    "version": _str(r.version_date),
-                    "version_key": _str(r.version_key),
-                    "variant": _str(r.variant),
-                    "published_at": _str(r.published_at),
-                    "url": url,
-                    "host": _host(url),
-                    "format": "text",
-                    "grade": grade,
-                    # ok: 조항 파싱, needs_review: 검수 대기, not_downloaded: 목록만 확인
-                    "status": _reg_status(status),
-                    # 사람이 원문 번호 오류로 확인한 판의 설명(검수 id 포함)
-                    "note_ko": _str(getattr(r, "review_note", None)),
-                    "pages": _val(r.pages),
-                    "clauses": _val(r.clauses),
-                    "problems": split_problems(problems) if review else [],
-                    "review_reasons": review_reasons(problems) if review else [],
-                }
-            )
+            docs.append(_parsed_document(r, grade))
     return docs
 
 

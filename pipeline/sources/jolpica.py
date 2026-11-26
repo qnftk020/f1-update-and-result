@@ -25,6 +25,21 @@ DATASET_FIELDS = [
 ]  # fmt: skip
 
 
+def recorded_dump_dir() -> Path:
+    """manifest(datasets.csv)에 적힌 덤프의 로컬 폴더. 네트워크 요청은 하지 않는다."""
+    rows = [
+        r
+        for r in manifest.read_rows(DATASET_MANIFEST)
+        if r["source"] == "jolpica" and r["name"] == "delayed-dump-csv"
+    ]
+    if not rows:
+        raise RuntimeError("datasets.csv에 Jolpica 덤프 기록이 없다")
+    out_dir = RAW_DIR / "jolpica" / "dump" / rows[0]["sha256"]
+    if not out_dir.exists():
+        raise RuntimeError(f"기록된 덤프가 로컬에 없다: {out_dir}")
+    return out_dir
+
+
 def download_dump(*, force: bool = False) -> Path:
     """지연 덤프(CSV zip)를 받아 풀고, 풀린 폴더 경로를 돌려준다."""
     with PoliteClient("jolpica") as client:

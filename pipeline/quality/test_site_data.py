@@ -227,7 +227,13 @@ def test_flags_are_exported(site):
     assert all(r["quali"]["wet"] == "unclassified" for r in season_2004["rounds"])
     assert all(r["race"] is None for r in season_2004["rounds"])
     season_1990 = site("season/1990.json")
-    assert all(r["quali"] is None for r in season_1990["rounds"])
+    assert all(r["quali"]["format"] == "TWO_SESSION" for r in season_1990["rounds"])
+    assert all(r["quali"]["wet"] == "unclassified" for r in season_1990["rounds"])
+    assert all(not r["quali"]["reference"] for r in season_1990["rounds"])
+    assert all(r["race"] is None for r in season_1990["rounds"])
+    season_1955 = site("season/1955.json")
+    indy = [r for r in season_1955["rounds"] if "Indianapolis" in r.get("name", "")]
+    assert indy and all(r["quali"] is None for r in indy)
 
 
 def test_shared_wins_are_kept(site):
@@ -508,7 +514,7 @@ def test_engines_export_follows_pu_tables(site):
         pytest.skip("PU 정제 테이블이 아직 없다")
     engines = site("engines.json")
     usage = pd.read_parquet(usage_path)
-    assert sorted(engines["seasons"]) == [str(s) for s in range(2020, LAST_SEASON + 1)]
+    assert sorted(engines["seasons"]) == [str(s) for s in range(2019, LAST_SEASON + 1)]
     for key, s in engines["seasons"].items():
         season = int(key)
         assert s["rounds"] == len(s["round_labels"])
@@ -584,8 +590,9 @@ def test_comparisons_name_the_versions_they_skip(site):
             assert k["url"] == hit["url"]
             if hit["status"] == "needs_review":
                 assert k["status"] == "needs_review" and k["review_reasons"]
-    # 2026-11-13 사람 검수 뒤로는 모든 판이 파싱되어 건너뛴 판이 있는 비교가 없다.
-    assert reviewed == 0
+    # 2026-11-13 사람 검수 뒤로 2018년 이후 판은 모두 파싱되어 건너뛴 판이 있는 비교는 2008-2017년
+    # 판(검수 대기 6개)이 걸린 비교뿐이다.
+    assert reviewed == sum(1 for c in reg["comparisons"] if c["review"] and c["from_season"] < 2018)
     # 2025 스포팅 규정 시즌 비교는 사람이 원문 번호 오류로 확인한 Issue 5(2025-04-30)까지 간다.
     c = next(
         c
@@ -701,18 +708,19 @@ def test_ice_events_without_ordinal_explain_the_conflict(site):
     exported = [e for s in engines["seasons"].values() for e in s["ice_events"]]
     assert len(exported) == len(events)
     unsure = [e for e in exported if e["ice_number"] is None]
-    assert len(unsure) == int(events["ice_number"].isna().sum()) == 2
+    # 2022년 2건, 2019년 1건
+    assert len(unsure) == int(events["ice_number"].isna().sum()) == 3
     for e in exported:
         assert {"printed_previously_used", "stated_ordinal", "conflict", "conflict_ko"} <= set(e)
         if e["ice_number"] is None:
             assert e["conflict"] and e["conflict_ko"]
-            assert e["conflict_ko"].endswith("어느 쪽도 고르지 않고 순번을 비워 둔다.")
+            assert e["conflict_ko"].endswith("어느 값도 채택하지 않고 순번을 비워 둔다.")
         else:
             assert e["conflict"] is None and e["conflict_ko"] is None
     leclerc = next(e for e in unsure if e["driver_id"] == "leclerc")
     assert (leclerc["printed_previously_used"], leclerc["stated_ordinal"]) == (3, 4)
     assert leclerc["conflict_ko"].startswith(
-        "선언 문서는 이전 사용 개수를 3개로 적었으나 같은 대회 누적 문서로 센 값은 2개다."
+        "이전 사용 개수가 선언 문서에는 3개, 같은 대회 누적 문서에는 2개로 나온다."
     )
     coverage = {c["season"]: c["ice_unsure"] for c in engines["coverage"]}
-    assert coverage[2022] == 2 and sum(coverage.values()) == 2
+    assert coverage[2022] == 2 and coverage[2019] == 1 and sum(coverage.values()) == 3

@@ -34,11 +34,18 @@ import duckdb
 import pandas as pd
 
 from pipeline import manifest
-from pipeline.config import CURATED_DIR, LAST_SEASON, MANIFEST_DIR, SITE_DATA_DIR
+from pipeline.config import (
+    CURATED_DIR,
+    LAST_SEASON,
+    MANIFEST_DIR,
+    OPENF1_FIRST_SEASON,
+    SITE_DATA_DIR,
+)
+from pipeline.transforms.pace_index import QUALIFYING_FIRST_SEASON, REFERENCE_FORMATS
 
 KST = timezone(timedelta(hours=9))
-QUALI_FIRST_SEASON = 1996
-RACE_INDEX_FIRST_SEASON = 2023
+QUALI_FIRST_SEASON = QUALIFYING_FIRST_SEASON
+RACE_INDEX_FIRST_SEASON = 2014  # 2014-2022 Jolpica 계열, 2023- OpenF1 계열
 UPGRADES_FIRST_SEASON = 2023
 
 COMPONENT_AREAS_KO = {
@@ -70,6 +77,7 @@ LINK_TYPES_KO = {
     "entry_purchase": "참가권 인수",
 }
 QUALI_FORMATS_KO = {
+    "TWO_SESSION": "두 세션",
     "ONE_SESSION": "단일 세션",
     "ONE_LAP": "원랩",
     "AGGREGATE": "합산",
@@ -373,7 +381,14 @@ def season_rounds(t: Tables, season: int) -> list[dict]:
                     "field": field_by_round[rnd][0],
                     "teams": field_by_round[rnd][1],
                 },
-                "race": None if x is None else {"wet": bool(x.is_wet), "laps": clean(x.race_laps)},
+                "race": None
+                if x is None
+                else {
+                    "wet": x.wet_flag == "wet",
+                    "unclassified": x.wet_flag == "unclassified",
+                    "method": x.method,
+                    "laps": clean(x.race_laps),
+                },
             }
         )
     return rounds
@@ -610,6 +625,10 @@ def season_facts(
         "quali_reference_formats": sorted({r["quali"]["format_ko"] for r in reference}),
         "race_index_rounds": sum(1 for r in rounds if r["race"]),
         "race_wet": [r["round"] for r in rounds if r["race"] and r["race"]["wet"]],
+        "race_unclassified": [
+            r["round"] for r in rounds if r["race"] and r["race"]["unclassified"]
+        ],
+        "race_method": next((r["race"]["method"] for r in rounds if r["race"]), None),
         "driver_lead": last_lead_change(rounds, drivers, "id", driver_excluded),
         "constructor_lead": last_lead_change(
             rounds, [c for c in constructors if c["positions"]], "id", constructor_excluded
@@ -766,8 +785,8 @@ def build_team(t: Tables, lineage: object, seasons: dict[int, dict], upgrades: d
                 else None,
                 "quali_rounds": len(dry_quali),
                 "quali_rounds_all": len(all_quali),
-                "quali_wet_unclassified": season < RACE_INDEX_FIRST_SEASON and bool(all_quali),
-                "quali_reference": bool(quali_formats & {"ONE_LAP", "AGGREGATE"}),
+                "quali_wet_unclassified": season < OPENF1_FIRST_SEASON and bool(all_quali),
+                "quali_reference": bool(quali_formats & set(REFERENCE_FORMATS)),
                 "race_index_median": clean(pd.Series(race_values).median(), 3)
                 if race_values
                 else None,
@@ -1192,7 +1211,7 @@ def home_fastest_lap(t: Tables, season: int, rnd: int, classification: list[dict
     Jolpica는 순위만 있어 시각과 랩 번호는 OpenF1 랩에서 읽는다.
     """
     who = next((c for c in classification if c["fastest_lap"]), None)
-    if who is None or season < RACE_INDEX_FIRST_SEASON:
+    if who is None or season < OPENF1_FIRST_SEASON:
         return None
     meetings = pd.read_csv(CURATED_DIR / "openf1" / "meeting_map.csv")
     hit = meetings[(meetings["season"] == season) & (meetings["round"] == rnd)]

@@ -18,7 +18,7 @@
 ## Jolpica-F1
 
 - 주소: `https://api.jolpi.ca/ergast/f1/` (Ergast 호환 API), `https://api.jolpi.ca/data/dumps/download/` (덤프 목록)
-- 범위: 결과·순위 1950–, 랩 1996–, 피트스톱 2011–. 덤프의 랩 테이블로 확인한 결과 레이스 랩은 1996년부터 있다.
+- 범위: 결과·순위 1950–, 랩 1996–, 피트스톱 2011–. 덤프의 랩 테이블로 확인한 결과 레이스 랩은 1996년부터 있다. 2014–2025년 결승 랩(`data/curated/jolpica/race_laps.parquet`, 274,811랩)과 피트스톱(`pitstops.parquet`, 9,181건)을 덤프에서 정제 테이블로 옮겨 레이스 지수 Jolpica 계열에 쓴다(2026-11-25). 덤프의 랩에는 랩 번호, 시간, 순위만 있고 랩 시작 시각, 타이어는 없다.
 - 요청 제한: 비인증 접근은 버스트 4회/초, 지속 500회/시간이다. 공식 문서는 이 수치가 앞으로 낮아질 것이라고 밝힌다.
   - 근거: https://github.com/jolpica/jolpica-f1/blob/main/docs/rate_limits.md
 - 라이선스: 데이터는 CC BY-NC-SA 4.0이며 API는 비상업 용도로 무료다. 약관 최종 수정일은 2025-08-27이다.
@@ -61,7 +61,8 @@
 - 요청 제한과 조건: 무료 API는 비상업 용도에 한해 하루 1만 회, 시간당 5천 회, 분당 600회 미만으로 쓸 수 있고, CC BY 4.0 표시 조건을 따른다.
   - 근거: https://open-meteo.com/en/terms
 - 표기 규칙: 지역 기상 재분석 값이며 노면 온도가 아님을 화면에 적는다.
-- 상태: 아직 수집하지 않았다. 2023년 이전 우천 플래그가 필요해질 때 쓴다.
+- 상태: 2026-11-25 2014–2025년 결승 252개의 결승 날 시간별 강수량(`hourly=precipitation,rain`, `models=era5`, UTC)을 받았다(`pipeline/sources/openmeteo.py`, 응답은 `data/raw/openmeteo/`에 캐시). 2014–2022년 결승 우천 판정에 쓰고, 2023–2025년 값은 OpenF1 판정과의 대조에만 쓴다(`docs/methodology.md` "2014–2022년 우천 판정").
+- 확인한 응답 구조(2026-11-25): `latitude`, `longitude`(격자 중심으로 맞춰 돌려준다. 예: 50.4372, 5.97139 → 50.5, 6.0), `elevation`, `hourly_units`, `hourly.time`(`YYYY-MM-DDTHH:MM`, GMT), `hourly.precipitation`, `hourly.rain`(mm).
 
 ## FIA 문서
 
@@ -83,11 +84,11 @@
 |---|---|---|
 | Car Presentation Submissions | 2025년 24개 대회 전부, 2024년 23개 대회 | 대회별 결정 문서 목록 |
 | Car Presentation Submissions | 2023년 7개 대회(오스트리아, 벨기에, 네덜란드, 이탈리아, 싱가포르, 카타르, 멕시코시티) | FIA 뉴스 "F1 – Tech updates at the ... Grand Prix"의 첨부 PDF. 예: https://www.fia.com/news/f1-tech-updates-qatar-grand-prix |
-| New PU elements for this Event/Competition | 2020–2025년 | 대회별 결정 문서 목록 |
-| PU elements used per driver up to now | 2020–2025년(시즌 첫 대회에는 없는 해가 많다) | 대회별 결정 문서 목록 |
+| New PU elements for this Event/Competition | 2019–2025년 | 대회별 결정 문서 목록 |
+| PU elements used per driver up to now | 2019–2025년(시즌 첫 대회에는 없는 해가 많다) | 대회별 결정 문서 목록 |
 | Car Display Procedure | 2022–2025년(2022년 명칭은 Automobile Display Procedure) | 대회별 결정 문서 목록 |
 
-- 문서 목록 전체는 `data/manifests/fia_documents.csv`에 있다(2020–2025년 135개 대회 페이지, 7,129건).
+- 문서 목록 전체는 `data/manifests/fia_documents.csv`에 있다(2020–2025년 135개 대회 페이지, 7,129건). 2026-11-25 2019년 21개 대회 페이지(952건)를 더했다. 2019년 PU 문서는 새 구성요소 선언 31건, 누적 사용 19건이고 제목 양식은 2020년과 같다.
 - Car Presentation을 찾지 못한 대회:
   - 2024년 바레인: 결정 문서 목록에 없고 뉴스 주소(`/news/f1-tech-updates-bahrain-grand-prix`)도 없다.
   - 2023년 15개 대회: 바레인부터 캐나다까지 여덟 대회와 일본, 라스베이거스, 상파울루, 아부다비는 뉴스 주소가 없다. 영국, 헝가리, 미국은 뉴스 글은 있으나 첨부 PDF가 없다. 첨부 파일명 규칙(`<번호>_<국가 코드>_car_presentation_submissions.pdf`)으로도 확인했지만 없었다.

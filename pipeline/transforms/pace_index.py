@@ -14,9 +14,12 @@ F = CURATED_DIR / "f1db"
 PACE = CURATED_DIR / "pace"
 CROSSWALK = CURATED_DIR / "lineage" / "constructor_crosswalk.csv"
 
-QUALIFYING_FIRST_SEASON = 1996
+QUALIFYING_FIRST_SEASON = 1950
 JOLPICA_FIRST_SEASON = 2006  # 이전 형식은 F1DB의 그리드 결정 기록을 쓴다
 REFERENCE_FORMATS = ("ONE_LAP", "AGGREGATE")  # 결승 연료 원랩, 합산 기록: 참고용
+# 인디애나폴리스 500(1950-1960)은 4랩 합계 기록이고 출전 차가 다른 대회와 거의 겹치지 않아 뺀다
+EXCLUDED_FORMATS = ("FOUR_LAPS",)
+EXCLUDED_SQL = ", ".join(f"'{f}'" for f in EXCLUDED_FORMATS)
 
 QUALIFYING_SQL = f"""
 with jq as (  -- Jolpica: 드라이버별 Q1-Q3 최솟값
@@ -29,22 +32,50 @@ j_ok as (  -- 참가자의 80% 이상에 기록이 있는 대회만 Jolpica를 �
     select season, round from jq group by 1, 2
     having count(best_ms) >= 0.8 * count(*)
 ),
-fq as (  -- F1DB: 드라이버별 기록(그리드 결정 기록 또는 Q1-Q3 최솟값)
-    select season, round, f1db_constructor_id, f1db_driver_id,
-           least(time_ms, q1_ms, q2_ms, q3_ms) as best_ms
-    from '{F}/qualifying.parquet' where season >= {QUALIFYING_FIRST_SEASON}
+-- F1DB: 드라이버별 기록(그리드 결정 기록 또는 Q1-Q3 최솟값).
+-- 인디애나폴리스 500(4랩 합계)은 뺀다
+fq as (
+    select q.season, q.round, q.f1db_constructor_id, q.f1db_driver_id,
+           q.engine_manufacturer_id as eng, least(q.time_ms, q.q1_ms, q.q2_ms, q.q3_ms) as best_ms
+    from '{F}/qualifying.parquet' q join '{F}/races.parquet' r using (season, round)
+    where q.season >= {QUALIFYING_FIRST_SEASON}
+      and r.qualifying_format not in ({EXCLUDED_SQL})
 ),
 teams_in_round as (
     select distinct season, round, constructor_id from '{J}/results.parquet'
     where session_type = 'R'
+),
+jr as (  -- Jolpica 결승 결과의 차 번호. 한 대회에 같은 번호가 둘 이상이면 맞추지 않는다
+    select season, round, car_number, constructor_id from '{J}/results.parquet'
+    where session_type = 'R' and car_number is not null
+    qualify count(*) over (partition by season, round, car_number) = 1
+),
+fe as (
+    select season, round, car_number, f1db_driver_id, f1db_constructor_id,
+           engine_manufacturer_id as eng
+    from '{F}/race_entries.parquet' where car_number is not null
+    qualify count(*) over (partition by season, round, car_number) = 1
+),
+car_map as (  -- 대회와 차 번호로 맞춘 F1DB 출전 -> Jolpica 컨스트럭터
+    select fe.season, fe.round, fe.f1db_driver_id, fe.f1db_constructor_id, fe.eng,
+           jr.constructor_id
+    from fe join jr using (season, round, car_number)
+),
+race_kit as (  -- 같은 대회, 같은 F1DB 컨스트럭터와 엔진으로 맞은 Jolpica 컨스트럭터
+    select season, round, f1db_constructor_id, eng, mode(constructor_id) as constructor_id
+    from car_map group by all
+),
+season_kit as (
+    select season, f1db_constructor_id, eng, mode(constructor_id) as constructor_id
+    from car_map group by all
 ),
 xwalk as (
     select f1db_constructor_id, season_from::int as season_from, season_to::int as season_to,
            constructor_id
     from read_csv('{CROSSWALK}', header = true, all_varchar = true)
 ),
-f_mapped as (  -- F1DB ID를 Jolpica ID로. 대응표에 후보가 여럿이면 그 대회 결과에 있는 것을 고른다
-    select f.season, f.round, f.f1db_driver_id as driver_id, f.best_ms,
+f_named as (  -- 이름 대응: 대응표에 후보가 여럿이면 그 대회 결과에 있는 것을 고른다
+    select f.season, f.round, f.f1db_driver_id,
            coalesce(
                (select x.constructor_id from xwalk x
                  where x.f1db_constructor_id = f.f1db_constructor_id
@@ -57,12 +88,36 @@ f_mapped as (  -- F1DB ID를 Jolpica ID로. 대응표에 후보가 여럿이면 
                replace(f.f1db_constructor_id, '-', '_')) as constructor_id
     from fq f
 ),
+-- 차 번호, 같은 대회 같은 차체와 엔진, 같은 시즌 같은 차체와 엔진, 이름 순으로 맞춘다.
+f_mapped as (
+    -- 이름 대응은 그 시즌 Jolpica 결과에 있는 컨스트럭터일 때만 쓴다. 그래서 Jolpica에 없는
+    -- 출전(1966-1969 독일 대회의 F2 차, 시즌 내내 결승에 못 나간 팀)은 지수에 넣지 않는다
+    select f.season, f.round, f.f1db_driver_id as driver_id, f.f1db_constructor_id, f.best_ms,
+           coalesce(c.constructor_id, rk.constructor_id, sk.constructor_id,
+                    (select n.constructor_id from teams_in_round t
+                      where t.season = f.season and t.constructor_id = n.constructor_id
+                      limit 1)) as constructor_id,
+           case when c.constructor_id is not null then 'car_number'
+                when rk.constructor_id is not null then 'race_kit'
+                when sk.constructor_id is not null then 'season_kit'
+                else 'name' end as constructor_match
+    from fq f
+    left join car_map c using (season, round, f1db_driver_id)
+    left join race_kit rk on c.constructor_id is null and rk.season = f.season
+         and rk.round = f.round and rk.f1db_constructor_id = f.f1db_constructor_id
+         and rk.eng is not distinct from f.eng
+    left join season_kit sk on c.constructor_id is null and rk.constructor_id is null
+         and sk.season = f.season and sk.f1db_constructor_id = f.f1db_constructor_id
+         and sk.eng is not distinct from f.eng
+    join f_named n using (season, round, f1db_driver_id)
+),
 times as (
     select j.season, j.round, j.constructor_id, j.driver_id, j.best_ms, 'jolpica' as time_source
     from jq j semi join j_ok k on k.season = j.season and k.round = j.round
     union all
     select f.season, f.round, f.constructor_id, f.driver_id, f.best_ms, 'f1db'
     from f_mapped f anti join j_ok k on k.season = f.season and k.round = f.round
+    where f.constructor_id is not null
 ),
 team as (
     select season, round, constructor_id, time_source, min(best_ms) as team_best_ms,
@@ -106,8 +161,11 @@ RAIN_SHARE_WET = 0.10
 RACE_COLUMNS = [
     "season", "round", "constructor_id", "total_laps", "clean_laps", "wet_flag", "is_wet",
     "wet_tyres", "rain_sample_share", "race_laps", "team_median_s", "field_median_s",
-    "index_pct", "ci_low_pct", "ci_high_pct",
+    "index_pct", "ci_low_pct", "ci_high_pct", "method", "start_fuel_kg", "precip_mm",
+    "neutralised_laps",
 ]  # fmt: skip
+# method: openf1(2023-, 레이스 컨트롤과 타이어 자료로 클린 랩을 가린다), jolpica(2014-2022, 랩
+# 시간과 피트스톱만으로 가린다. pipeline/transforms/race_index_jolpica.py)
 
 
 def wet_flag(wet_tyres: bool, rain_share: float, has_weather: bool, has_stints: bool) -> str:
@@ -241,7 +299,10 @@ def clean_laps_for_race(laps, stints, pit, race_control, total_laps: int):
     return df
 
 
-def build_race() -> int:
+def build_race(jolpica: bool = True) -> int:
+    """레이스 지수 전체(2014-2022 Jolpica 계열과 2023- OpenF1 계열).
+    jolpica가 거짓이면 OpenF1 계열만
+    만든다(한 대회만 담은 시험용 폴더에서 쓴다)."""
     import numpy as np
     import pandas as pd
 
@@ -301,7 +362,7 @@ def build_race() -> int:
                 "wet_flag": flag,
                 "is_wet": pd.NA if flag == "unclassified" else flag == "wet",
                 "wet_tyres": wet_stint, "rain_sample_share": round(rain_share, 4),
-                "race_laps": total_laps,
+                "race_laps": total_laps, "method": "openf1", "start_fuel_kg": START_FUEL_KG,
             }  # fmt: skip
             if values is not None:
                 team_median = float(np.median(values))
@@ -317,10 +378,15 @@ def build_race() -> int:
                     "ci_high_pct": round((high / field - 1) * 100, 4),
                 }
             rows.append(row)
+    from pipeline.transforms import race_index_jolpica
+
+    if jolpica:
+        rows = race_index_jolpica.build_rows() + rows
     # 지수를 낸 팀이 하나도 없어도 열 구성이 같게 한다
     out = pd.DataFrame(rows).reindex(columns=RACE_COLUMNS)
     out = out.sort_values(["season", "round", "index_pct", "constructor_id"])
     out["is_wet"] = out["is_wet"].astype("boolean")  # 판정하지 못한 대회는 NULL
+    out["wet_tyres"] = out["wet_tyres"].astype("boolean")  # Jolpica 계열은 타이어 자료가 없어 NULL
     PACE.mkdir(parents=True, exist_ok=True)
     out.to_parquet(PACE / "race_index.parquet", index=False, compression="zstd")
     return len(out)

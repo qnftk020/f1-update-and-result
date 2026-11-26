@@ -16,8 +16,12 @@ from pipeline.sources import f1db, jolpica
 
 JOLPICA_TABLES = [
     "season", "round", "session", "sessionentry", "roundentry", "team", "teamdriver",
-    "driver", "circuit", "driverchampionship", "teamchampionship", "lap",
+    "driver", "circuit", "driverchampionship", "teamchampionship", "lap", "pitstop",
 ]  # fmt: skip
+# 결승 랩과 피트스톱을 싣는 첫 시즌. 2014-2022년 레이스 페이스 지수(Jolpica 계열)와 2023-2025년
+# 대조에 쓴다(pipeline/transforms/race_index_jolpica.py). 2013년 이전은 규정에 경주 연료 상한이
+# 없어 연료 보정 근거가 없다.
+RACE_LAPS_FIRST_SEASON = 2014
 
 # "HH:MM:SS.fff" 문자열을 밀리초 정수로 바꾼다.
 TO_MS = """
@@ -83,6 +87,23 @@ OUTPUTS: dict[str, str] = {
         group by all
         order by e.season, e.round, e.session_type, e.position nulls last, e.driver_id,
                  e.constructor_id
+    """,
+    "jolpica/race_laps": """
+        select e.season, e.round, e.driver_id, e.constructor_id, e.car_number,
+               l.number::int as lap, to_ms(l.time) as time_ms,
+               try_cast(l.position as int) as position
+        from entry e join lap l on l.session_entry_id = e.entry_id
+        where e.session_type = 'R' and e.season >= {race_laps_first} and l.is_deleted = 'f'
+          and l.number is not null
+        order by e.season, e.round, e.car_number, lap
+    """,
+    "jolpica/pitstops": """
+        select e.season, e.round, e.driver_id, e.constructor_id, e.car_number,
+               p.number::int as stop, l.number::int as lap, to_ms(p.duration) as duration_ms
+        from pitstop p join lap l on l.id = p.lap_id
+        join entry e on e.entry_id = p.session_entry_id
+        where e.session_type = 'R' and e.season >= {race_laps_first}
+        order by e.season, e.round, e.car_number, stop
     """,
     "jolpica/driver_standings": """
         with ranked as (
@@ -239,23 +260,35 @@ def connect(jolpica_dir: Path | None, f1db_dir: Path) -> duckdb.DuckDBPyConnecti
     return con
 
 
-def build(out_dir: Path = CURATED_DIR, only: list[str] | None = None) -> dict[str, int]:
+def build(
+    out_dir: Path = CURATED_DIR, only: list[str] | None = None, recorded_dump: bool = False
+) -> dict[str, int]:
     """정제 테이블을 만든다. only를 주면 그 이름의 표만 만든다.
 
     only가 모두 f1db/ 표면 Jolpica 덤프를 다시 확인하지 않는다(덤프 목록 요청과 manifest 갱신 없음).
+    recorded_dump가 참이면 덤프 목록을 요청하지 않고 manifest에 적힌 덤프(로컬)를 쓴다. 새 덤프로
+    다른 표가 바뀌지 않게 표 몇 개만 더할 때 쓴다.
     """
     names = only or list(OUTPUTS)
     unknown = [n for n in names if n not in OUTPUTS]
     if unknown:
         raise KeyError(f"없는 표: {unknown}")
     f1db_only = all(n.startswith("f1db/") for n in names)
-    con = connect(None if f1db_only else jolpica.download_dump(), f1db.download_release())
+    if f1db_only:
+        dump = None
+    elif recorded_dump:
+        dump = jolpica.recorded_dump_dir()
+    else:
+        dump = jolpica.download_dump()
+    con = connect(dump, f1db.download_release())
     counts: dict[str, int] = {}
     for name in names:
         sql = OUTPUTS[name]
         path = out_dir / f"{name}.parquet"
         path.parent.mkdir(parents=True, exist_ok=True)
-        query = sql.format(first=FIRST_SEASON, last=LAST_SEASON)
+        query = sql.format(
+            first=FIRST_SEASON, last=LAST_SEASON, race_laps_first=RACE_LAPS_FIRST_SEASON
+        )
         con.execute(f"copy ({query}) to '{path}' (format parquet, compression zstd)")
         counts[name] = con.execute(f"select count(*) from '{path}'").fetchone()[0]
     return counts
@@ -264,5 +297,7 @@ def build(out_dir: Path = CURATED_DIR, only: list[str] | None = None) -> dict[st
 if __name__ == "__main__":
     import sys
 
-    for name, n in build(only=sys.argv[1:] or None).items():
+    args = sys.argv[1:]
+    names = [a for a in args if not a.startswith("--")] or None
+    for name, n in build(only=names, recorded_dump="--recorded-dump" in args).items():
         print(f"{name}: {n} rows")

@@ -47,7 +47,7 @@ from pathlib import Path
 
 import pdfplumber
 
-PARSER_VERSION = "9"
+PARSER_VERSION = "10"
 DOC_TYPES = {"technical": "regulation_technical", "sporting": "regulation_sporting"}
 
 # 줄 단위 패턴
@@ -57,6 +57,7 @@ ARTICLE_SPORT = re.compile(r"^(\d+)(?:\)\s*|\s+(?=[A-Z]{2}))(.*)$")
 APPENDIX = re.compile(r"^APPENDIX\s+(\d+[A-Z]?)\b\s*[:.\-–]?\s*(.*)$")
 NUMBERED = re.compile(r"^(\d+(?:\.\d+)+)\.?(?:\s+(.*))?$")
 APPENDIX_SECTION = re.compile(r"^(\d+)\.?\s+(.*)$")
+LEGACY_APPENDIX_SECTION = re.compile(r"^(\d+)[.)]?\s+(.*)$")
 TOC_PAGE_REF = re.compile(r"\s\d+(?:\s*[-‐–]\s*\d+)?$")
 NOT_USED = re.compile(
     r"^[\[(]?\s*(?:article\s+)?(?:not\s+used|void|deleted|intentionally\s+left\s+blank)"
@@ -65,7 +66,9 @@ NOT_USED = re.compile(
 )
 BOLD_FONT = re.compile(r"bold|black|heavy", re.I)
 # 다음 해 규정의 바뀐 조항을 옮겨 적은 조·부록. 번호가 그 해 규정의 번호라 조항으로 나누지 않는다.
-FUTURE_CHANGES = re.compile(r"\bCHANGES FOR\b", re.I)
+FUTURE_CHANGES = re.compile(
+    r"\bCHANGES\s*FOR\b", re.I
+)  # 2017년 기술 규정 2016-04-29판은 "CHANGESFOR 2018"
 
 # 조항 번호 열의 x 위치 허용 범위(pt). 본문 들여쓰기는 여백보다 28pt 이상 안쪽이다.
 # 여백보다 바깥으로 내어 쓴 번호(2022-2025 기술 규정 3.7.6-3.7.8, 8.5pt)가 있어 왼쪽은 더 넓게 둔다.
@@ -174,8 +177,54 @@ class Line:
     struck: bool = False  # 취소선으로 지운 조·부록 제목 줄(struck_heading_lines)
 
 
+# 글꼴 이름에 굵기가 없는 문서(2008-2010년 판의 "TT3293o00" 같은 Type 3 글꼴)에서 조 제목
+# 글꼴로 본 글꼴 이름. parse_document가 문서마다 다시 정한다(infer_bold_fonts).
+_INFERRED_BOLD: frozenset[str] = frozenset()
+# 2008-2017년 판(legacy_rows)을 읽는 중인지. 그 판에만 쓰는 규칙(plain_appendix_item)을 켠다.
+_LEGACY_LAYOUT = False
+
+
 def is_bold(char: dict) -> bool:
-    return bool(BOLD_FONT.search(char.get("fontname", "")))
+    name = char.get("fontname", "")
+    return bool(BOLD_FONT.search(name)) or name in _INFERRED_BOLD
+
+
+HEADING_SHAPE = re.compile(
+    r"^(?:\d+\)\s*[A-Z][A-Z0-9 ,&'/().-]+"
+    r"|ARTICLE\s+\d+\s*[:.]?\s*[A-Z].*"
+    r"|APPENDIX\s+\d+[A-Z]?\b.*)$"
+)
+
+
+def infer_bold_fonts(pdf) -> frozenset[str]:
+    """글꼴 이름으로 굵기를 알 수 없는 문서에서 조 제목 글꼴을 찾는다.
+
+    문서의 어느 글꼴 이름에도 굵기(bold, black, heavy)가 없을 때만 쓴다.
+    조 제목 꼴("1) REGULATIONS",
+    "ARTICLE 1 : DEFINITIONS", "APPENDIX 4")인 줄에서 글자의 60% 이상을 차지하는 글꼴을 후보로 하고,
+    그 가운데 문서 전체 글자의 15% 미만인 글꼴을 굵은 글꼴로 본다(본문 글꼴은 15%를 넘는다).
+    이런 판은 쪽마다 글꼴 부분집합 이름이 달라(TT3293o00, TT3299o00) 후보도 여럿이다.
+    """
+    fonts: Counter = Counter()
+    candidates: set[str] = set()
+    for page in pdf.pages:
+        rows: dict[int, list[dict]] = {}
+        for ch in page.chars:
+            fonts[ch.get("fontname", "")] += 1
+            rows.setdefault(round(ch["top"]), []).append(ch)
+        for chars in rows.values():
+            chars.sort(key=lambda c: c["x0"])
+            text = re.sub(r"\s+", " ", "".join(c["text"] for c in chars).strip())
+            if not HEADING_SHAPE.match(text):
+                continue
+            ink = Counter(c.get("fontname", "") for c in chars if c["text"].strip())
+            name, n = ink.most_common(1)[0]
+            if n >= 0.6 * sum(ink.values()):
+                candidates.add(name)
+    if any(BOLD_FONT.search(name) for name in fonts):
+        return frozenset()
+    total = sum(fonts.values())
+    return frozenset(name for name in candidates if fonts[name] < 0.15 * total)
 
 
 def is_rotated(char: dict) -> bool:
@@ -720,6 +769,19 @@ def article_heading(line: Line, style: str, expected: int | None = None) -> tupl
     return (number, title) if plain_ok else None
 
 
+def indented_article(line: Line, art: tuple[int, str], expected: int | None, margin: float) -> bool:
+    """여백 열보다 안쪽에 찍힌 조 제목. 2010년 기술 규정 2009-08-19판의 "ARTICLE 12"는 본문 글 위치
+    (여백 열에서 약 28pt 안쪽)에 찍혀 있다. "ARTICLE N" 꼴의 굵은 줄이고 번호가 바로 다음 조
+    번호이며
+    여백 열에서 40pt 안쪽일 때만 조 제목으로 본다."""
+    return (
+        art[0] == expected
+        and line.text.startswith("ARTICLE")
+        and line.bold >= 0.6
+        and 0 < line.x0 - margin <= 40
+    )
+
+
 def heading_style(lines: list[Line], section: str) -> str:
     """조 제목 양식. 스포팅 규정 초기 판(2022년 규정 Issue 1-3)은 기술 규정처럼
     "ARTICLE 1: ..." 양식에 세 단계 번호를 쓴다."""
@@ -740,14 +802,44 @@ def appendix_heading(line: Line) -> tuple[str, str] | None:
 
 
 def find_body_start(lines: list[Line], section: str) -> int | None:
-    """목차 다음, 쪽 번호가 붙지 않은 1조 제목 줄의 위치. 지운 제목 줄은 보지 않는다."""
+    """목차 다음, 쪽 번호가 붙지 않은 1조 제목 줄의 위치. 지운 제목 줄은 보지 않는다.
+
+    쪽 번호 없는 목차(2008-2014년 기술 규정의 "SUMMARY")의 1조 제목은 건너뛴다(is_toc_heading).
+    """
+    candidates = []
     for i, line in enumerate(lines):
         if line.struck:
             continue
         heading = article_heading(line, section)
         if heading and heading[0] == 1 and not TOC_PAGE_REF.search(line.text):
-            return i
+            candidates.append(i)
+    for n, i in enumerate(candidates):
+        # 뒤에 다른 1조 제목이 있을 때만 목차로 보고 건너뛴다.
+        if n + 1 < len(candidates) and is_toc_heading(lines, i, section):
+            continue
+        return i
     return None
+
+
+def is_toc_heading(lines: list[Line], i: int, section: str) -> bool:
+    """쪽 번호 없는 목차의 조 제목인지 본다.
+
+    목차에서는 1조 제목 다음 2조 제목까지 번호 붙은 짧은 제목 줄만 있고 본문 문장이 없다. 본문의
+    1조라면 그사이에 번호로 시작하지 않는 줄(본문 문장)이 있다.
+    """
+    between: list[Line] = []
+    for line in lines[i + 1 : i + 80]:
+        if line.band != "body" or line.struck or line.image:
+            continue
+        heading = article_heading(line, section)
+        if heading:
+            return (
+                bool(between)
+                and heading[0] == 2
+                and all(NUMBERED.match(ln.text) and len(ln.text) < 90 for ln in between)
+            )
+        between.append(line)
+    return False
 
 
 def clause_margin(lines: list[Line]) -> float | None:
@@ -944,7 +1036,10 @@ def segment(lines: list[Line], section: str) -> tuple[list[Clause], list[str], C
             close_struck()
             expected = article[0] + 1 if article else None
             art = article_heading(line, section, expected) if appendix is None else None
-        if art and -MARGIN_LEFT <= line.x0 - margin <= MARGIN_RIGHT:
+        if art and (
+            -MARGIN_LEFT <= line.x0 - margin <= MARGIN_RIGHT
+            or indented_article(line, art, expected, margin)
+        ):
             number, title = art
             if article and number <= article[0]:
                 problems.append(
@@ -1002,6 +1097,17 @@ def segment(lines: list[Line], section: str) -> tuple[list[Clause], list[str], C
             m = APPENDIX_SECTION.match(line.text)
             number, rest = m.group(1), m.group(2).strip()
             stats["plain_sections"] += 1
+        plain_item = False
+        if (
+            number is None
+            and _LEGACY_LAYOUT
+            and appendix is not None
+            and plain_appendix_item(line, margin, last_number)
+        ):
+            m = APPENDIX_ITEM.match(line.text)
+            number, rest = m.group(1), m.group(2).strip()
+            plain_item = True
+            stats["plain_items"] += 1
         top_title = appendix[1] if appendix else (article[1] if article else "")
         # 다음 해 규정을 옮겨 적은 조에서도 그 조의 번호로 시작하는 번호("47.1 Changes to
         # Article 21.7")는 이 판의 조항이다. 나머지는 다음 해 규정의 번호다.
@@ -1028,7 +1134,9 @@ def segment(lines: list[Line], section: str) -> tuple[list[Clause], list[str], C
                 )
             last_number = parts
             heading = ""
-            if rest and (line.rest_bold >= 0.8 or (appendix is not None and len(parts) == 1)):
+            if plain_item:
+                pass  # 번호 뒤 글은 소제목이 아니라 본문 문장이다
+            elif rest and (line.rest_bold >= 0.8 or (appendix is not None and len(parts) == 1)):
                 heading = clean_heading(rest)
             elif (section == "sporting" or not is_clause_start(line, margin)) and plain_heading(
                 line, rest, following.get(id(line)), layout
@@ -1143,6 +1251,27 @@ def plain_appendix_section(line: Line, margin: float, last: tuple[int, ...], upc
     if number != last[0] + 1 or upcoming != f"{number}.1":
         return False
     return bool(rest) and rest[:1].isupper() and len(rest) <= 90 and rest[-1] not in ".,;:"
+
+
+APPENDIX_ITEM = re.compile(r"^(\d+)\.\s+([A-Z].*)$")
+
+
+def plain_appendix_item(line: Line, margin: float, last: tuple[int, ...]) -> bool:
+    """부록의 한 단계 번호 문장("1. The Organiser undertakes to ...")인지 본다.
+
+    2008-2010년 스포팅 규정 부록 4(조직 계약서)는 "1.", "2."처럼 한 단계 번호 뒤에 바로 문장을
+    쓰고, 사이사이에 "3.1"처럼 두 단계 번호를 쓴다. 아래를 모두 만족할 때만 번호로 본다.
+
+    - 여백 열에서 시작하고 "N." 꼴(마침표 있음) 뒤에 대문자로 시작하는 글이 40자 넘게 있다.
+    - 번호가 바로 앞 한 단계 번호의 다음 번호다(부록의 첫 번호면 1).
+
+    2018년 이후 판의 부록에도 이런 문장 번호가 있으나(부록 1, 6) 그 판들은 이 규칙 없이 검수를
+    마쳤으므로 2008-2017년 판(_LEGACY_LAYOUT)에만 쓴다.
+    """
+    m = APPENDIX_ITEM.match(line.text)
+    if not m or not is_clause_start(line, margin) or len(m.group(2)) <= 40:
+        return False
+    return int(m.group(1)) == (last[0] + 1 if last else 1)
 
 
 def is_not_used(clause: Clause) -> bool:
@@ -1292,17 +1421,26 @@ def numbered_start(
         return m.group(1), (m.group(2) or "").strip()
     if in_appendix:
         # 부록의 한 단계 번호("1 General conditions")는 굵은 소제목일 때만 조항으로 본다.
-        m = APPENDIX_SECTION.match(line.text)
+        # 2010년 스포팅 규정 부록 8은 "2) FINANCIAL YEAR"처럼 괄호를 붙인다(2008-2017년 판만).
+        m = (LEGACY_APPENDIX_SECTION if _LEGACY_LAYOUT else APPENDIX_SECTION).match(line.text)
         if m and line.rest_bold >= 0.8:
             return m.group(1), m.group(2).strip()
     return None, ""
 
 
-def parse_document(path: Path, section: str) -> ParsedDocument:
-    """규정 PDF 한 부를 조항 목록으로 나눈다. section은 "technical" 또는 "sporting"."""
+def parse_document(path: Path, section: str, legacy: bool = False) -> ParsedDocument:
+    """규정 PDF 한 부를 조항 목록으로 나눈다. section은 "technical" 또는 "sporting".
+
+    legacy는 2008-2017년 판이면 참이다(그 판에만 쓰는 규칙을 켠다).
+    """
+    global _INFERRED_BOLD, _LEGACY_LAYOUT
+    _LEGACY_LAYOUT = legacy
     stats: Counter = Counter()
     lines: list[Line] = []
     with pdfplumber.open(path) as pdf:
+        _INFERRED_BOLD = infer_bold_fonts(pdf)
+        if _INFERRED_BOLD:
+            stats["inferred_bold_fonts"] = len(_INFERRED_BOLD)
         pages = len(pdf.pages)
         for number, page in enumerate(pdf.pages, 1):
             page_result, page_stats = page_lines(page, number)
@@ -1331,7 +1469,8 @@ def file_sha256(path: Path) -> str:
 def parsed_cache_path(row: dict[str, str]) -> Path:
     from pipeline.config import RAW_DIR
 
-    name = Path(row["url"]).name.rsplit(".", 1)[0]
+    # 2008-2017년 판(legacy_rows)은 주소 끝이 파일 이름이 아닌 것이 있어 캐시 이름을 따로 둔다.
+    name = (row.get("cache_name") or Path(row["url"]).name).rsplit(".", 1)[0]
     return (
         RAW_DIR / "fia" / "regulations" / "parsed" / row["season"] / row["section"] / f"{name}.json"
     )
@@ -1374,7 +1513,7 @@ def parse_cached(row: dict[str, str], path: Path, digest: str | None = None) -> 
     if data is not None:
         clauses = [Clause(**c) for c in data["clauses"]]
         return ParsedDocument(path, data["pages"], clauses, data["problems"], data["stats"])
-    parsed = parse_document(path, row["section"])
+    parsed = parse_document(path, row["section"], legacy=bool(row.get("legacy_host")))
     payload = {
         "sha256": digest,
         "cache_key": cache_key(),
@@ -1410,6 +1549,90 @@ def cache_is_fresh(row: dict[str, str], path: Path) -> bool:
 
 def version_key(row: dict[str, str]) -> str:
     return f"{row['version_date']}-{row['variant']}" if row["variant"] else row["version_date"]
+
+
+# 2008-2017년 판 가운데 조항을 나누지 않고 링크로만 두는 판과 그 까닭(원문을 열어 확인했다).
+# (시즌, 구분, 판 날짜, 변형) -> 까닭
+LEGACY_LINK_ONLY = {
+    (2008, "sporting", "2007-03-28", "marked"): (
+        "조가 없고 1)부터 이어지는 문단 번호만 있는 옛 양식이다"
+    ),
+}
+LEGACY_FIRST_SEASON = 2008  # 이 해부터 FIA 원본(텍스트 PDF)이라 조항을 나눈다(규정 등급 A)
+LEGACY_PARSED_VARIANTS = ("clean", "marked")
+
+
+def legacy_rows() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """2008-2017년 FIA 원본 판에서 조항을 나눌 판(조항 판)과 링크로만 둘 판을 고른다.
+
+    fia_regulations_legacy.csv의 live 행 가운데 아래를 차례로 거른다. 걸러진 행은 까닭과 함께
+    두 번째 목록으로 돌려준다(사이트는 그 판을 링크로 보인다).
+
+    - 변형이 clean과 marked가 아닌 판(부록, 변경 요약, 발췌), 판 날짜가 없는 판, 영어만이 아닌 판
+      (2009년 기술 규정 2006-12-22판은 프랑스어와 영어 두 단이다), LEGACY_LINK_ONLY.
+    - 같은 sha256의 판은 manifest의 첫 행 하나만 쓴다(같은 파일이 여러 주소에 있다).
+    - 같은 날짜에 clean과 marked가 모두 있으면 clean을 쓴다.
+    - 판 키(날짜와 변형)가 같은 서로 다른 파일은 manifest의 첫 행을 쓴다(2008년 스포팅 2007-12-14,
+      2012년 기술 2012-03-09, 2014년 두 규정 2014-01-23. 다시 올린 같은 판이다).
+    """
+    from pipeline import manifest
+    from pipeline.sources import fia_regulations_legacy as legacy
+
+    picked: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    seen_sha: set[str] = set()
+    rows = [
+        r
+        for r in manifest.read_rows(legacy.MANIFEST)
+        if r["status"] == "live" and int(r["season"]) >= LEGACY_FIRST_SEASON
+        and r["section"] in legacy.SECTIONS
+    ]  # fmt: skip
+    clean_dates = {
+        (r["season"], r["section"], r["version_date"]) for r in rows if r["variant"] == "clean"
+    }
+    keys: set[tuple[str, str, str]] = set()
+    for r in rows:
+        reason = LEGACY_LINK_ONLY.get(
+            (int(r["season"]), r["section"], r["version_date"], r["variant"])
+        )
+        if r["variant"] not in LEGACY_PARSED_VARIANTS:
+            reason = f"{r['variant']} 변형"
+        elif not r["version_date"]:
+            reason = "판 날짜가 없다"
+        elif r["language"] != "en":
+            reason = f"언어가 {r['language']}이다"
+        elif r["sha256"] in seen_sha:
+            reason = "같은 파일이 다른 주소에 있다"
+        elif (
+            r["variant"] == "marked"
+            and (r["season"], r["section"], r["version_date"]) in clean_dates
+        ):
+            reason = "같은 날짜의 clean 판을 쓴다"
+        row = {
+            "season": r["season"], "section": r["section"], "issue": "", "variant": r["variant"],
+            "version_date": r["version_date"], "published_at": "", "url": r["url"],
+            "sha256": r["sha256"], "cache_name": legacy.cache_name(r["url"]),
+            "legacy_host": r["host"],
+        }  # fmt: skip
+        key = (r["season"], r["section"], version_key(row))
+        if reason is None and key in keys:
+            reason = "같은 판 키의 다른 파일이 앞에 있다"
+        if reason:
+            skipped.append({**row, "reason": reason})
+            continue
+        seen_sha.add(r["sha256"])
+        keys.add(key)
+        picked.append(row)
+    return picked, skipped
+
+
+def row_path(row: dict[str, str]) -> Path:
+    """판의 로컬 원문 경로. 2008-2017년 판은 legacy 캐시에 있다."""
+    from pipeline.sources import fia_regulations, fia_regulations_legacy
+
+    if row.get("legacy_host"):
+        return fia_regulations_legacy.local_path({**row, "host": row["legacy_host"]})
+    return fia_regulations.local_path(row)
 
 
 def version_order(row: dict[str, str]) -> tuple:
@@ -1755,17 +1978,19 @@ def quote_fields(clause: Clause, start: int, end: int) -> dict:
     }  # fmt: skip
 
 
-FUEL_RACE = re.compile(r"[^.]*\b110\s?kg\b[^.]*\.", re.I)
+FUEL_RACE = re.compile(r"[^.]*\bconsume more than (\d{2,3})\s?kg of fuel\b[^.]*\.", re.I)
 FUEL_FLOW = re.compile(r"Fuel mass flow must not exceed (\d+)\s?kg/h\.?", re.I)
 
 
 def fuel_rules(clauses: list[Clause]) -> list[dict]:
-    """경주에서 쓸 수 있는 연료 질량(110kg) 조항과, 그 곁의 최대 연료 유량 조항."""
+    """경주에서 쓸 수 있는 연료 질량 조항(2014-2016년 100kg, 2017-2018년 105kg,
+    2019-2021년 110kg)과,
+    그 곁의 최대 연료 유량 조항."""
     rows = []
     for i, clause in enumerate(clauses):
         m = FUEL_RACE.search(clause.text)
-        if m and re.search(r"fuel", m.group(0), re.I):
-            rows.append(fuel_row(clause, "race_fuel_mass", "110 kg", m))
+        if m:
+            rows.append(fuel_row(clause, "race_fuel_mass", f"{m.group(1)} kg", m))
             # 바로 곁(앞뒤 조항)의 연료 유량 조항
             for near in clauses[max(0, i - 1) : i + 2]:
                 flow = FUEL_FLOW.search(near.text)
@@ -1876,10 +2101,10 @@ def review_note(row: dict[str, str], duplicates: list[str]) -> str:
     from pipeline import review
 
     note = row["note"].rstrip(".")
-    text = f"{review.label(row)}: 조항 번호 문제는 FIA 원문에 찍힌 그대로다. {note}."
+    text = f"{review.label(row)}: 조항 번호는 FIA 원문 표기를 따른다. {note}."
     if duplicates:
         keys = ", ".join(f"{no}{DUPLICATE_MARK}2" for no in duplicates)
-        text += f" 두 번 찍힌 번호의 두 번째 조항은 {keys}로 적는다."
+        text += f" 중복된 번호의 두 번째 조항은 {keys}로 표기한다."
     return text
 
 
@@ -1948,15 +2173,16 @@ def build(only_cached: bool = False, allow_shrink: bool = False) -> dict[str, in
         for r in manifest.read_rows(fia_regulations.MANIFEST)
         if r["section"] in fia_regulations.PARSED_SECTIONS
     ]
+    rows += legacy_rows()[0]
     rows.sort(key=lambda r: (int(r["season"]), r["section"], version_order(r)))
 
-    warm_cache([(r, fia_regulations.local_path(r)) for r in rows])
+    warm_cache([(r, row_path(r)) for r in rows])
     reviews = numbering_reviews()
     doc_rows, article_rows, failures = [], [], []
     parsed: dict[tuple[int, str, str], ParsedDocument] = {}
     for row in rows:
         season, section, vkey = int(row["season"]), row["section"], version_key(row)
-        path = fia_regulations.local_path(row)
+        path = row_path(row)
         base = {
             "season": season, "section": section, "issue": row["issue"],
             "variant": row["variant"], "version_key": vkey, "version_date": row["version_date"],
@@ -2086,10 +2312,11 @@ FACT_SOURCE = ["season", "version_key", "is_final_issue"]
 QUOTE_SOURCE = ["quote", "quote_start", "text_sha256"]
 PU_COLUMNS = [*FACT_SOURCE, "element", "allowed", "clause_no", "page", "url", *QUOTE_SOURCE]
 FUEL_COLUMNS = [*FACT_SOURCE, "section", "rule", "value", "clause_no", "page", "url", *QUOTE_SOURCE]
-PU_SEASONS = range(2020, 2026)
-# 110kg(경주 연료 질량)는 2019-2021년 스포팅 규정 30.5에 있다. 2022-2025년 판에는 없어 그 시즌은
-# 기술 규정의 최대 연료 유량 조항만 적는다.
-FUEL_SEASONS = range(2019, 2026)
+PU_SEASONS = range(2019, 2026)
+# 경주 연료 질량 상한은 스포팅 규정에 있다(2018-2021년 30.5). 2022-2025년 판에는 없어 그 시즌은
+# 기술 규정의 최대 연료 유량 조항만 적는다. 2014년부터 읽는 것은 레이스 페이스 지수의 연료 보정
+# 근거다(2013년 이전 규정에는 경주 연료 상한이 없다).
+FUEL_SEASONS = range(2014, 2026)
 
 
 def summarise(problems: list[str], limit: int = 250) -> str:

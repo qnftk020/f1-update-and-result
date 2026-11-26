@@ -19,9 +19,21 @@ STATUSES = {"ok", "needs_review", "not_downloaded", "superseded", "held"}
 # 원문 자체가 어긋나 자동으로 읽지 않는 문서(파일 이름 -> 까닭). 사이트에는 "검수 대기"로 표시한다.
 # 2026-11-13 사람 검수(human_review.csv i01-i07)로 2022 벨기에 문서 60, 2023 마이애미, 2024 바레인
 # 선언 문서, 2023 이탈리아, 싱가포르, 2025 중국, 일본 누적 문서는 정상이 되어 지금은 없다.
-KNOWN_FAILURES: dict[str, str] = {}
+# 원문을 확인한 검수 대기 문서와 그 까닭(2026-11-25 확인).
+# 사이트 운영자의 검수 전까지 추측으로 채우지 않는다.
+KNOWN_FAILURES: dict[str, str] = {
+    "2019 Bahrain Grand Prix - PU elements used per driver up to now_0.pdf": (
+        '표 머리 "MGU-H", "MGU-K"와 드라이버 이름이 두 줄로 나뉜 이 문서만의 양식'
+    ),
+    "2019 Abu Dhabi Grand Prix - PU elements used per driver up to now.pdf": (
+        "Sainz 행에 차량 번호(55)가 원문에 빠져 있다"
+    ),
+    "2019 Singapore Grand Prix - New PU elements for this Event.pdf": (
+        "제목은 새 구성요소 선언이지만 첨부 표는 누적 사용 표다"
+    ),
+}
 # KNOWN_FAILURES 가운데 이웃 누적 문서와 견주어 생긴 실패(문서 한 건의 파싱은 정상)
-PAIR_FAILURES = set(KNOWN_FAILURES)
+PAIR_FAILURES: set[str] = set()  # 지금은 없다. 2019년 세 건은 문서 한 건의 파싱 실패다
 # 원문을 다시 파싱해 정제 데이터와 대조하는 표본. 양식이 서로 다른 문서를 골랐다.
 SAMPLE = [
     "2020 Austrian Grand Prix - New PU elements for this Event.pdf",  # 한 쪽 양식, 줄바꿈된 팀 칸
@@ -1195,7 +1207,7 @@ def test_used_table_values(used):
     assert (repeated["document_status"] == "needs_review").all()
     per_season = used[used["document_status"] == "ok"].groupby("season").element.agg(set)
     for season, elements in per_season.items():
-        expected = set(pu.ELEMENTS) - ({"EX"} if season == 2020 else set())
+        expected = set(pu.ELEMENTS) - ({"EX"} if season <= 2020 else set())  # EX는 2021년부터
         assert elements == expected, season
 
 

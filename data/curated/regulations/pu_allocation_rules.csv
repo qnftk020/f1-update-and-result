@@ -1,4 +1,10 @@
 season,version_key,is_final_issue,element,allowed,clause_no,page,url,quote,quote_start,text_sha256
+2019,2019-03-12,True,ICE,3,23.3,16,https://www.fia.com/sites/default/files/2019_sporting_regulations_-_2019-03-12.pdf,each driver may use no more than 3 engines (ICE),110,e2c238834061888143d33052580e4d16c5e031895cc2423bfa19ec9294dd1aeb
+2019,2019-03-12,True,MGU-H,3,23.3,16,https://www.fia.com/sites/default/files/2019_sporting_regulations_-_2019-03-12.pdf,3 motor generator units-heat (MGU-H),160,e2c238834061888143d33052580e4d16c5e031895cc2423bfa19ec9294dd1aeb
+2019,2019-03-12,True,TC,3,23.3,16,https://www.fia.com/sites/default/files/2019_sporting_regulations_-_2019-03-12.pdf,3 turbochargers (TC),198,e2c238834061888143d33052580e4d16c5e031895cc2423bfa19ec9294dd1aeb
+2019,2019-03-12,True,ES,2,23.3,16,https://www.fia.com/sites/default/files/2019_sporting_regulations_-_2019-03-12.pdf,2 energy stores (ES),220,e2c238834061888143d33052580e4d16c5e031895cc2423bfa19ec9294dd1aeb
+2019,2019-03-12,True,CE,2,23.3,16,https://www.fia.com/sites/default/files/2019_sporting_regulations_-_2019-03-12.pdf,2 control electronics (CE),242,e2c238834061888143d33052580e4d16c5e031895cc2423bfa19ec9294dd1aeb
+2019,2019-03-12,True,MGU-K,2,23.3,16,https://www.fia.com/sites/default/files/2019_sporting_regulations_-_2019-03-12.pdf,2 motor generator units-kinetic (MGU-K),273,e2c238834061888143d33052580e4d16c5e031895cc2423bfa19ec9294dd1aeb
 2020,2020-11-23,True,ICE,3,23.3,18,https://www.fia.com/sites/default/files/2020_formula_1_sporting_regulations_-_iss_14_-_2020-11-23.pdf,each driver may use no more than 3 engines (ICE),110,2aede79c2c1b23ff2a66cb7b3069edb6af99a2b6627f6515c41b39050b5440d1
 2020,2020-11-23,True,MGU-H,3,23.3,18,https://www.fia.com/sites/default/files/2020_formula_1_sporting_regulations_-_iss_14_-_2020-11-23.pdf,3 motor generator units-heat (MGU-H),160,2aede79c2c1b23ff2a66cb7b3069edb6af99a2b6627f6515c41b39050b5440d1
 2020,2020-11-23,True,TC,3,23.3,18,https://www.fia.com/sites/default/files/2020_formula_1_sporting_regulations_-_iss_14_-_2020-11-23.pdf,3 turbochargers (TC),198,2aede79c2c1b23ff2a66cb7b3069edb6af99a2b6627f6515c41b39050b5440d1

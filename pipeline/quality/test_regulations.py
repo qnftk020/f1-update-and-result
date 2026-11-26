@@ -877,7 +877,7 @@ def test_verified_gaps_and_human_reviewed_numbering(monkeypatch):
 def test_human_review_note_names_the_review_and_duplicate_keys():
     key = (2030, "technical", "2030-01-01")
     note = reg.review_note(review_row(key), ["15.2.3"])
-    assert note.startswith("사람 검수(2030-01-02, i99): 조항 번호 문제는 FIA 원문에 찍힌 그대로다.")
+    assert note.startswith("사람 검수(2030-01-02, i99): 조항 번호는 FIA 원문 표기를 따른다.")
     assert "지어낸 검수 메모." in note and "15.2.3#2" in note and "\u2014" not in note
 
 
@@ -1035,7 +1035,10 @@ def test_build_without_cached_sources_writes_nothing(monkeypatch, tmp_path):
     테이블과 실패 목록을 빈 표로 덮어쓰지 않는다."""
     targets = [OUT / name for name in OWN_FILES] + [manifest.MANIFEST_DIR / "parse_failures.csv"]
     before = {p: p.read_bytes() for p in targets if p.exists()}
+    from pipeline.sources import fia_regulations_legacy
+
     monkeypatch.setattr(fia_regulations, "local_path", lambda row: tmp_path / "absent.pdf")
+    monkeypatch.setattr(fia_regulations_legacy, "local_path", lambda row: tmp_path / "absent.pdf")
     with pytest.raises(reg.ShrinkError):
         reg.build(only_cached=True)
     with pytest.raises(reg.ShrinkError):
@@ -1086,11 +1089,36 @@ def comparisons():
 
 
 def manifest_rows():
+    """조항을 나누는 판: fia.com 규정 manifest(2018-)와
+    2008-2017년 판 가운데 고른 판(legacy_rows)."""
+    from pipeline.parsers import regulations as reg
+
     return [
         r
         for r in manifest.read_rows(fia_regulations.MANIFEST)
         if r["section"] in fia_regulations.PARSED_SECTIONS
-    ]
+    ] + reg.legacy_rows()[0]
+
+
+def test_legacy_selection_is_explained():
+    """2008-2017년 live 판은 조항 판이거나 까닭이 적힌 링크 판이다.
+    조항 판은 영어 clean·marked 판이고
+    sha256과 판 키가 겹치지 않는다."""
+    from pipeline.parsers import regulations as reg
+    from pipeline.sources import fia_regulations_legacy as legacy
+
+    picked, skipped = reg.legacy_rows()
+    live_rows = [
+        r for r in manifest.read_rows(legacy.MANIFEST)
+        if r["status"] == "live" and int(r["season"]) >= 2008
+    ]  # fmt: skip
+    assert len(picked) + len(skipped) == len(live_rows)
+    assert all(r["reason"] for r in skipped)
+    assert {r["variant"] for r in picked} <= {"clean", "marked"}
+    assert len({r["sha256"] for r in picked}) == len(picked)
+    keys = [(r["season"], r["section"], reg.version_key(r)) for r in picked]
+    assert len(set(keys)) == len(keys)
+    assert all(reg.row_path(r).exists() for r in picked)
 
 
 def test_documents_cover_the_manifest(documents):
@@ -1134,11 +1162,16 @@ def test_number_checks_are_recorded(documents):
 def test_ok_documents_have_a_plausible_number_of_clauses(documents):
     ok = documents[documents["status"] == "ok"]
     assert len(ok) >= 15
-    bounds = {"technical": (450, 1400), "sporting": (300, 650)}
+    # 2008-2017년 판은 더 짧다(기술 규정 60-100쪽, 스포팅 규정 37-75쪽).
+    bounds = {
+        ("technical", True): (450, 1400), ("sporting", True): (300, 650),
+        ("technical", False): (440, 700), ("sporting", False): (230, 450),
+    }  # fmt: skip
     for row in ok.itertuples():
-        low, high = bounds[row.section]
+        modern = row.season >= 2018
+        low, high = bounds[(row.section, modern)]
         assert low <= row.clauses <= high, (row.season, row.section, row.version_key)
-        assert row.characters > 150_000
+        assert row.characters > (150_000 if modern else 90_000)
 
 
 def test_failures_match_documents_needing_review(documents):
@@ -1550,7 +1583,16 @@ def test_every_unparsed_version_is_listed_as_skipped(comparisons, documents):
     """비교가 하나라도 걸린 시즌이면, 그 시즌의 needs_review·not_downloaded 판은 모두 어느 비교의
     skipped_versions에 나온다. 첫 ok 판 앞의 판(2022년 기술 규정 Issue 1-6)과 마지막 ok 판 뒤의 판
     (2025년 스포팅 규정 Issue 5)도 빠지지 않는다."""
-    listed = {v for value in comparisons["skipped_versions"] for v in value.split(";") if v}
+    # 판 이름("시즌:판 키")은 기술과 스포팅 규정에 같은 것이 있을 수 있어
+    # (2017:2016-10-13-marked) 구분과 함께 센다.
+    listed = {
+        (section, v)
+        for section, value in zip(
+            comparisons["section"], comparisons["skipped_versions"], strict=True
+        )
+        for v in value.split(";")
+        if v
+    }
     involved = set()
     for row in comparisons.itertuples():
         involved |= {(row.section, row.from_season), (row.section, row.to_season)}
@@ -1560,7 +1602,11 @@ def test_every_unparsed_version_is_listed_as_skipped(comparisons, documents):
             continue
         for r in ordered_series(documents, season, section):
             if r["status"] != "ok":
-                assert f"{season}:{r['version_key']}" in listed, (season, section, r["version_key"])
+                assert (section, f"{season}:{r['version_key']}") in listed, (
+                    season,
+                    section,
+                    r["version_key"],
+                )
                 checked += 1
     # 2026-11-13 사람 검수 뒤로는 파싱되지 않은 판이 없어 셀 판이 없을 수 있다.
     assert checked == len(listed)
@@ -1614,7 +1660,7 @@ def check_quote_sources(facts, articles, section=None):
 def test_pu_allocation_rules(articles, documents):
     pu = pd.read_csv(OUT / "pu_allocation_rules.csv", dtype={"clause_no": str, "version_key": str})
     assert list(pu.columns) == reg.PU_COLUMNS
-    assert set(pu["season"]) <= set(range(2020, 2026))
+    assert set(pu["season"]) <= set(range(2019, 2026))
     assert set(pu["element"]) <= {"ICE", "TC", "MGU-H", "MGU-K", "ES", "CE", "EX"}
     assert not pu.duplicated(["season", "element"]).any()
     assert pu["allowed"].between(1, 10).all()
@@ -1634,15 +1680,15 @@ def test_pu_allocation_rules(articles, documents):
             & (articles["clause_no"] == row.clause_no)
         ]
         assert len(found) == 1 and found["page"].iloc[0] <= row.page <= found["page"].iloc[0] + 2
-    # 확인된 값(docs/methodology.md): 2020-2022 시즌 ICE 3기, 2023-2025 시즌 4기
+    # 확인된 값(docs/methodology.md): 2019-2022 시즌 ICE 3기, 2023-2025 시즌 4기
     ice = pu[pu["element"] == "ICE"].set_index("season")["allowed"].to_dict()
-    for season, value in {2020: 3, 2021: 3, 2022: 3, 2023: 4, 2024: 4, 2025: 4}.items():
+    for season, value in {2019: 3, 2020: 3, 2021: 3, 2022: 3, 2023: 4, 2024: 4, 2025: 4}.items():
         if season in ice:
             assert ice[season] == value
 
 
 def test_pu_allocation_covers_every_season(documents):
-    """2020-2025 모든 시즌에 ICE 행이 있다. 예외는 그 시즌의 스포팅 규정에 ok 판이 하나도 없고
+    """2019-2025 모든 시즌에 ICE 행이 있다. 예외는 그 시즌의 스포팅 규정에 ok 판이 하나도 없고
     마지막 판이 needs_review로 실패 목록에 있는 시즌뿐이다."""
     pu = pd.read_csv(OUT / "pu_allocation_rules.csv")
     failed = failure_urls()
@@ -1655,8 +1701,9 @@ def test_pu_allocation_covers_every_season(documents):
 
 
 def test_fuel_rules(articles, documents):
-    """110kg(경주 연료 질량)는 2019-2021년 스포팅 규정에 있고, 2022-2025년 판에는 없다(아래
-    캐시 테스트가 원문 조항 글로 확인한다). 최대 연료 유량은 시즌마다 기술 규정에서 읽는다."""
+    """경주 연료 질량 상한은 2014-2016년 100kg, 2017-2018년 105kg, 2019-2021년 110kg이고 스포팅
+    규정에 있다. 2022-2025년 판에는 없다(아래 캐시 테스트가 원문 조항 글로 확인한다). 최대 연료
+    유량은 시즌마다 기술 규정에서 읽는다."""
     fuel = pd.read_csv(OUT / "fuel_rules.csv", dtype={"clause_no": str, "version_key": str})
     assert list(fuel.columns) == reg.FUEL_COLUMNS
     assert set(fuel["season"]) <= set(reg.FUEL_SEASONS)
@@ -1668,8 +1715,21 @@ def test_fuel_rules(articles, documents):
     flow = fuel[fuel["rule"] == "max_fuel_mass_flow"]
     assert (flow["value"] == "100 kg/h").all()
     race = fuel[fuel["rule"] == "race_fuel_mass"]
-    assert (race["value"] == "110 kg").all() and race["quote"].str.contains("110").all()
-    assert set(race["season"]) <= {2019, 2020, 2021}
+    expected = {
+        2014: 100,
+        2015: 100,
+        2016: 100,
+        2017: 105,
+        2018: 105,
+        2019: 110,
+        2020: 110,
+        2021: 110,
+    }
+    assert dict(zip(race["season"], race["value"], strict=True)) == {
+        k: f"{v} kg" for k, v in expected.items()
+    }
+    for row in race.itertuples():
+        assert row.value.split()[0] in row.quote
     for season in reg.FUEL_SEASONS:
         if any(r["status"] == "ok" for r in ordered_series(documents, season, "technical")):
             assert season in set(flow["season"]), season
